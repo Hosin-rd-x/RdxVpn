@@ -35,7 +35,7 @@ import dev.cluvex.zedsecure.ui.components.MorphingBlob
 import dev.cluvex.zedsecure.ui.theme.ZedGradients
 
 private const val TELEGRAM_URL = "https://t.me/CluvexStudio"
-private const val GITHUB_URL = "https://github.com/CluvexStudio"
+private const val GITHUB_URL = "https://github.com/Hosin-rd-x/RdxVpn"
 
 private const val XRAY_SOURCE_URL = "https://github.com/CluvexStudio/Xray-core"
 private const val LIB_SOURCE_URL = "https://github.com/CluvexStudio/AndroidLibXrayLite"
@@ -90,7 +90,7 @@ fun AboutSheet(onDismiss: () -> Unit) {
             LinkRow(
                 iconRes = Res.drawable.ic_description,
                 title = stringResource(Res.string.about_github),
-                subtitle = "github.com/CluvexStudio",
+                subtitle = "github.com/Hosin-rd-x/RdxVpn",
                 onClick = { platform.openUri(GITHUB_URL) },
             )
 

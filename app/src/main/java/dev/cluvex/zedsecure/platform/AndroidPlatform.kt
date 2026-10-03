@@ -158,7 +158,7 @@ class AndroidPlatform(
 
     override fun copyToClipboard(text: String) {
         val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-        cm.setPrimaryClip(ClipData.newPlainText("ZedSecure", text))
+        cm.setPrimaryClip(ClipData.newPlainText("Rdx VPN", text))
     }
 
     override fun readClipboard(): String? {

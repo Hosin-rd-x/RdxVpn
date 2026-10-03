@@ -228,9 +228,9 @@
     <string name="zsx_wrong_password">رمز نادرست است</string>
     <string name="zsx_imported">کانفیگ قفل‌شده وارد شد</string>
     <string name="zsx_invalid">فایل ‎.zsx‎ معتبر نیست</string>
-    <string name="zsx_legacy">این کانفیگ قفل‌شده با نسخهٔ قدیمی‌تر ZedSecure ساخته شده است. از فرستنده بخواهید نسخهٔ تازه‌ای بفرستد.</string>
+    <string name="zsx_legacy">این کانفیگ قفل‌شده با نسخهٔ قدیمی‌تر Rdx VPN ساخته شده است. از فرستنده بخواهید نسخهٔ تازه‌ای بفرستد.</string>
 
-    <string name="cd_app_logo">نشان زدسکیور</string>
+    <string name="cd_app_logo">نشان Rdx VPN</string>
     <string name="cd_connection_status">وضعیت اتصال</string>
     <string name="cd_settings">باز کردن تنظیمات</string>
 
@@ -653,7 +653,7 @@
     <string name="snispoof_no_ack">سرور لبه بستهٔ جعلی را تأیید نکرد و همهٔ اتصال‌ها ریست شدند. این شبکه یا این IP تمیز اجازهٔ این روش را نمی‌دهد — یک IP تمیز دیگر را امتحان کن.</string>
     <string name="qr_scan_hint">دوربین را روی کد QR بگیرید</string>
     <string name="qr_scan_chunk_progress">بخش %1$d از %2$d — برای بقیه ثابت نگه دارید</string>
-    <string name="tile_label">زدسکیور</string>
+    <string name="tile_label">Rdx VPN</string>
     <string name="switch_server_timeout">تعویض سرور انجام نشد — اتصال قبلی قطع نشد.</string>
     <string name="engine_failed_with_reason">%1$s: %2$s</string>
     <string name="engine_failed_ssh">اتصال SSH ناموفق بود</string>
@@ -669,8 +669,8 @@
     <string name="engine_invalid_config_dnstunnel">پیکربندی تونل DNS نامعتبر است</string>
     <string name="engine_invalid_config_masterdns">پیکربندی MasterDNS نامعتبر است</string>
     <string name="engine_invalid_config_openconnect">پیکربندی OpenConnect نامعتبر است</string>
-    <string name="deeplink_open_label">وارد کردن در ZedSecure</string>
-    <string name="engine_ikev2_needs_app">پروفایل IKEv2 را VPN همیشه‌روشن نمی‌تواند راه بیندازد. برای اتصال، ZedSecure را باز کنید.</string>
+    <string name="deeplink_open_label">وارد کردن در Rdx VPN</string>
+    <string name="engine_ikev2_needs_app">پروفایل IKEv2 را VPN همیشه‌روشن نمی‌تواند راه بیندازد. برای اتصال، Rdx VPN را باز کنید.</string>
     <string name="auto_notif_remark">خودکار · %1$s</string>
     <string name="auto_no_members">هیچ سروری در این گروه برای حالت خودکار قابل استفاده نیست</string>
     <string name="auto_group_all_short">همهٔ سرورها</string>

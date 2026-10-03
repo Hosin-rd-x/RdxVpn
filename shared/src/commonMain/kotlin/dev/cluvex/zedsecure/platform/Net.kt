@@ -3,7 +3,7 @@ package dev.cluvex.zedsecure.platform
 internal expect suspend fun httpGetViaSocks(
     url: String,
     socksPort: Int?,
-    userAgent: String = "ZedSecure",
+    userAgent: String = "RdxVpn",
     connectTimeoutMs: Int = 8_000,
     readTimeoutMs: Int = 8_000,
     closeConnection: Boolean = false,

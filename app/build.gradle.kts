@@ -24,7 +24,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.zedsecure.vpn"
+        applicationId = "com.rdx.vpn"
         minSdk = 24
         targetSdk = 36
         versionCode = (project.property("zedsecure.versionCode") as String).toInt()

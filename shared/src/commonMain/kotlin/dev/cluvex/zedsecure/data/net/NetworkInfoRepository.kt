@@ -166,7 +166,7 @@ class NetworkInfoRepository(
         private suspend fun tunnelGet(url: String): String = httpGetViaSocks(
             url,
             socksPort = VpnManager.activeSocksPort,
-            userAgent = "ZedSecure",
+            userAgent = "RdxVpn",
             connectTimeoutMs = GEO_TIMEOUT_MS,
             readTimeoutMs = GEO_TIMEOUT_MS,
             closeConnection = true,

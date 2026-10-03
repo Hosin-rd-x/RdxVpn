@@ -1433,7 +1433,7 @@ class ConfigRepository(private val store: KeyValueStore) {
 
         val DEFAULT_UA = "v2rayNG/${AppInfo.versionName}"
 
-        val ALT_UA = "ZedSecure/${AppInfo.versionName}"
+        val ALT_UA = "RdxVpn/${AppInfo.versionName}"
 
         const val SING_BOX_UA = "SFA/1.14.0"
 

@@ -7,7 +7,7 @@ object AppInfo {
     @Volatile
     var versionName: String = "3.0.9"
 
-    val userAgent: String get() = "ZedSecure/$versionName"
+    val userAgent: String get() = "RdxVpn/$versionName"
 }
 
 object DeviceIdentity {

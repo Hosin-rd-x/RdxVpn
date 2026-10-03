@@ -9,7 +9,7 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 
 object PlayStore {
-    const val PACKAGE = "com.zedsecure.vpn"
+    const val PACKAGE = "com.rdx.vpn"
 
     const val MARKET_URL = "market://details?id=$PACKAGE"
     const val WEB_URL = "https://play.google.com/store/apps/details?id=$PACKAGE"
@@ -22,7 +22,7 @@ object PlayStore {
 enum class Distribution { PlayStore, GitHub }
 
 object GitHubReleases {
-    const val REPO = "CluvexStudio/ZedSecure"
+    const val REPO = "Hosin-rd-x/RdxVpn"
 
     const val PROJECT_URL = "https://github.com/$REPO"
 
@@ -90,7 +90,7 @@ object UpdateChecker {
             name to url
         }.toMap()
         val apk = if (abis.isEmpty()) null else {
-            (abis.map { "ZedSecure-$version-$it.apk" } + "ZedSecure-$version-universal.apk")
+            (abis.map { "RdxVpn-$version-$it.apk" } + "RdxVpn-$version-universal.apk")
                 .firstNotNullOfOrNull { assets[it] }
         }
         return UpdateInfo(

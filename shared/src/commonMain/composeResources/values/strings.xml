@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">ZedSecure</string>
+    <string name="app_name">Rdx VPN</string>
     <string name="brand_tagline">Private. Fast. Yours.</string>
 
     <string name="nav_home">Home</string>
@@ -126,7 +126,7 @@
 
     <string name="vault_title">Vault</string>
     <string name="vault_intro_title">Locked configs</string>
-    <string name="vault_intro_body">Share a server as a .zsx file. The app connects without showing the config, but ZedSecure is open source, so this keeps it out of sight rather than secret. A password decides who can import it.</string>
+    <string name="vault_intro_body">Share a server as a .zsx file. The app connects without showing the config, but Rdx VPN is open source, so this keeps it out of sight rather than secret. A password decides who can import it.</string>
     <string name="vault_create">Create locked config</string>
     <string name="vault_import">Import .zsx file</string>
     <string name="vault_empty_title">Your vault is empty</string>
@@ -265,9 +265,9 @@
     <string name="zsx_wrong_password">Incorrect password</string>
     <string name="zsx_imported">Locked config imported</string>
     <string name="zsx_invalid">Not a valid .zsx file</string>
-    <string name="zsx_legacy">This locked config was made by an older version of ZedSecure. Ask whoever shared it for a new copy.</string>
+    <string name="zsx_legacy">This locked config was made by an older version of Rdx VPN. Ask whoever shared it for a new copy.</string>
 
-    <string name="cd_app_logo">ZedSecure logo</string>
+    <string name="cd_app_logo">Rdx VPN logo</string>
     <string name="cd_connection_status">Connection status</string>
     <string name="cd_settings">Open settings</string>
 
@@ -879,9 +879,9 @@
     <string name="update_checking">Checking…</string>
     <string name="update_up_to_date">You're on the latest version</string>
     <string name="update_check_failed">Couldn't check for updates</string>
-    <string name="rate_title">Rate ZedSecure</string>
+    <string name="rate_title">Rate Rdx VPN</string>
     <string name="rate_summary">Leave a rating and review on Google Play</string>
-    <string name="rate_prompt_title">Enjoying ZedSecure?</string>
+    <string name="rate_prompt_title">Enjoying Rdx VPN?</string>
     <string name="rate_prompt_body">A rating on Google Play helps other people find the app. It only takes a moment.</string>
     <string name="rate_action_rate">Rate</string>
     <string name="rate_action_later">Not now</string>
@@ -892,7 +892,7 @@
     <string name="personalize_upload_tile_sub">Colours the rectangle behind them</string>
     <string name="subs_ua_preset">User-Agent</string>
     <string name="subs_ua_v2rayng">v2rayNG (recommended)</string>
-    <string name="subs_ua_zedsecure">ZedSecure</string>
+    <string name="subs_ua_zedsecure">Rdx VPN</string>
     <string name="subs_ua_custom">Custom</string>
     <string name="subs_ua_hint">Many providers only send their JSON custom configs to the v2rayNG User-Agent, and send plain links to anything else.</string>
     <string name="subs_edit">Edit subscription</string>
@@ -950,8 +950,8 @@
     <string name="add_group_subscription">Subscription</string>
 
     <string name="battery_opt_title">Battery optimisation</string>
-    <string name="battery_opt_on">Battery optimisation is on for ZedSecure and can drop the tunnel in the background. Tap to open the system list and choose Don’t optimise.</string>
-    <string name="battery_opt_off">ZedSecure is exempt. The tunnel will not be paused to save battery.</string>
+    <string name="battery_opt_on">Battery optimisation is on for Rdx VPN and can drop the tunnel in the background. Tap to open the system list and choose Don’t optimise.</string>
+    <string name="battery_opt_off">Rdx VPN is exempt. The tunnel will not be paused to save battery.</string>
     <string name="chain_search">Search servers</string>
     <string name="chain_search_clear">Clear search</string>
     <string name="chain_group_xray">Xray servers</string>
@@ -1025,7 +1025,7 @@
     <string name="privacy_subtitle">A short, accurate summary — the full document is online</string>
     <string name="privacy_headline">No account. No backend of ours. No analytics.</string>
     <string name="privacy_client_title">A client, not a VPN service</string>
-    <string name="privacy_client_body">ZedSecure connects to servers, subscriptions and networks that you add. We operate none of them, and your traffic never reaches us.</string>
+    <string name="privacy_client_body">Rdx VPN connects to servers, subscriptions and networks that you add. We operate none of them, and your traffic never reaches us.</string>
     <string name="privacy_device_title">Stays on your device</string>
     <string name="privacy_device_body">Configurations, credentials, settings, statistics and logs live in the app's private storage and are removed when you uninstall. Vault configurations are encrypted with AES-256-GCM.</string>
     <string name="privacy_nocollect_title">Not collected</string>
@@ -1136,7 +1136,7 @@
     <string name="title_pref_lan_port">LAN sharing port</string>
     <string name="title_pref_lan_username">LAN sharing username</string>
     <string name="title_pref_lan_password">LAN sharing password</string>
-    <string name="toast_lan_port_invalid">Use a port from 1024 to 65534 that ZedSecure does not use itself</string>
+    <string name="toast_lan_port_invalid">Use a port from 1024 to 65534 that Rdx VPN does not use itself</string>
     <string name="toast_lan_credential_required">LAN sharing needs both a username and a password</string>
     <string name="dns_prevent_fallback_always">Always on. Every resolver a DNS-based tunnel uses is routed into the tunnel, so a query can never fall back to your normal network.</string>
     <string name="settings_sub_interval_hour">Every hour</string>
@@ -1190,7 +1190,7 @@
     <string name="auto_members">Servers</string>
     <string name="auto_history">Recent switches</string>
     <string name="auto_how_title">How Auto works</string>
-    <string name="auto_how_body">The fastest server in the group carries new connections. If it stops answering, the connections that hit it continue on the next server within a second or two, and Auto stays there until a clearly faster server turns up — so your address does not keep changing. Auto uses ZedSecure’s own routing and DNS settings, also for custom configs.</string>
+    <string name="auto_how_body">The fastest server in the group carries new connections. If it stops answering, the connections that hit it continue on the next server within a second or two, and Auto stays there until a clearly faster server turns up — so your address does not keep changing. Auto uses Rdx VPN’s own routing and DNS settings, also for custom configs.</string>
     <string name="auto_ago_now">just now</string>
     <string name="auto_ago_minutes">%1$s min ago</string>
     <string name="auto_ago_hours">%1$s h ago</string>
@@ -1238,7 +1238,7 @@
     <string name="onb_next">Next</string>
     <string name="onb_back">Back</string>
     <string name="onb_theme_title">Light or dark?</string>
-    <string name="onb_theme_body">Pick how ZedSecure should look. You can change it any time in Settings.</string>
+    <string name="onb_theme_body">Pick how Rdx VPN should look. You can change it any time in Settings.</string>
     <string name="onb_preset_title">Choose a look</string>
     <string name="onb_preset_body">A ready-made colour set. Every colour stays editable afterwards.</string>
     <string name="onb_preset_stock">Stock</string>
@@ -1381,6 +1381,6 @@
     <string name="rendering_sub_auto_nvidia">Automatic: software rendering, because NVIDIA drivers before 555 garble windows drawn by the graphics card under Wayland. Changes apply after a restart.</string>
     <string name="rendering_sub_manual">Changes apply after a restart. Choose Software if the window flickers, shows static or has no text. You can also start the app with --software-rendering or --gpu-rendering.</string>
     <string name="update_check_summary_github">Look for a newer version on GitHub</string>
-    <string name="rate_title_github">ZedSecure on GitHub</string>
+    <string name="rate_title_github">Rdx VPN on GitHub</string>
     <string name="rate_summary_github">Open the project page to star it, report a problem or read the code</string>
 </resources>

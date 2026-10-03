@@ -27,7 +27,7 @@ class SubscriptionUserAgentTest {
     @Test
     fun `default and alternate identities are distinct and the alternate is ours`() {
         assertNotEquals(ConfigRepository.DEFAULT_UA, ConfigRepository.ALT_UA)
-        assertTrue(ConfigRepository.ALT_UA.startsWith("ZedSecure/"))
+        assertTrue(ConfigRepository.ALT_UA.startsWith("RdxVpn/"))
     }
 
     @Test

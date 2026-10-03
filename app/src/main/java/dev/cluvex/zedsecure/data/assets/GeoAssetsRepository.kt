@@ -115,7 +115,7 @@ class GeoAssetsRepository(private val context: Context) : GeoAssets {
             connectTimeout = 15_000
             readTimeout = 60_000
             instanceFollowRedirects = true
-            setRequestProperty("User-Agent", "ZedSecure")
+            setRequestProperty("User-Agent", "RdxVpn")
         }
         try {
             if (connection.responseCode !in 200..299) {

@@ -204,7 +204,7 @@ class SingBoxEngine(
     private fun openTunInterface(options: TunOptions): Int {
         if (VpnService.prepare(service) != null) throw IOException("the VPN permission was revoked")
         val builder = service.Builder()
-            .setSession(session.ifBlank { "ZedSecure" })
+            .setSession(session.ifBlank { "Rdx VPN" })
             .setMtu(options.mtu)
 
         options.inet4Address.forEach { builder.addAddress(it.address(), it.prefix()) }

@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">ZedSecure</string>
+    <string name="app_name">Rdx VPN</string>
     <string name="brand_tagline">Приватно. Быстро. Ваше.</string>
 
     <string name="nav_home">Главная</string>
@@ -127,7 +127,7 @@
 
     <string name="vault_title">Хранилище</string>
     <string name="vault_intro_title">Закрытые конфигурации</string>
-    <string name="vault_intro_body">Поделитесь сервером в виде файла .zsx. Приложение подключается, не показывая конфигурацию, но у ZedSecure открытый исходный код, поэтому это лишь скрывает её от глаз, а не делает секретной. Пароль определяет, кто сможет её импортировать.</string>
+    <string name="vault_intro_body">Поделитесь сервером в виде файла .zsx. Приложение подключается, не показывая конфигурацию, но у Rdx VPN открытый исходный код, поэтому это лишь скрывает её от глаз, а не делает секретной. Пароль определяет, кто сможет её импортировать.</string>
     <string name="vault_create">Создать закрытую конфигурацию</string>
     <string name="vault_import">Импорт файла .zsx</string>
     <string name="vault_empty_title">Хранилище пусто</string>
@@ -266,9 +266,9 @@
     <string name="zsx_wrong_password">Неверный пароль</string>
     <string name="zsx_imported">Закрытая конфигурация импортирована</string>
     <string name="zsx_invalid">Недопустимый файл .zsx</string>
-    <string name="zsx_legacy">Эта закрытая конфигурация создана в старой версии ZedSecure. Попросите отправителя прислать новую копию.</string>
+    <string name="zsx_legacy">Эта закрытая конфигурация создана в старой версии Rdx VPN. Попросите отправителя прислать новую копию.</string>
 
-    <string name="cd_app_logo">Логотип ZedSecure</string>
+    <string name="cd_app_logo">Логотип Rdx VPN</string>
     <string name="cd_connection_status">Статус подключения</string>
     <string name="cd_settings">Открыть настройки</string>
 
@@ -880,9 +880,9 @@
     <string name="update_checking">Проверка…</string>
     <string name="update_up_to_date">У вас последняя версия</string>
     <string name="update_check_failed">Не удалось проверить обновления</string>
-    <string name="rate_title">Оценить ZedSecure</string>
+    <string name="rate_title">Оценить Rdx VPN</string>
     <string name="rate_summary">Поставить оценку и отзыв в Google Play</string>
-    <string name="rate_prompt_title">Нравится ZedSecure?</string>
+    <string name="rate_prompt_title">Нравится Rdx VPN?</string>
     <string name="rate_prompt_body">Оценка в Google Play поможет другим найти приложение. Это займёт минуту.</string>
     <string name="rate_action_rate">Оценить</string>
     <string name="rate_action_later">Не сейчас</string>
@@ -893,7 +893,7 @@
     <string name="personalize_upload_tile_sub">Цвет прямоугольника за ними</string>
     <string name="subs_ua_preset">User-Agent</string>
     <string name="subs_ua_v2rayng">v2rayNG (рекомендуется)</string>
-    <string name="subs_ua_zedsecure">ZedSecure</string>
+    <string name="subs_ua_zedsecure">Rdx VPN</string>
     <string name="subs_ua_custom">Свой</string>
     <string name="subs_ua_hint">Многие провайдеры отдают свои JSON-конфигурации только User-Agent v2rayNG, а всем остальным — обычные ссылки.</string>
     <string name="subs_edit">Изменить подписку</string>
@@ -951,8 +951,8 @@
     <string name="add_group_subscription">Подписка</string>
 
     <string name="battery_opt_title">Оптимизация батареи</string>
-    <string name="battery_opt_on">Оптимизация батареи включена для ZedSecure и может разрывать туннель в фоне. Нажмите, чтобы открыть системный список и выбрать «Не оптимизировать».</string>
-    <string name="battery_opt_off">ZedSecure исключён. Туннель не будет приостанавливаться ради экономии батареи.</string>
+    <string name="battery_opt_on">Оптимизация батареи включена для Rdx VPN и может разрывать туннель в фоне. Нажмите, чтобы открыть системный список и выбрать «Не оптимизировать».</string>
+    <string name="battery_opt_off">Rdx VPN исключён. Туннель не будет приостанавливаться ради экономии батареи.</string>
     <string name="chain_search">Поиск серверов</string>
     <string name="chain_search_clear">Очистить поиск</string>
     <string name="chain_group_xray">Серверы Xray</string>
@@ -1026,7 +1026,7 @@
     <string name="privacy_subtitle">Краткая и точная сводка — полный текст доступен онлайн</string>
     <string name="privacy_headline">Без аккаунта. Без нашего сервера. Без аналитики.</string>
     <string name="privacy_client_title">Клиент, а не VPN-сервис</string>
-    <string name="privacy_client_body">ZedSecure подключается к серверам, подпискам и сетям, которые добавляете вы. Мы не управляем ни одним из них, и ваш трафик к нам не попадает.</string>
+    <string name="privacy_client_body">Rdx VPN подключается к серверам, подпискам и сетям, которые добавляете вы. Мы не управляем ни одним из них, и ваш трафик к нам не попадает.</string>
     <string name="privacy_device_title">Остаётся на вашем устройстве</string>
     <string name="privacy_device_body">Конфигурации, учётные данные, настройки, статистика и логи хранятся в приватном хранилище приложения и удаляются при удалении приложения. Конфигурации хранилища зашифрованы AES-256-GCM.</string>
     <string name="privacy_nocollect_title">Не собирается</string>
@@ -1137,7 +1137,7 @@
     <string name="title_pref_lan_port">Порт для локальной сети</string>
     <string name="title_pref_lan_username">Логин для локальной сети</string>
     <string name="title_pref_lan_password">Пароль для локальной сети</string>
-    <string name="toast_lan_port_invalid">Укажите порт от 1024 до 65534, который не занят самим ZedSecure</string>
+    <string name="toast_lan_port_invalid">Укажите порт от 1024 до 65534, который не занят самим Rdx VPN</string>
     <string name="toast_lan_credential_required">Для доступа из локальной сети нужны и логин, и пароль</string>
     <string name="dns_prevent_fallback_always">Всегда включено. Каждый резолвер DNS-туннеля идёт через туннель, поэтому запрос никогда не уйдёт в обычную сеть.</string>
     <string name="settings_sub_interval_hour">Каждый час</string>
@@ -1191,7 +1191,7 @@
     <string name="auto_members">Серверы</string>
     <string name="auto_history">Последние переключения</string>
     <string name="auto_how_title">Как работает «Авто»</string>
-    <string name="auto_how_body">Новые соединения идут через самый быстрый сервер группы. Если он перестаёт отвечать, затронутые соединения за секунду-две продолжаются на следующем сервере, и «Авто» остаётся на нём, пока не найдётся заметно более быстрый — поэтому ваш адрес не меняется постоянно. «Авто» использует собственные настройки маршрутизации и DNS ZedSecure, в том числе для пользовательских конфигов.</string>
+    <string name="auto_how_body">Новые соединения идут через самый быстрый сервер группы. Если он перестаёт отвечать, затронутые соединения за секунду-две продолжаются на следующем сервере, и «Авто» остаётся на нём, пока не найдётся заметно более быстрый — поэтому ваш адрес не меняется постоянно. «Авто» использует собственные настройки маршрутизации и DNS Rdx VPN, в том числе для пользовательских конфигов.</string>
     <string name="auto_ago_now">только что</string>
     <string name="auto_ago_minutes">%1$s мин назад</string>
     <string name="auto_ago_hours">%1$s ч назад</string>
@@ -1239,7 +1239,7 @@
     <string name="onb_next">Далее</string>
     <string name="onb_back">Назад</string>
     <string name="onb_theme_title">Светлая или тёмная?</string>
-    <string name="onb_theme_body">Выберите внешний вид ZedSecure. Изменить можно в любой момент в настройках.</string>
+    <string name="onb_theme_body">Выберите внешний вид Rdx VPN. Изменить можно в любой момент в настройках.</string>
     <string name="onb_preset_title">Выберите оформление</string>
     <string name="onb_preset_body">Готовый набор цветов. Каждый из них потом можно поменять.</string>
     <string name="onb_preset_stock">Стандартное</string>
@@ -1382,6 +1382,6 @@
     <string name="rendering_sub_auto_nvidia">Автоматически: программная отрисовка, потому что драйверы NVIDIA до 555 под Wayland искажают окна, которые рисует видеокарта. Изменения вступят в силу после перезапуска.</string>
     <string name="rendering_sub_manual">Изменения вступят в силу после перезапуска. Выберите «Программная», если окно мерцает, рябит или в нём нет текста. Приложение также можно запустить с --software-rendering или --gpu-rendering.</string>
     <string name="update_check_summary_github">Искать новую версию на GitHub</string>
-    <string name="rate_title_github">ZedSecure на GitHub</string>
+    <string name="rate_title_github">Rdx VPN на GitHub</string>
     <string name="rate_summary_github">Открыть страницу проекта: поставить звезду, сообщить о проблеме или посмотреть код</string>
 </resources>

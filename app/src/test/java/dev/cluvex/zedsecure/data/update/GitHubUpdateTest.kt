@@ -12,10 +12,10 @@ class GitHubUpdateTest {
           "html_url": "https://github.com/CluvexStudio/ZedSecure/releases/tag/v3.1.3",
           "body": "<div align=\"center\">badge</div>\n\n**Download for your system:**\n\n<table></table>\n\n### What's new\n\nFixes from member reports.\n\n- **Installs again:** the [GitHub](https://github.com) APK explains the `Play` signature\n- Windows shows text\n\n<sub>Checksums: [SHA256SUMS.txt](https://x)</sub>\n",
           "assets": [
-            { "name": "ZedSecure-3.1.3-arm64-v8a.apk", "browser_download_url": "https://dl/arm64.apk" },
-            { "name": "ZedSecure-3.1.3-armeabi-v7a.apk", "browser_download_url": "https://dl/v7.apk" },
-            { "name": "ZedSecure-3.1.3-universal.apk", "browser_download_url": "https://dl/universal.apk" },
-            { "name": "ZedSecure-3.1.3-x86_64.msi", "browser_download_url": "https://dl/setup.msi" }
+            { "name": "RdxVpn-3.1.3-arm64-v8a.apk", "browser_download_url": "https://dl/arm64.apk" },
+            { "name": "RdxVpn-3.1.3-armeabi-v7a.apk", "browser_download_url": "https://dl/v7.apk" },
+            { "name": "RdxVpn-3.1.3-universal.apk", "browser_download_url": "https://dl/universal.apk" },
+            { "name": "RdxVpn-3.1.3-x86_64.msi", "browser_download_url": "https://dl/setup.msi" }
           ]
         }
     """.trimIndent()
