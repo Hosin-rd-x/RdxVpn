@@ -135,7 +135,7 @@ jobs:
           PLAY_KEY_PASSWORD: ${{ secrets.PLAY_KEY_PASSWORD }}
         run: |
           umask 077
-          if [ "$USE_PLAY" = "true" ]; then
+          if [ -n "$PLAY_KEYSTORE_BASE64" ] && [ "$USE_PLAY" = "true" ]; then
             printf '%s' "$PLAY_KEYSTORE_BASE64" | base64 -d > release.keystore
             STORE_PW="$PLAY_KEYSTORE_PASSWORD"; KEY_PW="$PLAY_KEY_PASSWORD"; ALIAS="$PLAY_KEY_ALIAS"
           else
