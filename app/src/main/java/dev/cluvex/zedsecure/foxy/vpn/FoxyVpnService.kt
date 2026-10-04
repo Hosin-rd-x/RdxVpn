@@ -15,7 +15,7 @@ import android.os.Build
 import android.os.ParcelFileDescriptor
 import android.os.PowerManager
 import androidx.core.app.NotificationCompat
-import dev.cluvex.zedsecure.foxy.MainActivity
+import dev.cluvex.zedsecure.MainActivity
 import dev.cluvex.zedsecure.foxy.FoxyRuntime
 import dev.cluvex.zedsecure.foxy.data.AppLogger
 import dev.cluvex.zedsecure.foxy.data.ControlPlaneHttp

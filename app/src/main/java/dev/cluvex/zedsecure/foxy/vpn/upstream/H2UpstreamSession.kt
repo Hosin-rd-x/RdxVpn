@@ -1,7 +1,7 @@
 package dev.cluvex.zedsecure.foxy.vpn.upstream
 
 import android.os.Build
-import dev.cluvex.zedsecure.foxy.BuildConfig
+import dev.cluvex.zedsecure.BuildConfig
 import dev.cluvex.zedsecure.foxy.data.AppLogger
 import io.netty.bootstrap.Bootstrap
 import io.netty.channel.Channel

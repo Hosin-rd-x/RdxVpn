@@ -210,6 +210,7 @@ dependencies {
 
     // Firefox tunnel (ported FoxyVPN control plane / H2 upstream stack)
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    implementation("androidx.security:security-crypto:1.1.0-alpha06")
     implementation("io.netty:netty-handler:4.1.115.Final")
     implementation("io.netty:netty-codec-http2:4.1.115.Final")
     implementation("io.netty:netty-transport:4.1.115.Final")

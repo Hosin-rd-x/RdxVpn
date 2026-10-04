@@ -1,6 +1,7 @@
 package dev.cluvex.zedsecure.foxy.data
 
 import android.util.Base64
+import dev.cluvex.zedsecure.foxy.FoxyConfig
 import dev.cluvex.zedsecure.foxy.data.model.RuntimeAuth
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
