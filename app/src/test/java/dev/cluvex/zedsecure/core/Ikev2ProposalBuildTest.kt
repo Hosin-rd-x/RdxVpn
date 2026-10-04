@@ -10,9 +10,13 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import org.robolectric.annotation.ConscryptMode
 
+// The APK ships conscrypt-android; its natives are Android-only, so Robolectric
+// must not try to install that security provider on the host JVM.
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
+@ConscryptMode(ConscryptMode.Mode.OFF)
 class Ikev2ProposalBuildTest {
     @Test
     fun `the default IKE proposal is accepted by the platform`() {
