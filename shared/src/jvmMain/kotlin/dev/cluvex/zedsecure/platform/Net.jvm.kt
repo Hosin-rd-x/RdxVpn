@@ -11,7 +11,7 @@ import java.net.Proxy
 import java.net.Socket
 import java.net.URL
 import javax.net.ssl.SSLSocket
-import javax.net.ssl.SSLSocketFactory
+import javax.net.ssl.SSLContext
 
 internal actual suspend fun httpGetViaSocks(
     url: String,
@@ -145,7 +145,7 @@ internal actual suspend fun tlsHandshakeMillis(host: String, port: Int, timeoutM
             val base = Socket()
             plain = base
             base.connect(InetSocketAddress(host, port), timeoutMs)
-            val ssl = SSLSocketFactory.getDefault().createSocket(base, host, port, true) as SSLSocket
+            val ssl = SSLContext.getDefault().socketFactory.createSocket(base, host, port, true) as SSLSocket
             sslClose = ssl
             ssl.soTimeout = timeoutMs
             runCatching {
