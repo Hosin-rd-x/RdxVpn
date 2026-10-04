@@ -73,3 +73,8 @@
 -dontwarn io.netty.handler.ssl.OpenSsl**
 -dontwarn com.google.errorprone.annotations.**
 -dontwarn reactor.blockhound.**
+-dontwarn okhttp3.**
+-dontwarn okio.**
+-dontwarn org.openjsse.**
+-dontwarn org.slf4j.**
+-dontwarn org.slf4j.spi.**

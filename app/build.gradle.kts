@@ -137,6 +137,11 @@ android {
     packaging {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
+            excludes += "/META-INF/INDEX.LIST"
+            excludes += "/META-INF/*.SF"
+            excludes += "/META-INF/*.DSA"
+            excludes += "/META-INF/*.RSA"
+            pickFirsts += "/META-INF/io.netty.versions.properties"
         }
         jniLibs {
             useLegacyPackaging = true
@@ -202,6 +207,14 @@ dependencies {
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.bouncycastle)
+
+    // Firefox tunnel (ported FoxyVPN control plane / H2 upstream stack)
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    implementation("io.netty:netty-handler:4.1.115.Final")
+    implementation("io.netty:netty-codec-http2:4.1.115.Final")
+    implementation("io.netty:netty-transport:4.1.115.Final")
+    implementation("io.netty:netty-handler-proxy:4.1.115.Final")
+    implementation("org.conscrypt:conscrypt-android:2.5.2")
 
     implementation(files("libs/zedcore.aar"))
 
