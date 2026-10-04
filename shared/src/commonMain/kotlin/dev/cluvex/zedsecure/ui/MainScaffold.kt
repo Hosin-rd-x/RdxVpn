@@ -55,7 +55,6 @@ import dev.cluvex.zedsecure.ui.navigation.TopDestination
 import dev.cluvex.zedsecure.ui.settings.SettingsScreen
 import dev.cluvex.zedsecure.ui.update.NudgeHost
 import dev.cluvex.zedsecure.ui.vault.VaultImportHost
-import dev.cluvex.zedsecure.ui.vault.VaultScreen
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
@@ -116,7 +115,7 @@ fun MainScaffold(
 
     VaultImportHost(
         repository = configRepository,
-        onImported = { current = TopDestination.Vault },
+        onImported = { current = TopDestination.Servers },
     )
 
     dev.cluvex.zedsecure.ui.servers.DeepLinkImportHost(
@@ -226,10 +225,7 @@ fun MainScaffold(
                     contentPadding = innerPadding,
                     onToggleConnection = onToggleConnection,
 
-                    onBrowseConfigs = {
-                        current = if (activeProfile?.isLocked == true) TopDestination.Vault
-                        else TopDestination.Servers
-                    },
+                    onBrowseConfigs = { current = TopDestination.Servers },
                     onSecretUnlocked = { spaceUnlocked = true },
                 )
                 TopDestination.Servers -> ServersScreen(
@@ -249,11 +245,6 @@ fun MainScaffold(
 
                         onActiveServerChanged()
                     },
-                )
-                TopDestination.Vault -> VaultScreen(
-                    repository = configRepository,
-                    contentPadding = innerPadding,
-                    onImportRequested = onImportZsx,
                 )
                 TopDestination.Settings -> SettingsScreen(
                     settings = settings,

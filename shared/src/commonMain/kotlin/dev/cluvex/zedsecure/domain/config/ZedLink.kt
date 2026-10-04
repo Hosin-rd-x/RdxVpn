@@ -64,6 +64,7 @@ object ZedLink {
         is ProfileSource.Sealed,
 
         is ProfileSource.AutoSelect,
+        is ProfileSource.Foxy,
 
         is ProfileSource.SingBox,
         is ProfileSource.SingBoxConfig,

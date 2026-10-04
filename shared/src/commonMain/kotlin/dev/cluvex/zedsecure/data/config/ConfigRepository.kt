@@ -8,6 +8,7 @@ import dev.cluvex.zedsecure.platform.currentTimeMillis
 import dev.cluvex.zedsecure.platform.HttpTextResponse
 import dev.cluvex.zedsecure.platform.httpGetResponse
 import dev.cluvex.zedsecure.platform.newId
+import dev.cluvex.zedsecure.core.FoxyRelay
 import dev.cluvex.zedsecure.crypto.ZsxCrypto
 import dev.cluvex.zedsecure.crypto.ZsxExpiredException
 import dev.cluvex.zedsecure.crypto.ZsxMetadata
@@ -863,6 +864,40 @@ class ConfigRepository(private val store: KeyValueStore) {
         return profile
     }
 
+    /**
+     * Inserts Mozilla relays fetched for the Firefox tunnel as regular server
+     * entries (source [ProfileSource.Foxy]) so they show up in the list and take
+     * part in pings like any other server. Relays already present are skipped, so
+     * repeated imports only add what is new. Returns how many were added.
+     */
+    fun addFoxy(relays: List<FoxyRelay>): Int {
+        if (relays.isEmpty()) return 0
+        val current = _profiles.value
+        val known = current.mapNotNull { (it.source as? ProfileSource.Foxy)?.hostname }.toSet()
+        val fresh = relays.filter { it.hostname.isNotBlank() && it.hostname !in known }
+        if (fresh.isEmpty()) return 0
+        val built = fresh.map { relay ->
+            VpnProfile(
+                id = newId(),
+                name = relay.cityName.ifBlank { relay.hostname },
+                protocol = "Firefox",
+                address = relay.host,
+                port = relay.port,
+                transportLabel = relay.countryName.ifBlank { "Firefox" },
+                source = ProfileSource.Foxy(
+                    hostname = relay.hostname,
+                    countryCode = relay.countryCode.ifBlank { null },
+                ),
+                addedAt = currentTimeMillis(),
+                countryCode = relay.countryCode.ifBlank { null },
+            )
+        }
+        _profiles.value = built + current
+        persistProfiles()
+        if (_activeId.value == null) setActive(built.first().id)
+        return built.size
+    }
+
     fun update(profile: VpnProfile) {
         _profiles.update { list -> list.map { if (it.id == profile.id) profile else it } }
         persistProfiles()
@@ -962,7 +997,7 @@ class ConfigRepository(private val store: KeyValueStore) {
     fun invalidCount(): Int = _profiles.value.count { !keepAsValid(it) }
 
     private fun keepAsValid(profile: VpnProfile): Boolean {
-        if (profile.isLocked || profile.isManagedTunnel || profile.isProxyChain) return true
+        if (profile.isLocked || profile.isManagedTunnel || profile.isProxyChain || profile.isFoxy) return true
 
         if (!profile.isCustom && !profile.isSingBoxConfig &&
             (profile.address.isBlank() || profile.address == "-" || profile.port <= 0)

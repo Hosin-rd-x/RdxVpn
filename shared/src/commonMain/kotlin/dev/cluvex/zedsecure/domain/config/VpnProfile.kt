@@ -72,6 +72,10 @@ sealed interface ProfileSource {
     @Serializable
     @SerialName("sing_box_config")
     data class SingBoxConfig(val json: String) : ProfileSource
+
+    @Serializable
+    @SerialName("foxy")
+    data class Foxy(val hostname: String, val countryCode: String? = null) : ProfileSource
 }
 
 @Serializable
@@ -122,6 +126,7 @@ data class VpnProfile(
     val isSingBox: Boolean get() = source is ProfileSource.SingBox
 
     val isSingBoxConfig: Boolean get() = source is ProfileSource.SingBoxConfig
+    val isFoxy: Boolean get() = source is ProfileSource.Foxy
 
     fun autoSelectSettings(): ProfileSource.AutoSelect? = source as? ProfileSource.AutoSelect
 
@@ -206,6 +211,7 @@ data class VpnProfile(
         is ProfileSource.CrossChain -> null
 
         is ProfileSource.AutoSelect -> null
+        is ProfileSource.Foxy -> null
 
         is ProfileSource.SingBox -> src.link ?: src.json
         is ProfileSource.SingBoxConfig -> src.json
@@ -252,6 +258,8 @@ data class VpnProfile(
             throw IllegalStateException("Cross-chain profiles are built via ConfigRepository.buildCrossChainConfig")
         is ProfileSource.AutoSelect ->
             throw IllegalStateException("Auto-select profiles are built via ConfigRepository.buildAutoSelectConfig")
+        is ProfileSource.Foxy ->
+            throw IllegalStateException("Firefox tunnel profiles do not build Xray config")
         is ProfileSource.SingBox -> XrayJsonBuilder.buildSingBox(
             fragment = src.json,
             carrier = src.carrier,

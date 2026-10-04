@@ -61,3 +61,15 @@
 -keep class com.google.zxing.PlanarYUVLuminanceSource { *; }
 -keep class com.google.zxing.RGBLuminanceSource { *; }
 -keep class com.google.zxing.common.HybridBinarizer { *; }
+
+# --- FoxyVPN engine (netty H2 upstream, hev tunnel JNI, conscrypt) ---
+-dontwarn io.netty.**
+-keep class io.netty.** { *; }
+-keep class dev.cluvex.zedsecure.foxy.vpn.tun.HevSocks5Tunnel { *; }
+-keepnames class dev.cluvex.zedsecure.foxy.vpn.tun.HevSocks5Tunnel
+-keep class org.conscrypt.** { *; }
+-dontwarn org.conscrypt.**
+-dontwarn io.netty.internal.tcnative.**
+-dontwarn io.netty.handler.ssl.OpenSsl**
+-dontwarn com.google.errorprone.annotations.**
+-dontwarn reactor.blockhound.**

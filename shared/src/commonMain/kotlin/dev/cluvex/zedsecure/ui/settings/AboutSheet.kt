@@ -34,7 +34,6 @@ import dev.cluvex.zedsecure.ui.platform.LocalPlatform
 import dev.cluvex.zedsecure.ui.components.MorphingBlob
 import dev.cluvex.zedsecure.ui.theme.ZedGradients
 
-private const val TELEGRAM_URL = "https://t.me/CluvexStudio"
 private const val GITHUB_URL = "https://github.com/Hosin-rd-x/RdxVpn"
 
 private const val XRAY_SOURCE_URL = "https://github.com/CluvexStudio/Xray-core"
@@ -56,7 +55,7 @@ fun AboutSheet(onDismiss: () -> Unit) {
                 modifier = Modifier.size(96.dp),
             ) {
                 Text(
-                    "Z",
+                    "R",
                     style = MaterialTheme.typography.displaySmall,
                     fontWeight = FontWeight.Bold,
                     color = Color.White,
@@ -83,12 +82,6 @@ fun AboutSheet(onDismiss: () -> Unit) {
 
             LinkRow(
                 iconRes = Res.drawable.ic_add_link,
-                title = stringResource(Res.string.about_telegram),
-                subtitle = "t.me/CluvexStudio",
-                onClick = { platform.openUri(TELEGRAM_URL) },
-            )
-            LinkRow(
-                iconRes = Res.drawable.ic_description,
                 title = stringResource(Res.string.about_github),
                 subtitle = "github.com/Hosin-rd-x/RdxVpn",
                 onClick = { platform.openUri(GITHUB_URL) },

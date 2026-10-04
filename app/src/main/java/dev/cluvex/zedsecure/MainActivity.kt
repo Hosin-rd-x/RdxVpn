@@ -274,6 +274,7 @@ class MainActivity : ComponentActivity() {
         dev.cluvex.zedsecure.core.Ikev2CertBridgeAndroid.install(this)
         dev.cluvex.zedsecure.core.CertImportAndroid.installer = ::installCredential
         dev.cluvex.zedsecure.core.CertImportAndroid.install()
+        dev.cluvex.zedsecure.foxy.FoxyImportAndroid.install(this)
         maybeRequestNotificationPermission()
 
         if (savedInstanceState == null) {

@@ -1,12 +1,60 @@
 import java.io.FileInputStream
 import java.util.Properties
+import org.gradle.process.ExecOperations
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+import javax.inject.Inject
 
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
 }
+
+// --- FoxyVPN engine: hev-socks5-tunnel native build (fetched at build time) ---
+val hevSocks5TunnelVersion = "2.17.1"
+val hevSocks5TunnelDir = file("src/main/foxyjni")
+
+abstract class FetchHevSocks5TunnelTask @Inject constructor(
+    private val execOps: ExecOperations,
+) : DefaultTask() {
+    @get:OutputDirectory
+    abstract val targetDir: DirectoryProperty
+
+    @get:Input
+    abstract val version: Property<String>
+
+    @TaskAction
+    fun fetch() {
+        val dir = targetDir.get().asFile
+        val marker = File(dir, "Android.mk")
+        if (marker.exists()) return
+        dir.mkdirs()
+        execOps.exec {
+            commandLine(
+                "git", "clone",
+                "--branch", version.get(),
+                "--depth", "1",
+                "--recursive",
+                "--shallow-submodules",
+                "https://github.com/heiher/hev-socks5-tunnel.git",
+                dir.absolutePath,
+            )
+        }
+    }
+}
+
+val fetchHevSocks5Tunnel = tasks.register<FetchHevSocks5TunnelTask>("fetchHevSocks5Tunnel") {
+    group = "foxy"
+    description = "Clones hev-socks5-tunnel $hevSocks5TunnelVersion for the FoxyVPN tunnel"
+    targetDir.set(hevSocks5TunnelDir)
+    version.set(hevSocks5TunnelVersion)
+    outputs.upToDateWhen { File(hevSocks5TunnelDir, "Android.mk").exists() }
+    onlyIf { !File(hevSocks5TunnelDir, "Android.mk").exists() }
+}
+
+tasks.matching { it.name.startsWith("externalNativeBuild") || it.name.contains("NdkBuild") }
+    .configureEach { dependsOn(fetchHevSocks5Tunnel) }
+tasks.named("preBuild").configure { dependsOn(fetchHevSocks5Tunnel) }
 
 val keystorePropertiesFile = rootProject.file("keystore.properties")
 val keystoreProperties = Properties().apply {

@@ -693,6 +693,10 @@
     <string name="tor_bridges_unreachable">در دسترس نیست</string>
     <string name="tor_bridges_empty">برای این ترنسپورت پل داخلی‌ای نیست.</string>
     <string name="snispoof_add_title">افزودن SNI spoof (روت)</string>
+    <string name="foxy_add_title">تونل فایرفاکس</string>
+    <string name="foxy_import_none">فهرست سرورهای فایرفاکس به‌روز است</string>
+    <string name="foxy_import_failed">دریافت فهرست سرورهای فایرفاکس ممکن نشد</string>
+    <string name="foxy_unavailable">تونل فایرفاکس در این نسخه در دسترس نیست</string>
     <string name="snispoof_root_warn">⚠ به گوشیِ روت‌شده نیاز دارد. این روش پکت خام تزریق می‌کند (ClientHello جعلی) که روت لازم دارد — روی گوشی بدون روت کار نمی‌کند.</string>
     <string name="snispoof_link">کانفیگ زیرین (لینک یا JSON کامل)</string>
     <string name="snispoof_fake_sni">SNI جعلی</string>

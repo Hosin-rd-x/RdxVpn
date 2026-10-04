@@ -94,6 +94,7 @@ import dev.cluvex.zedsecure.data.net.GeoLookup
 import dev.cluvex.zedsecure.data.net.PingCoordinator
 import dev.cluvex.zedsecure.data.net.PingService
 import dev.cluvex.zedsecure.core.AutoSelect
+import dev.cluvex.zedsecure.core.FoxyImportBridge
 import dev.cluvex.zedsecure.domain.config.AutoSelectIds
 import dev.cluvex.zedsecure.domain.config.ConfigParseException
 import dev.cluvex.zedsecure.domain.config.ConfigParser
@@ -286,6 +287,31 @@ fun ServersScreen(
     val profiles by repository.profiles.collectAsStateWithLifecycle()
     val subscriptions by repository.subscriptions.collectAsStateWithLifecycle()
     val activeId by repository.activeId.collectAsStateWithLifecycle()
+
+    var foxyImporting by remember { mutableStateOf(false) }
+
+    fun importFirefoxTunnels() {
+        val fetch = FoxyImportBridge.fetch
+        if (fetch == null) {
+            toastRes(Res.string.foxy_unavailable)
+            return
+        }
+        if (foxyImporting) return
+        foxyImporting = true
+        scope.launch {
+            runCatching { fetch() }
+                .onFailure {
+                    foxyImporting = false
+                    toastRes(Res.string.foxy_import_failed)
+                }
+                .onSuccess { relays ->
+                    foxyImporting = false
+                    val added = repository.addFoxy(relays)
+                    if (added > 0) toastRes(Res.string.servers_imported, added)
+                    else toastRes(Res.string.foxy_import_none)
+                }
+        }
+    }
 
     var showAddSheet by remember { mutableStateOf(false) }
     var showManual by remember { mutableStateOf(false) }
@@ -963,30 +989,69 @@ fun ServersScreen(
                 showAddSheet = true
             }
 
-            val rotation by androidx.compose.animation.core.animateFloatAsState(
-                if (fanOpen) 45f else 0f, label = "fabRotation",
-            )
-            Surface(
-                shape = MaterialTheme.shapes.large,
-                color = MaterialTheme.colorScheme.primaryContainer,
-                contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                shadowElevation = 6.dp,
-                modifier = Modifier
-                    .size(56.dp)
-                    .tourTarget(TourTargets.SERVERS_ADD)
-                    .combinedClickable(
-                        interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
-                        indication = androidx.compose.material3.ripple(),
-                        onClick = { showAddSheet = true },
-                        onLongClick = { fanOpen = true },
-                    ),
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Icon(
-                        painterResource(Res.drawable.ic_add),
-                        stringResource(Res.string.servers_add),
-                        modifier = Modifier.graphicsLayer { rotationZ = rotation },
-                    )
+                Surface(
+                    shape = MaterialTheme.shapes.large,
+                    color = MaterialTheme.colorScheme.secondaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                    shadowElevation = 6.dp,
+                    onClick = {
+                        if (testing) {
+                            PingCoordinator.cancel()
+                        } else {
+                            PingCoordinator.start(
+                                profiles = shown,
+                                useRealDelay = false,
+                                concurrency = realPingConcurrency,
+                                delayUrl = delayTestUrl,
+                                chainConfig = repository::chainProbeConfig,
+
+                                clearPings = { repository.clearPings(it, persist = false) },
+                                onResult = { id, ms, cc -> repository.setPing(id, ms, cc, persist = false) },
+                                flush = { repository.flushProfiles() },
+
+                                onFinished = { if (autoSortAfterTest) repository.sortByTestResults() },
+                            )
+                        }
+                    },
+                    modifier = Modifier.size(48.dp),
+                ) {
+                    Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
+                        Icon(
+                            painterResource(if (testing) Res.drawable.ic_close else Res.drawable.ic_speed),
+                            contentDescription = stringResource(Res.string.ping_test),
+                        )
+                    }
+                }
+
+                val rotation by androidx.compose.animation.core.animateFloatAsState(
+                    if (fanOpen) 45f else 0f, label = "fabRotation",
+                )
+                Surface(
+                    shape = MaterialTheme.shapes.large,
+                    color = MaterialTheme.colorScheme.primaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                    shadowElevation = 6.dp,
+                    modifier = Modifier
+                        .size(56.dp)
+                        .tourTarget(TourTargets.SERVERS_ADD)
+                        .combinedClickable(
+                            interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                            indication = androidx.compose.material3.ripple(),
+                            onClick = { showAddSheet = true },
+                            onLongClick = { fanOpen = true },
+                        ),
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            painterResource(Res.drawable.ic_add),
+                            stringResource(Res.string.servers_add),
+                            modifier = Modifier.graphicsLayer { rotationZ = rotation },
+                        )
+                    }
                 }
             }
         }
@@ -1111,6 +1176,10 @@ fun ServersScreen(
             onSubscription = {
                 showAddSheet = false
                 showSubs = true
+            },
+            onFirefox = {
+                showAddSheet = false
+                importFirefoxTunnels()
             },
         )
     }
@@ -1955,6 +2024,7 @@ private fun AddServerSheet(
     onProxyChain: () -> Unit,
     onCrossChain: () -> Unit,
     onSubscription: () -> Unit,
+    onFirefox: () -> Unit,
 ) {
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(
@@ -1986,6 +2056,7 @@ private fun AddServerSheet(
             Option(Res.drawable.ic_lock, Res.string.tor_add_title, onTor)
             Option(Res.drawable.ic_speed, Res.string.ssh_add_title, onSsh)
             Option(Res.drawable.ic_bolt, Res.string.snispoof_add_title, onSniSpoof)
+            Option(Res.drawable.ic_public, Res.string.foxy_add_title, onFirefox)
 
             OptionGroup(Res.string.add_group_dns)
             Option(Res.drawable.ic_public, Res.string.dns_tunnel_add_title, onDnsTunnel)

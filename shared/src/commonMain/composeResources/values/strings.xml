@@ -700,6 +700,10 @@
     <string name="tor_bridges_unreachable">Unreachable</string>
     <string name="tor_bridges_empty">No bundled bridges for this transport.</string>
     <string name="snispoof_add_title">Add SNI spoof (root)</string>
+    <string name="foxy_add_title">Firefox Tunnel</string>
+    <string name="foxy_import_none">The Firefox server list is already up to date</string>
+    <string name="foxy_import_failed">Could not fetch the Firefox server list</string>
+    <string name="foxy_unavailable">Firefox tunnel is not available in this build</string>
     <string name="snispoof_root_warn">⚠ Requires a ROOTED device. This injects raw packets (fake TLS ClientHello), which needs root — it will not work on an unrooted phone.</string>
     <string name="snispoof_link">Underlying config (link or full JSON)</string>
     <string name="snispoof_fake_sni">Fake SNI</string>
