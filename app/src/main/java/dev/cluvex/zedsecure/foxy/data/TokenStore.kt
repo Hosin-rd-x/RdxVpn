@@ -62,7 +62,6 @@ class TokenStore(context: Context) {
     fun silentRestoreFromEmbedded(token: String): Boolean {
         if (token.isBlank()) return false
         val existing = runCatching { loadAuth() }.getOrNull()
-        if (existing != null && existing.refreshToken != null) return false
         if (existing != null && token == existing.refreshToken) return false
         saveAuth(
             RuntimeAuth(
