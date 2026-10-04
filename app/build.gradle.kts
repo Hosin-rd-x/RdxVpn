@@ -48,8 +48,6 @@ val fetchHevSocks5Tunnel = tasks.register<FetchHevSocks5TunnelTask>("fetchHevSoc
     description = "Clones hev-socks5-tunnel $hevSocks5TunnelVersion for the FoxyVPN tunnel"
     targetDir.set(hevSocks5TunnelDir)
     version.set(hevSocks5TunnelVersion)
-    outputs.upToDateWhen { File(hevSocks5TunnelDir, "Android.mk").exists() }
-    onlyIf { !File(hevSocks5TunnelDir, "Android.mk").exists() }
 }
 
 tasks.matching { it.name.startsWith("externalNativeBuild") || it.name.contains("NdkBuild") }
