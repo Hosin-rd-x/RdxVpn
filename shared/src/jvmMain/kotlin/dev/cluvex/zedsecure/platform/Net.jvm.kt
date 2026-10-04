@@ -10,6 +10,8 @@ import java.net.InetSocketAddress
 import java.net.Proxy
 import java.net.Socket
 import java.net.URL
+import javax.net.ssl.SSLSocket
+import javax.net.ssl.SSLSocketFactory
 
 internal actual suspend fun httpGetViaSocks(
     url: String,
@@ -131,6 +133,31 @@ internal actual suspend fun tcpConnectMillis(host: String, port: Int, timeoutMs:
             -1L
         } finally {
             runCatching { socket?.takeIf { !it.isClosed }?.close() }
+        }
+    }
+
+internal actual suspend fun tlsHandshakeMillis(host: String, port: Int, timeoutMs: Int): Long =
+    withContext(Dispatchers.IO) {
+        var plain: Socket? = null
+        var sslClose: SSLSocket? = null
+        val start = System.currentTimeMillis()
+        try {
+            val base = Socket()
+            plain = base
+            base.connect(InetSocketAddress(host, port), timeoutMs)
+            val ssl = SSLSocketFactory.getDefault().createSocket(base, host, port, true) as SSLSocket
+            sslClose = ssl
+            ssl.soTimeout = timeoutMs
+            runCatching {
+                ssl.sslParameters = ssl.sslParameters.apply { applicationProtocols = arrayOf("h2") }
+            }
+            ssl.startHandshake()
+            System.currentTimeMillis() - start
+        } catch (e: Exception) {
+            -1L
+        } finally {
+            runCatching { sslClose?.takeIf { !it.isClosed }?.close() }
+            runCatching { plain?.takeIf { !it.isClosed }?.close() }
         }
     }
 

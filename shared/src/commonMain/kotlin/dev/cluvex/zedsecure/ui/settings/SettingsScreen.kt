@@ -61,7 +61,7 @@ import dev.cluvex.zedsecure.platform.secureRandomToken
 
 enum class SettingsPage {
     Root, Ui, Vpn, Core, Routing, PerApp, Mux, Fragment, Observatory, Advanced, Mode, Assets, SingBox,
-    DnsProtocols, Tor, TorBridges, Ssh, Support, SpeedTest, Map, Privacy, Monitor, Ai, AiChat,
+    DnsProtocols, Tor, TorBridges, Ssh, SpeedTest, Map, Privacy, Monitor, Ai, AiChat,
 }
 
 @Composable
@@ -170,7 +170,6 @@ fun SettingsScreen(
             SettingsPage.Tor -> TorPage(settings, contentPadding, modifier, onUpdate) { page = it }
             SettingsPage.TorBridges -> TorBridgesScreen(settings, contentPadding, modifier, onUpdate)
             SettingsPage.Ssh -> SshPage(settings, contentPadding, modifier, onUpdate)
-            SettingsPage.Support -> SupportPage(contentPadding, modifier)
             SettingsPage.Privacy -> PrivacyPage(contentPadding, modifier)
             SettingsPage.Monitor -> LiveMonitorPage(contentPadding, modifier)
             SettingsPage.Ai -> ai?.let {
@@ -251,14 +250,6 @@ private fun RootPage(
         contentPadding = contentPadding,
         modifier = modifier,
     ) {
-        SettingsGroup(modifier = Modifier.tourTargetInPage(TourTargets.SETTINGS_SUPPORT)) {
-            SettingsMenuRow(
-                stringResource(Res.string.support_title),
-                stringResource(Res.string.support_subtitle),
-                leadingIcon = Res.drawable.ic_favorite,
-            ) { onOpen(SettingsPage.Support) }
-        }
-
         SettingsGroup(modifier = Modifier.tourTargetInPage(TourTargets.SETTINGS_LOOK)) {
             SettingsMenuRow(
                 stringResource(Res.string.title_ui_settings),
@@ -316,10 +307,6 @@ private fun RootPage(
                 stringResource(Res.string.title_dns_protocols),
                 stringResource(Res.string.summary_dns_protocols),
             ) { onOpen(SettingsPage.DnsProtocols) }
-            SettingsMenuRow(
-                stringResource(Res.string.title_tor_settings),
-                stringResource(Res.string.summary_tor_settings),
-            ) { onOpen(SettingsPage.Tor) }
             SettingsMenuRow(
                 stringResource(Res.string.title_ssh_settings),
                 stringResource(Res.string.summary_ssh_settings),

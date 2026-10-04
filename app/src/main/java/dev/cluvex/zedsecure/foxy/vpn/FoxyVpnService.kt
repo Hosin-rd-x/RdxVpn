@@ -16,6 +16,7 @@ import android.os.ParcelFileDescriptor
 import android.os.PowerManager
 import androidx.core.app.NotificationCompat
 import dev.cluvex.zedsecure.MainActivity
+import dev.cluvex.zedsecure.core.VpnManager
 import dev.cluvex.zedsecure.foxy.FoxyRuntime
 import dev.cluvex.zedsecure.foxy.data.AppLogger
 import dev.cluvex.zedsecure.foxy.data.ControlPlaneHttp
@@ -274,6 +275,12 @@ class FoxyVpnService : VpnService() {
         reportedUnderlying = null
         scope.cancel()
         _state.value = ConnectionState.DISCONNECTED
+        run {
+            val vmState = VpnManager.status.value.state
+            if (VpnManager.activeKind.value == VpnManager.KIND_FOXY &&
+                (vmState.isActive || vmState.isTransitioning)
+            ) VpnManager.onDisconnected()
+        }
         super.onDestroy()
     }
 
@@ -314,6 +321,11 @@ class FoxyVpnService : VpnService() {
             _state.value = ConnectionState.CONNECTING
             _lastError.value = null
             statusLabel = "Connecting\u2026"
+            VpnManager.onStarting(
+                intent?.getStringExtra(VpnManager.EXTRA_REMARK)?.takeIf { it.isNotBlank() }
+                    ?: VpnManager.status.value.serverName.orEmpty(),
+            )
+            VpnManager.setActiveKind(VpnManager.KIND_FOXY)
             enterForeground(statusLabel)
 
             acquireWakeLocks()
@@ -339,6 +351,7 @@ class FoxyVpnService : VpnService() {
 
         val endedGeneration = ++connectionGeneration
         _state.value = ConnectionState.DISCONNECTED
+        if (VpnManager.activeKind.value == VpnManager.KIND_FOXY) VpnManager.onDisconnected()
         connectJob?.cancel()
         connectJob = null
         watchdogJob?.cancel()
@@ -760,6 +773,8 @@ class FoxyVpnService : VpnService() {
             statusLabel = connectedText
             updateNotification(connectedText)
             AppLogger.i(TAG, "connect: CONNECTED via ${establishedCandidate.authority}")
+            VpnManager.activeSocksPort = socksPort
+            VpnManager.onConnected(null)
 
             startProxyPassRenewal(myGeneration, currentPassExpiry) { mintProxyPass() }
 
@@ -786,6 +801,7 @@ class FoxyVpnService : VpnService() {
                 suspend fun stopWithFatalError(message: String) {
                     AppLogger.e(TAG, "unrecoverable upstream failure; disconnecting: $message")
                     _lastError.value = message
+                    if (VpnManager.activeKind.value == VpnManager.KIND_FOXY) VpnManager.onError(message)
                     connectionGeneration++
                     watchdogJob = null
                     _state.value = ConnectionState.DISCONNECTED
@@ -899,6 +915,7 @@ class FoxyVpnService : VpnService() {
             }
             AppLogger.e(TAG, "connect failed", failure)
             _lastError.value = message
+            if (VpnManager.activeKind.value == VpnManager.KIND_FOXY) VpnManager.onError(message)
             teardown()
             exitForeground()
             releaseWakeLocks()
@@ -1153,9 +1170,13 @@ class FoxyVpnService : VpnService() {
         private val _lastError = MutableStateFlow<String?>(null)
         val lastError: StateFlow<String?> = _lastError
 
-        fun start(context: Context) {
-            context.startForegroundService(Intent(context, FoxyVpnService::class.java).setAction(ACTION_CONNECT))
+        fun start(context: Context, remark: String? = null) {
+            val intent = Intent(context, FoxyVpnService::class.java).setAction(ACTION_CONNECT)
+            if (!remark.isNullOrBlank()) intent.putExtra(VpnManager.EXTRA_REMARK, remark)
+            context.startForegroundService(intent)
         }
+
+        fun isActive(): Boolean = _state.value != ConnectionState.DISCONNECTED
 
         fun stop(context: Context) {
 

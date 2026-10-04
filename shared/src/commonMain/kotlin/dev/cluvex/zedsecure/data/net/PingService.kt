@@ -7,6 +7,7 @@ import dev.cluvex.zedsecure.domain.config.CustomConfig
 import dev.cluvex.zedsecure.domain.config.VpnProfile
 import dev.cluvex.zedsecure.platform.httpTimedTransfer
 import dev.cluvex.zedsecure.platform.tcpConnectMillis
+import dev.cluvex.zedsecure.platform.tlsHandshakeMillis
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -154,6 +155,7 @@ object PingService {
         url: String,
         chainConfig: (VpnProfile) -> String? = { null },
     ): Long {
+        if (profile.isFoxy) return foxyRealDelay(profile, url)
         val config = if (profile.isProxyChain) {
             chainConfig(profile) ?: return -1L
         } else {
@@ -164,6 +166,27 @@ object PingService {
             runCatching { profile.toXrayConfigJson(forSpeedtest = true) }.getOrElse { return -1L }
         }
         return probeWithTimeout(profile, config, url)
+    }
+
+    private suspend fun foxyRealDelay(profile: VpnProfile, url: String): Long {
+        val socks = VpnManager.activeSocksPort
+        if (socks != null && VpnManager.activeKind.value == VpnManager.KIND_FOXY &&
+            VpnManager.status.value.serverName == profile.name
+        ) {
+            val timing = runCatching {
+                httpTimedTransfer(
+                    url,
+                    socksPort = socks,
+                    upload = false,
+                    uploadBytes = 0,
+                    connectTimeoutMs = REQUEST_PROBE_TIMEOUT_MS,
+                    readTimeoutMs = REQUEST_PROBE_TIMEOUT_MS,
+                )
+            }.getOrNull()
+            if (timing != null) return (timing.ttfbNanos / 1_000_000).coerceAtLeast(1)
+        }
+        if (profile.address.isBlank() || profile.port !in 1..65535) return -1L
+        return tlsHandshakeMillis(profile.address, profile.port, PRECHECK_TIMEOUT_MS)
     }
 
     fun shouldPrecheck(profile: VpnProfile): Boolean {

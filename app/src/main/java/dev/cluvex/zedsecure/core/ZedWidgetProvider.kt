@@ -30,7 +30,12 @@ class ZedWidgetProvider : AppWidgetProvider() {
     private fun toggle(ctx: Context) {
         val state = VpnManager.status.value.state
         if (state.isActive || state.isTransitioning) {
-            if (Ikev2Controller.isActive) Ikev2Controller.stop(ctx) else AndroidVpn.stop(ctx)
+            when {
+                Ikev2Controller.isActive -> Ikev2Controller.stop(ctx)
+                dev.cluvex.zedsecure.foxy.vpn.FoxyVpnService.isActive() ->
+                    dev.cluvex.zedsecure.foxy.vpn.FoxyVpnService.stop(ctx)
+                else -> AndroidVpn.stop(ctx)
+            }
             refresh(ctx, force = true)
         }
     }

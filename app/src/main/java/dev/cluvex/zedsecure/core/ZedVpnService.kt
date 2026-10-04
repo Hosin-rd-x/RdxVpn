@@ -184,6 +184,11 @@ class ZedVpnService : VpnService() {
                     VpnManager.onError(getString(R.string.engine_ikev2_needs_app))
                     stopEverything()
                 }
+                is StartPlanner.Plan.Foxy -> {
+                    stopEverything()
+                    VpnManager.onStarting(plan.remark)
+                    dev.cluvex.zedsecure.foxy.vpn.FoxyVpnService.start(this@ZedVpnService, plan.remark)
+                }
                 is StartPlanner.Plan.Failure -> {
                     VpnManager.onError(plan.message)
                     stopEverything()

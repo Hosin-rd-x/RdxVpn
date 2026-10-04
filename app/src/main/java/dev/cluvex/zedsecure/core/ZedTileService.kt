@@ -56,7 +56,12 @@ class ZedTileService : TileService() {
         val state = VpnManager.status.value.state
         if (state.isActive || state.isTransitioning) {
             runSafely {
-                if (Ikev2Controller.isActive) Ikev2Controller.stop(this) else AndroidVpn.stop(this)
+                when {
+                    Ikev2Controller.isActive -> Ikev2Controller.stop(this)
+                    dev.cluvex.zedsecure.foxy.vpn.FoxyVpnService.isActive() ->
+                        dev.cluvex.zedsecure.foxy.vpn.FoxyVpnService.stop(this)
+                    else -> AndroidVpn.stop(this)
+                }
             }
         } else {
             connectOrOpen()
@@ -76,16 +81,23 @@ class ZedTileService : TileService() {
             val plan = runCatching {
                 kotlinx.coroutines.withContext(Dispatchers.IO) { StartPlanner(this@ZedTileService).plan(profile) }
             }.getOrNull()
-            val started = plan is StartPlanner.Plan.Start && runCatching {
-                AndroidVpn.start(
-                    this@ZedTileService,
-                    plan.configJson,
-                    plan.remark,
-                    plan.socksPort,
-                    plan.kind,
-                    proxyOnly = plan.proxyOnly,
-                )
-            }.isSuccess
+            val started = when (plan) {
+                is StartPlanner.Plan.Start -> runCatching {
+                    AndroidVpn.start(
+                        this@ZedTileService,
+                        plan.configJson,
+                        plan.remark,
+                        plan.socksPort,
+                        plan.kind,
+                        proxyOnly = plan.proxyOnly,
+                    )
+                }.isSuccess
+                is StartPlanner.Plan.Foxy -> runCatching {
+                    VpnManager.onStarting(plan.remark)
+                    dev.cluvex.zedsecure.foxy.vpn.FoxyVpnService.start(this@ZedTileService, plan.remark)
+                }.isSuccess
+                else -> false
+            }
             if (!started) {
                 VpnManager.onDisconnected()
                 openAppToConnect()

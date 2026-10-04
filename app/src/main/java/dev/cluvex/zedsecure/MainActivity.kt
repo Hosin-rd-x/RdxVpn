@@ -48,6 +48,8 @@ class MainActivity : ComponentActivity() {
 
     private var pendingStart: StartPlanner.Plan.Start? = null
 
+    private var pendingFoxyRemark: String? = null
+
     private val planner by lazy { StartPlanner(this) }
 
     private var planning = false
@@ -56,8 +58,12 @@ class MainActivity : ComponentActivity() {
         registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
             val start = pendingStart
             pendingStart = null
+            val foxyRemark = pendingFoxyRemark
+            pendingFoxyRemark = null
             if (result.resultCode == RESULT_OK && start != null) {
                 AndroidVpn.start(this, start.configJson, start.remark, start.socksPort, start.kind)
+            } else if (result.resultCode == RESULT_OK && foxyRemark != null) {
+                launchFoxy(foxyRemark)
             } else if (result.resultCode != RESULT_OK) {
                 toast(getString(R.string.vpn_permission_denied))
             }
@@ -384,6 +390,11 @@ class MainActivity : ComponentActivity() {
                 dev.cluvex.zedsecure.core.Ikev2Controller.stop(this)
                 return
             }
+            if (dev.cluvex.zedsecure.foxy.vpn.FoxyVpnService.isActive()) {
+                VpnManager.onStopping()
+                dev.cluvex.zedsecure.foxy.vpn.FoxyVpnService.stop(this)
+                return
+            }
             AndroidVpn.stop(this)
             return
         }
@@ -402,6 +413,7 @@ class MainActivity : ComponentActivity() {
             }
             when (plan) {
                 is StartPlanner.Plan.Ikev2 -> startIkev2(plan.remark, plan.profile)
+                is StartPlanner.Plan.Foxy -> startFoxy(plan.remark)
                 is StartPlanner.Plan.Failure -> toast(plan.message)
                 is StartPlanner.Plan.Start -> {
                     if (plan.proxyOnly) {
@@ -420,6 +432,21 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private fun startFoxy(remark: String) {
+        val consent = VpnService.prepare(this)
+        if (consent != null) {
+            pendingFoxyRemark = remark
+            vpnPermissionLauncher.launch(consent)
+        } else {
+            launchFoxy(remark)
+        }
+    }
+
+    private fun launchFoxy(remark: String) {
+        VpnManager.onStarting(remark)
+        dev.cluvex.zedsecure.foxy.vpn.FoxyVpnService.start(this, remark)
+    }
+
     private fun startIkev2(remark: String, ikev2: dev.cluvex.zedsecure.domain.config.Ikev2Profile) {
         val controller = dev.cluvex.zedsecure.core.Ikev2Controller
         if (!controller.isSupportedSdk) {
@@ -431,7 +458,13 @@ class MainActivity : ComponentActivity() {
             return
         }
 
-        if (VpnManager.status.value.state.isActive) AndroidVpn.stop(this)
+        if (VpnManager.status.value.state.isActive) {
+            if (dev.cluvex.zedsecure.foxy.vpn.FoxyVpnService.isActive()) {
+                dev.cluvex.zedsecure.foxy.vpn.FoxyVpnService.stop(this)
+            } else {
+                AndroidVpn.stop(this)
+            }
+        }
         VpnManager.onStarting(remark)
 
         controller.note("connect requested for $remark (server=${ikev2.server}, auth=${ikev2.effectiveAuth})")

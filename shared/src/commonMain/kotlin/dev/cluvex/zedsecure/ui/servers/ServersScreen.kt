@@ -321,7 +321,6 @@ fun ServersScreen(
     var renameTarget by remember { mutableStateOf<VpnProfile?>(null) }
     var deleteTarget by remember { mutableStateOf<VpnProfile?>(null) }
     var updating by remember { mutableStateOf(false) }
-    var pingMenu by remember { mutableStateOf(false) }
 
     val pingProgress by PingCoordinator.progress.collectAsStateWithLifecycle()
     val testing = pingProgress != null
@@ -470,63 +469,6 @@ fun ServersScreen(
 
                         singleLine = true,
                     )
-                }
-                Box {
-                    IconButton(
-                        enabled = !testing,
-                        onClick = { pingMenu = true },
-                        modifier = Modifier.tourTarget(TourTargets.SERVERS_PING),
-                    ) {
-                        Icon(
-                            painterResource(Res.drawable.ic_speed),
-                            contentDescription = stringResource(Res.string.ping_test),
-                        )
-                    }
-                    DropdownMenu(
-                        expanded = pingMenu,
-                        onDismissRequest = { pingMenu = false },
-                        shape = MaterialTheme.shapes.largeIncreased,
-                    ) {
-                        DropdownMenuItem(
-                            text = { Text(stringResource(Res.string.ping_tcp_all)) },
-                            onClick = {
-                                pingMenu = false
-
-                                PingCoordinator.start(
-                                    profiles = shown,
-                                    useRealDelay = false,
-                                    concurrency = realPingConcurrency,
-                                    delayUrl = delayTestUrl,
-                                    chainConfig = repository::chainProbeConfig,
-
-                                    clearPings = { repository.clearPings(it, persist = false) },
-                                    onResult = { id, ms, cc -> repository.setPing(id, ms, cc, persist = false) },
-                                    flush = { repository.flushProfiles() },
-
-                                    onFinished = { if (autoSortAfterTest) repository.sortByTestResults() },
-                                )
-                            },
-                        )
-                        DropdownMenuItem(
-                            text = { Text(stringResource(Res.string.ping_real_all)) },
-                            onClick = {
-                                pingMenu = false
-                                PingCoordinator.start(
-                                    profiles = shown,
-                                    useRealDelay = true,
-                                    concurrency = realPingConcurrency,
-                                    delayUrl = delayTestUrl,
-                                    chainConfig = repository::chainProbeConfig,
-
-                                    clearPings = { repository.clearPings(it, persist = false) },
-                                    onResult = { id, ms, cc -> repository.setPing(id, ms, cc, persist = false) },
-                                    flush = { repository.flushProfiles() },
-
-                                    onFinished = { if (autoSortAfterTest) repository.sortByTestResults() },
-                                )
-                            },
-                        )
-                    }
                 }
 
                 if (testing) {
@@ -1004,7 +946,7 @@ fun ServersScreen(
                         } else {
                             PingCoordinator.start(
                                 profiles = shown,
-                                useRealDelay = false,
+                                useRealDelay = true,
                                 concurrency = realPingConcurrency,
                                 delayUrl = delayTestUrl,
                                 chainConfig = repository::chainProbeConfig,
@@ -1017,7 +959,7 @@ fun ServersScreen(
                             )
                         }
                     },
-                    modifier = Modifier.size(48.dp),
+                    modifier = Modifier.size(48.dp).tourTarget(TourTargets.SERVERS_PING),
                 ) {
                     Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
                         Icon(
@@ -2052,8 +1994,6 @@ private fun AddServerSheet(
             Option(Res.drawable.ic_description, Res.string.servers_add_custom, onCustom)
 
             OptionGroup(Res.string.add_group_tunnels)
-            Option(Res.drawable.ic_bolt, Res.string.psiphon_add_title, onPsiphon)
-            Option(Res.drawable.ic_lock, Res.string.tor_add_title, onTor)
             Option(Res.drawable.ic_speed, Res.string.ssh_add_title, onSsh)
             Option(Res.drawable.ic_bolt, Res.string.snispoof_add_title, onSniSpoof)
             Option(Res.drawable.ic_public, Res.string.foxy_add_title, onFirefox)

@@ -45,6 +45,8 @@ class StartPlanner(context: Context) {
         data class Ikev2(val remark: String, val profile: Ikev2Profile) : Plan
 
         data class Failure(val message: String) : Plan
+
+        data class Foxy(val remark: String) : Plan
     }
 
     fun planActive(allowProxyOnly: Boolean): Plan = plan(configRepository.activeProfile(), allowProxyOnly)
@@ -53,6 +55,7 @@ class StartPlanner(context: Context) {
         AutoSelect.clearPrepared()
         if (profile == null) return Plan.Failure(appContext.getString(R.string.select_config_first))
         profile.ikev2Settings()?.let { return Plan.Ikev2(profile.name, it) }
+        if (profile.isFoxy) return Plan.Foxy(profile.name)
         val kind = engineKindOf(profile)
         val configJson = try {
             if (kind == VpnManager.KIND_CROSS_CHAIN) buildCrossChainWrapper(profile)
