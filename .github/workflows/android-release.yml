@@ -181,6 +181,28 @@ jobs:
           "$JAVA_HOME/bin/keytool" -printcert -jarfile "dist/RdxVpn-$V-arm64-v8a.apk" | grep -E 'Owner|SHA-256' | head -2
           ls -l dist
 
+      - name: Publish every ABI as its own release asset
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -e
+          V='${{ steps.v.outputs.name }}'
+          TAG="v${V}"
+          ls -l dist
+          test -n "$(ls dist/RdxVpn-"$V"-*.apk 2>/dev/null)" || { echo "::error::no APK named RdxVpn-$V-*.apk in dist"; exit 1; }
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$TAG" dist/RdxVpn-"$V"-*.apk dist/SHA256SUMS-android.txt \
+              --repo "$GITHUB_REPOSITORY" --clobber
+          else
+            gh release create "$TAG" dist/RdxVpn-"$V"-*.apk dist/SHA256SUMS-android.txt \
+              --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+              --title "RdxVpn ${V}" \
+              --notes "Automated build ${GITHUB_SHA:0:7} (run ${GITHUB_RUN_ID}) - one file per ABI, no zip to download."
+          fi
+          echo "release assets:"
+          gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json assets \
+            --jq '.assets[] | "  \(.name)  \(.size)"'
+
       - name: Forget the key
         if: always()
         run: shred -u release.keystore keystore.properties 2>/dev/null || rm -f release.keystore keystore.properties
