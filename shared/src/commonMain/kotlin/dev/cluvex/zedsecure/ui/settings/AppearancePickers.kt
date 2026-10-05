@@ -255,7 +255,7 @@ private fun StyleGlyph(style: ConnectButtonStyle) {
         ConnectButtonStyle.Hero -> Box(
             Modifier.size(38.dp).clip(CircleShape).background(accent),
             contentAlignment = Alignment.Center,
-        ) { Text("Z", color = on, fontSize = 18.sp, fontWeight = FontWeight.Bold) }
+        ) { Text("X", color = on, fontSize = 18.sp, fontWeight = FontWeight.Bold) }
         ConnectButtonStyle.Ring -> Box(
             Modifier.size(38.dp).clip(CircleShape).background(accent)
                 .border(3.dp, on.copy(alpha = 0.5f), CircleShape),

@@ -924,7 +924,34 @@ class FoxyVpnService : VpnService() {
         connectJob = null
     }
 
+    /** Where the user asked to land: the picked Firefox relay, or the fastest member of the
+     *  active auto-select pool. Null for Xray/IKEv2 profiles (they never start this service). */
+    private fun selectedLocationCandidate(): ProxyCandidate? {
+        val repository = runCatching {
+            (applicationContext as dev.cluvex.zedsecure.ZedSecureApp).container.configRepository
+        }.getOrNull() ?: return null
+        val profile = repository.foxyConnectProfile(repository.activeProfile()) ?: return null
+        if (profile.address.isBlank() || profile.port <= 0) return null
+        val country = profile.countryCode.orEmpty()
+        if (country.isBlank()) return null
+        return ProxyCandidate(
+            host = profile.address,
+            port = profile.port,
+            countryCode = country,
+            countryName = profile.transportLabel,
+            cityCode = "",
+        )
+    }
+
     private suspend fun resolveConnectCandidate(proxyStateStore: ProxyStateStore): ProxyCandidate {
+        selectedLocationCandidate()?.let { selected ->
+            AppLogger.i(
+                TAG,
+                "connect: using the selected location ${selected.authority} country=${selected.countryCode}",
+            )
+            proxyStateStore.save(selected)
+            return selected
+        }
         proxyStateStore.load()?.let { return it }
         AppLogger.i(TAG, "connect: no server previously selected; auto-selecting recommended location")
         val countries = withTimeout(SERVER_LIST_FETCH_TIMEOUT_MS) { ServerListClient().fetchCountries() }
@@ -1083,16 +1110,32 @@ class FoxyVpnService : VpnService() {
         speedJob = scope.launch {
             var lastStats = HevSocks5Tunnel.stats()
             var lastSampleAt = System.currentTimeMillis()
+            val connectedAt = lastSampleAt
+            var totalDown = 0L
+            var totalUp = 0L
             while (isActive) {
                 delay(SPEED_UPDATE_INTERVAL_MS)
                 val stats = HevSocks5Tunnel.stats()
                 val now = System.currentTimeMillis()
                 val elapsedSeconds = ((now - lastSampleAt).coerceAtLeast(1)).toDouble() / 1_000.0
 
-                val txRate = ((stats[1] - lastStats[1]).coerceAtLeast(0) / elapsedSeconds).toLong()
-                val rxRate = ((stats[3] - lastStats[3]).coerceAtLeast(0) / elapsedSeconds).toLong()
+                val downDelta = (stats[3] - lastStats[3]).coerceAtLeast(0)
+                val upDelta = (stats[1] - lastStats[1]).coerceAtLeast(0)
+                totalDown += downDelta
+                totalUp += upDelta
+                val txRate = (upDelta / elapsedSeconds).toLong()
+                val rxRate = (downDelta / elapsedSeconds).toLong()
                 lastStats = stats
                 lastSampleAt = now
+                // Rdx: feed the Home traffic tiles - the Xray/IKEv2 paths already do this, the
+                // Firefox path never reported metrics, so its tiles always sat at zero.
+                VpnManager.onMetrics(
+                    ((now - connectedAt) / 1_000L).coerceAtLeast(1L).toInt(),
+                    rxRate,
+                    txRate,
+                    totalDown,
+                    totalUp,
+                )
                 if (_state.value != ConnectionState.CONNECTED) continue
                 updateNotification(
                     statusLabel,

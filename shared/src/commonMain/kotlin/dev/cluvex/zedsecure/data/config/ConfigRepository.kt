@@ -780,6 +780,41 @@ class ConfigRepository(private val store: KeyValueStore) {
             (p.source is ProfileSource.Link || p.source is ProfileSource.RawJson || p.source is ProfileSource.SingBox)
     }
 
+    /**
+     * The pool an auto-select card offers in this scope. Xray-capable members first (their engine
+     * switches between them live); when a scope holds fewer than two of those, fall back to the
+     * Firefox relays so auto-select also works on Firefox-only scopes. Always homogeneous, so the
+     * caller can tell which engine a card belongs to.
+     */
+    fun autoSelectPool(subscriptionId: String?): List<VpnProfile> {
+        val xray = autoSelectMembers(subscriptionId)
+        if (xray.size >= 2) return xray
+        val foxy = _profiles.value.filter { p ->
+            !p.isLocked &&
+                (subscriptionId == null || p.subscriptionId == subscriptionId) &&
+                p.source is ProfileSource.Foxy
+        }
+        return if (foxy.size >= 2) foxy else emptyList()
+    }
+
+    /** Lowest measured ping in the pool; the first member when nothing has been pinged yet. */
+    fun fastestMember(pool: List<VpnProfile>): VpnProfile? =
+        pool.filter { (it.lastPingMs ?: -1) > 0 }.minByOrNull { it.lastPingMs ?: Int.MAX_VALUE }
+            ?: pool.firstOrNull()
+
+    /**
+     * Where a Firefox (Foxy) tunnel should land: the picked relay, or the fastest member of the
+     * active auto pool. Null for Xray/IKEv2 profiles - those never start the Foxy service.
+     */
+    fun foxyConnectProfile(profile: VpnProfile?): VpnProfile? {
+        if (profile == null) return null
+        if (profile.isFoxy) return profile
+        if (!profile.isAutoSelect) return null
+        val pool = autoSelectPool(profile.autoSelectSettings()?.subscriptionId)
+        if (pool.isEmpty() || pool.any { !it.isFoxy }) return null
+        return fastestMember(pool)
+    }
+
     fun buildAutoSelectConfig(
         profile: VpnProfile,
         options: XrayJsonBuilder.BuildOptions,
@@ -1064,11 +1099,11 @@ class ConfigRepository(private val store: KeyValueStore) {
         if (persist) persistProfiles()
     }
 
-    suspend fun importPasted(text: String): Result<PastedImport> {
+    suspend fun importPasted(text: String, subscriptionId: String = ""): Result<PastedImport> {
         subscriptionUrlIn(text)?.let { return importSubscriptionUrl(it, name = null) }
         val parsed = runCatching {
             lastImportDuplicates = 0
-            val added = importText(text).getOrThrow()
+            val added = importText(text, subscriptionId).getOrThrow()
             PastedImport(count = added, subscription = false, duplicates = lastImportDuplicates)
         }
         if (parsed.getOrNull()?.let { it.count > 0 || it.duplicates > 0 } == true) return parsed

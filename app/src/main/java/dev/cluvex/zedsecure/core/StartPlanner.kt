@@ -56,6 +56,10 @@ class StartPlanner(context: Context) {
         if (profile == null) return Plan.Failure(appContext.getString(R.string.select_config_first))
         profile.ikev2Settings()?.let { return Plan.Ikev2(profile.name, it) }
         if (profile.isFoxy) return Plan.Foxy(profile.name)
+        if (profile.isAutoSelect) {
+            val foxyTarget = configRepository.foxyConnectProfile(profile)
+            if (foxyTarget != null) return Plan.Foxy(foxyTarget.name)
+        }
         val kind = engineKindOf(profile)
         val configJson = try {
             if (kind == VpnManager.KIND_CROSS_CHAIN) buildCrossChainWrapper(profile)

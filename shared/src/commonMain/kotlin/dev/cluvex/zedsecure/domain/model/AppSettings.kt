@@ -249,7 +249,7 @@ data class AppSettings(
     val screenTransition: ScreenTransition = ScreenTransition.Push,
     val confirmRemove: Boolean = true,
 
-    val homeAfterSelect: Boolean = false,
+    val homeAfterSelect: Boolean = true,
 
     val showTrafficTiles: Boolean = true,
     val trafficTilesAboveHero: Boolean = false,
@@ -257,7 +257,7 @@ data class AppSettings(
 
     val uiFontScale: UiFontScale = UiFontScale.Normal,
     val trafficCardStyle: TrafficCardStyle = TrafficCardStyle.Cards,
-    val doubleColumnDisplay: Boolean = false,
+    val doubleColumnDisplay: Boolean = true,
     val groupAllDisplay: Boolean = true,
     val reduceMotion: Boolean = false,
     val renderingMode: RenderingMode = RenderingMode.Auto,

@@ -340,7 +340,7 @@ private fun TourOfferStep() {
     ) {
         Column(Modifier.padding(20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             Text(
-                "Z",
+                "X",
                 style = MaterialTheme.typography.displayLargeEmphasized,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.primary,

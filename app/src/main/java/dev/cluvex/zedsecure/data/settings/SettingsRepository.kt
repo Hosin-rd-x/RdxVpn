@@ -31,7 +31,19 @@ class SettingsRepository(context: Context) {
     private val _settings = MutableStateFlow(read())
     val settings: StateFlow<AppSettings> = _settings.asStateFlow()
 
+    /** One-time adoption of the Rdx defaults: two-column layout and "go Home after selecting a
+     *  server" start ON. The marker stops re-forcing them once the user turns them off. */
+    private fun applyRdxDefaults() {
+        if (prefs.contains("rdx_defaults_v2")) return
+        prefs.edit()
+            .putBoolean("double_column", true)
+            .putBoolean("home_after_select", true)
+            .putBoolean("rdx_defaults_v2", true)
+            .apply()
+    }
+
     private fun read(): AppSettings {
+        applyRdxDefaults()
         val d = AppSettings(useZepTun = true)
         return AppSettings(
 

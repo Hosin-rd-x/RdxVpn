@@ -1,33 +1,33 @@
 <div dir="rtl">
 
 <p align="center">
-  <img src="docs/assets/icon.png" width="104" alt="ZedSecure">
+  <img src="docs/assets/icon.png" width="104" alt="Rdx VPN">
 </p>
 
-<h1 align="center">ZedSecure</h1>
+<h1 align="center">Rdx VPN</h1>
 
-<p align="center">همهٔ راه‌های عبور، در یک برنامه.</p>
+<p align="center">همهٔ راه‌های عبور، در یک برنامه — بیلد اندرویدِ ZedSecure.</p>
 
 <p align="center">
-  <a href="https://github.com/CluvexStudio/ZedSecure/releases/latest"><img src="https://img.shields.io/github/v/release/CluvexStudio/ZedSecure?style=flat-square&color=C7F24E&labelColor=15170B&label=release" alt="آخرین نسخه"></a>
-  <a href="https://play.google.com/store/apps/details?id=com.zedsecure.vpn"><img src="https://img.shields.io/badge/Google%20Play-install-C7F24E?style=flat-square&labelColor=15170B" alt="گوگل پلی"></a>
-  <img src="https://img.shields.io/badge/Android%20%C2%B7%20Linux%20%C2%B7%20Windows%20%C2%B7%20macOS-C7F24E?style=flat-square&labelColor=15170B" alt="اندروید، لینوکس، ویندوز، مک">
+  <a href="https://github.com/Hosin-rd-x/RdxVpn/releases/latest"><img src="https://img.shields.io/github/v/release/Hosin-rd-x/RdxVpn?style=flat-square&color=C7F24E&labelColor=15170B&label=release" alt="آخرین نسخه"></a>
+  <img src="https://img.shields.io/badge/Android-APK%20%C2%B7%204%20ABIs-C7F24E?style=flat-square&labelColor=15170B" alt="اندروید">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-C7F24E?style=flat-square&labelColor=15170B" alt="AGPL-3.0"></a>
 </p>
 
 <p align="center"><a href="README.md">English</a> · <b>فارسی</b></p>
 
-## ZedSecure چیست؟
+## Rdx VPN چیست؟
 
-ZedSecure یک کلاینت VPN و پروکسی برای اندروید، لینوکس، ویندوز و مک است که به‌جای یک هسته، چند هسته
-را با هم دارد. وقتی یک مسیر بسته شود، مسیر بعدی از قبل نصب است: Xray و sing-box برای پروتکل‌های
+Rdx VPN کلاینت VPN و پروکسی برای اندروید است که روی
+[ZedSecure](https://github.com/CluvexStudio/ZedSecure) (ZedSource) ساختهٔ CluvexStudio ساخته شده و
+به‌جای یک هسته، چند هسته را با هم دارد. وقتی یک مسیر بسته شود، مسیر بعدی از قبل نصب است: Xray و sing-box برای پروتکل‌های
 رایج، سایفون و Tor برای وقتی که هیچ چیز دیگری وصل نمی‌شود، تونل DNS برای شبکه‌هایی که جز DNS
 تقریباً چیزی رد نمی‌کنند، و WireGuard و AmneziaWG و OpenConnect و IKEv2 برای سرورهایی که خودتان
 دارید. هسته‌ها را می‌شود از داخل هم عبور داد، و با یک لمس همهٔ سرورها تست می‌شوند و اتصال روی
 سریع‌ترینشان می‌رود.
 
 <p align="center">
-  <img src="docs/assets/showcase.png" width="100%" alt="ZedSecure: خانه، سرورها و تنظیمات">
+  <img src="docs/assets/showcase.png" width="100%" alt="Rdx VPN: خانه، سرورها و تنظیمات">
 </p>
 
 ## هسته‌ها
@@ -57,17 +57,12 @@ ZedSecure یک کلاینت VPN و پروکسی برای اندروید، لین
 
 ## دانلود
 
-**اندروید:** از [گوگل پلی](https://play.google.com/store/apps/details?id=com.zedsecure.vpn)، یا
-APK مخصوص دستگاهتان از [Releases](https://github.com/CluvexStudio/ZedSecure/releases/latest)
-(`arm64-v8a` برای تقریباً همهٔ گوشی‌ها، `armeabi-v7a` برای گوشی‌های قدیمی‌تر).
+**اندروید:** APK مخصوص دستگاهتان از
+[Releases](https://github.com/Hosin-rd-x/RdxVpn/releases/latest) — `arm64-v8a` برای تقریباً همهٔ
+گوشی‌ها و `armeabi-v7a` برای گوشی‌های قدیمی‌تر.
 
-**لینوکس:** فایل `.deb`، `.rpm`، `.AppImage` یا `.tar.gz` از Releases. روی NixOS:
-`nix run github:CluvexStudio/ZedSecure`
-
-**ویندوز:** نصب‌کنندهٔ `.msi`، یا نسخهٔ قابل حمل `.zip`.
-
-**مک:** فایل `.dmg` برای Apple Silicon یا Intel. برنامه notarize نشده، پس بار اول با راست‌کلیک و
-سپس Open بازش کنید.
+گوگل پلی، نصب‌کننده‌های دسکتاپ و بقیهٔ پلتفرم‌ها از پروژهٔ اصلی
+[ZedSecure](https://github.com/CluvexStudio/ZedSecure) عرضه می‌شوند.
 
 ## ساخت از سورس
 
@@ -76,18 +71,20 @@ APK مخصوص دستگاهتان از [Releases](https://github.com/CluvexStudi
 ```sh
 ./tools/fetch-cores.sh           # every engine at its pinned commit
 ./tools/build-zedcore.sh         # the Android core; needs Go 1.26.3 and NDK 28 or newer
-./gradlew :app:assembleRelease   # three APKs, one per ABI
-./gradlew :desktop:packageDeb    # or packageRpm, packageMsi, packageDmg
+./gradlew :app:assembleRelease   # one APK per ABI
 ```
 
 </div>
 
 هسته‌هایی که تغییر داده‌ایم به‌صورت فورک منتشر شده‌اند؛ در
 [`tools/core-sources.txt`](tools/core-sources.txt) هر کدام با کامیت دقیقی که هر نسخه از آن ساخته
-می‌شود آمده است. زدن تگ `v*` نسخهٔ اندروید و همهٔ نسخه‌های دسکتاپ را در CI می‌سازد و همه را در
-یک ریلیز می‌گذارد؛ اندروید و دسکتاپ یک شمارهٔ نسخه دارند.
+می‌شود آمده است. زدن تگ `v*` همهٔ ABIهای اندروید را در CI می‌سازد و APKها را به ریلیز می‌چسباند.
 
 ## سپاسگزاری
+
+Rdx VPN فورکی از [ZedSecure (ZedSource)](https://github.com/CluvexStudio/ZedSecure) ساختهٔ
+CluvexStudio است که با لایسنس AGPL-3.0 اینجا استفاده شده؛ طراحی، بیشترِ کد و هسته‌های پایین از همان
+پروژه می‌آیند — سپاس از نویسندگانش.
 
 حالت‌های DNSTT و VayDNS تونل DNS با کتابخانهٔ [VayDNS](https://github.com/net2share/vaydns)
 ساخته شده‌اند که فورکی از [dnstt](https://www.bamsoftware.com/software/dnstt/) است. حالت MasterDNS
@@ -102,7 +99,7 @@ override سراسری رزالور و جلوگیری از fallback ی DNS، و �
 نسخهٔ 3.0.9 موتور `zeddns` است که برای همین اپ نوشته شده؛ همان قابلیت‌ها را دارد، اما با کد
 خودش.
 
-ZedSecure همچنین روی
+Rdx VPN همچنین روی
 [Xray-core](https://github.com/XTLS/Xray-core)، [sing-box](https://github.com/SagerNet/sing-box)،
 [سایفون](https://github.com/Psiphon-Labs/psiphon-tunnel-core)، [Tor](https://www.torproject.org/)،
 [MasterDnsVPN](https://github.com/masterking32/MasterDnsVPN)،

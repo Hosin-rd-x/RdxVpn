@@ -193,10 +193,10 @@ fun ServersScreen(
         if (fresh.isNotEmpty()) obfuscateCandidates = repository.plainWireguardAmong(fresh)
     }
 
-    fun importScanned(text: String) {
+    fun importScanned(text: String, subscriptionId: String) {
         scope.launch(kotlinx.coroutines.Dispatchers.Default) {
             var outcome: Result<dev.cluvex.zedsecure.data.config.ConfigRepository.PastedImport>? = null
-            offerObfuscationAfter { outcome = repository.importPasted(text) }
+            offerObfuscationAfter { outcome = repository.importPasted(text, subscriptionId) }
             outcome!!
                 .onSuccess { r ->
                     platform.toast(
@@ -213,7 +213,7 @@ fun ServersScreen(
         }
     }
 
-    fun importFromFile() {
+    fun importFromFile(subscriptionId: String) {
         scope.launch {
             val picked = platform.pickFileBytes() ?: return@launch
             val text = picked.bytes.decodeToString()
@@ -239,12 +239,12 @@ fun ServersScreen(
                 return@launch
             }
             if (ovpn != null) {
-                repository.addOvpn(text, name = fileName ?: ovpn.name)
+                repository.addOvpn(text, name = fileName ?: ovpn.name, subscriptionId = subscriptionId)
                     .onSuccess { platform.toast(getString(Res.string.servers_imported, 1)) }
                     .onFailure { toastImportFailure(it) }
                 return@launch
             }
-            withContext(kotlinx.coroutines.Dispatchers.Default) { repository.importPasted(text) }
+            withContext(kotlinx.coroutines.Dispatchers.Default) { repository.importPasted(text, subscriptionId) }
                 .onSuccess { r ->
                     platform.toast(
                         when {
@@ -259,7 +259,7 @@ fun ServersScreen(
         }
     }
 
-    fun importFromClipboard() {
+    fun importFromClipboard(subscriptionId: String) {
         val text = platform.readClipboard()
         if (text.isNullOrBlank()) {
             toastRes(Res.string.paste_empty)
@@ -268,7 +268,7 @@ fun ServersScreen(
 
         scope.launch(kotlinx.coroutines.Dispatchers.Default) {
             var outcome: Result<dev.cluvex.zedsecure.data.config.ConfigRepository.PastedImport>? = null
-            offerObfuscationAfter { outcome = repository.importPasted(text) }
+            offerObfuscationAfter { outcome = repository.importPasted(text, subscriptionId) }
             outcome!!
                 .onSuccess { r ->
                     platform.toast(
@@ -401,8 +401,11 @@ fun ServersScreen(
         groupIndex == 1 -> ""
         else -> subscriptions.getOrNull(groupIndex - 2)?.id
     }
+    // Rdx: configs imported while a group tab is open land in that group; "All"/"Manual"
+    // keep the historical target (Manual).
+    val openGroupId: String = subscriptions.getOrNull(groupIndex - 2)?.id.orEmpty()
     val autoId = AutoSelectIds.of(autoScope)
-    val autoMembers = remember(profiles, autoScope) { repository.autoSelectMembers(autoScope) }
+    val autoMembers = remember(profiles, autoScope) { repository.autoSelectPool(autoScope) }
     val autoSession by AutoSelect.session.collectAsStateWithLifecycle()
     val autoLive = autoSession?.takeIf { it.profileId == autoId }
     val autoLabel = when (autoScope) {
@@ -624,7 +627,8 @@ fun ServersScreen(
                 }
             }
 
-            if (subscriptions.isNotEmpty()) {
+            // Rdx: "All"/"Manual" tabs are permanent; subs add themselves when imported.
+            run {
                 val counts = remember(servers) { servers.groupingBy { it.subscriptionId }.eachCount() }
 
                 LaunchedEffect(showAllGroup) { if (!showAllGroup && groupIndex == 0) groupIndex = 1 }
@@ -919,7 +923,7 @@ fun ServersScreen(
                 label = stringResource(Res.string.servers_add_clipboard),
             ) {
                 fanOpen = false
-                importFromClipboard()
+                importFromClipboard(openGroupId)
             }
             SpeedDialAction(
                 visible = fanOpen,
@@ -1051,19 +1055,19 @@ fun ServersScreen(
             onDismiss = { showAddSheet = false },
             onPasteLink = {
                 showAddSheet = false
-                importFromClipboard()
+                importFromClipboard(openGroupId)
             },
             onImportFile = {
                 showAddSheet = false
-                importFromFile()
+                importFromFile(openGroupId)
             },
             onScanQr = {
                 showAddSheet = false
-                platform.scanQrCode { text -> if (text != null) importScanned(text) }
+                platform.scanQrCode { text -> if (text != null) importScanned(text, openGroupId) }
             },
             onScanQrImage = {
                 showAddSheet = false
-                platform.scanQrFromImage { text -> if (text != null) importScanned(text) }
+                platform.scanQrFromImage { text -> if (text != null) importScanned(text, openGroupId) }
             },
             onManual = {
                 showAddSheet = false
@@ -1131,7 +1135,7 @@ fun ServersScreen(
             onDismiss = { showManual = false },
             onSave = { link ->
                 showManual = false
-                repository.importText(link)
+                repository.importText(link, subscriptionId = openGroupId)
                     .onSuccess { toastRes(Res.string.servers_imported, it) }
                     .onFailure { toastImportFailure(it) }
             },
@@ -1255,7 +1259,7 @@ fun ServersScreen(
             initial = "",
             onDismiss = { showCustomJson = false },
             onSave = { text ->
-                repository.importText(text).fold(
+                repository.importText(text, subscriptionId = openGroupId).fold(
                     onSuccess = { count ->
                         if (count > 0) {
                             toastRes(Res.string.servers_imported, count)
