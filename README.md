@@ -19,7 +19,7 @@
 Rdx VPN is an Android VPN and proxy client built on
 [ZedSecure](https://github.com/CluvexStudio/ZedSecure) (ZedSource) by CluvexStudio, and it ships with
 more than one engine. When one route is blocked, the next one is already installed: Xray and sing-box for the
-usual protocols, Psiphon and Tor for when nothing else connects, DNS tunnels for networks that let
+usual protocols, DNS tunnels for networks that let
 little more than DNS through, and WireGuard, AmneziaWG, OpenConnect and IKEv2 for servers you
 already run. Engines can be chained through each other, and one tap tests every server and moves
 the connection to the fastest one.
@@ -34,8 +34,6 @@ the connection to the fastest one.
 |---|---|
 | Xray | VLESS with Reality, Vision and XHTTP, VMess, Trojan, Shadowsocks, Hysteria2, WireGuard, AmneziaWG |
 | sing-box | TUIC, Naive, AnyTLS, ShadowTLS, OpenVPN `.ovpn` files, and plain sing-box JSON |
-| Psiphon | Psiphon's own network; no server of yours needed |
-| Tor | obfs4, Snowflake and Conjure bridges |
 | DNS tunnels | DNSTT, VayDNS and MasterDNS, over UDP, TCP, DoT or DoH |
 | OpenConnect | Cisco AnyConnect and compatible gateways |
 | IKEv2 | the IPsec client built into Android |
@@ -47,7 +45,7 @@ Android has all of them. Linux, Windows and macOS carry Xray, sing-box, the DNS 
 
 - Imports share links, subscriptions, Xray and sing-box JSON, `.ovpn`, Amnezia `vpn://` and QR codes
 - Auto-select keeps the tunnel on the fastest server and fails over on its own
-- Chains in both directions, for example Xray over Tor or Tor over Xray
+- Chains, for example SSH through Xray or through sing-box
 - Per-app routing, a geoip/geosite rule editor, and SNI spoofing on rooted devices
 - Vault: share a config as a `.zsx` file that connects without showing it, with an optional password and expiry date
 - Speed test, MTU finder, DNS resolver scanner and a live log
@@ -87,7 +85,7 @@ The main ideas of the tunnel come from [SlipNet](https://github.com/anonvector/S
 
 Versions before 3.0.9 used SlipNet's own engine, including its TCP transport, inside the core. Since 3.0.9, the engine is `zeddns`, written for this app. It has the same features, but with its own code.
 
-Rdx VPN stands on [Xray-core](https://github.com/XTLS/Xray-core), [sing-box](https://github.com/SagerNet/sing-box), [Psiphon](https://github.com/Psiphon-Labs/psiphon-tunnel-core), [Tor](https://www.torproject.org/), [MasterDnsVPN](https://github.com/masterking32/MasterDnsVPN), [AmneziaWG](https://github.com/amnezia-vpn/amneziawg-go), [OpenConnect](https://www.infradead.org/openconnect/), [hev-socks5-tunnel](https://github.com/heiher/hev-socks5-tunnel), and [zeptun](https://github.com/Noisemux/zeptun). Their licences are in [NOTICE](NOTICE).
+Rdx VPN stands on [Xray-core](https://github.com/XTLS/Xray-core), [sing-box](https://github.com/SagerNet/sing-box), [MasterDnsVPN](https://github.com/masterking32/MasterDnsVPN), [AmneziaWG](https://github.com/amnezia-vpn/amneziawg-go), [OpenConnect](https://www.infradead.org/openconnect/), [hev-socks5-tunnel](https://github.com/heiher/hev-socks5-tunnel), and [zeptun](https://github.com/Noisemux/zeptun). Their licences are in [NOTICE](NOTICE).
 
 ## License
 

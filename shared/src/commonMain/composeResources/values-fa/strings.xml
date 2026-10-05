@@ -270,7 +270,7 @@
     <string name="group_manual">دستی</string>
 
     <string name="about_version">نسخه %1$s</string>
-    <string name="about_built_on">ساخته شده بر پایهٔ هستهٔ Xray، همراه با Psiphon، Tor، Snowflake، obfs4، Conjure، DNSTT، VayDNS، MasterDNS، AmneziaWG، OpenConnect و IKEv2.</string>
+    <string name="about_built_on">ساخته شده بر پایهٔ هستهٔ Xray، همراه با sing-box، DNSTT، VayDNS، MasterDNS، AmneziaWG، OpenConnect و IKEv2.</string>
     <string name="about_telegram">کانال تلگرام</string>
     <string name="about_github">گیت‌هاب</string>
     <string name="about_source_title">هستهٔ اوپن‌سورس</string>

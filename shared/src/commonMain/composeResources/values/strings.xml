@@ -306,7 +306,7 @@
     <string name="group_manual">Manual</string>
 
     <string name="about_version">Version %1$s</string>
-    <string name="about_built_on">Built on the Xray core, with Psiphon, Tor, Snowflake, obfs4, Conjure, DNSTT, VayDNS, MasterDNS, AmneziaWG, OpenConnect and IKEv2.</string>
+    <string name="about_built_on">Built on the Xray core, with sing-box, DNSTT, VayDNS, MasterDNS, AmneziaWG, OpenConnect and IKEv2.</string>
     <string name="about_telegram">Telegram channel</string>
     <string name="about_github">GitHub</string>
     <string name="about_source_title">Open-source core</string>
