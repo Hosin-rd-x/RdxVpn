@@ -110,7 +110,8 @@ class ConfigRepository(private val store: KeyValueStore) {
                 .joinToString("\n")
                 .trim()
             if (rest.isNotEmpty()) {
-                val restAdded = runCatching { importText(rest, subscriptionId) }.getOrNull()
+                // importText already returns a Result - unwrap it directly.
+                val restAdded = importText(rest, subscriptionId).getOrNull()
                 if (restAdded != null && restAdded > 0) return@runCatching sshAdded + restAdded
             }
             if (sshAdded > 0) return@runCatching sshAdded
