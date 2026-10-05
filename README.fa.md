@@ -1,7 +1,7 @@
 <div dir="rtl">
 
 <p align="center">
-  <img src="docs/assets/icon.png" width="104" alt="Rdx VPN">
+  <img src="docs/assets/icon.jpg" width="104" alt="Rdx VPN">
 </p>
 
 <h1 align="center">Rdx VPN</h1>
