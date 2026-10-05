@@ -123,11 +123,18 @@ internal actual suspend fun resolveHostAddress(host: String): String? = withCont
 
 internal actual suspend fun tcpConnectMillis(host: String, port: Int, timeoutMs: Int): Long =
     withContext(Dispatchers.IO) {
+        // Resolve outside the timed window: the system's DNS latency is not the relay's
+        // latency, and on filtered networks the lookup alone can add seconds to the ping.
+        val target = try {
+            InetAddress.getByName(host)
+        } catch (e: Exception) {
+            return@withContext -1L
+        }
         var socket: Socket? = null
         val start = System.currentTimeMillis()
         try {
             socket = Socket()
-            socket.connect(InetSocketAddress(host, port), timeoutMs)
+            socket.connect(InetSocketAddress(target, port), timeoutMs)
             System.currentTimeMillis() - start
         } catch (e: Exception) {
             -1L

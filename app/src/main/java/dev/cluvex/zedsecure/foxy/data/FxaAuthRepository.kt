@@ -96,7 +96,7 @@ class FxaAuthRepository(
     }
 
     suspend fun restoreSession(): SessionStatus {
-        val stored = runCatching { tokenStore.loadAuth() }.getOrNull()
+        val stored = runCatching { tokenStore.loadSessionAllowingEmptyAccess() }.getOrNull()
             ?: return SessionStatus.NEEDS_LOGIN
         if (stored.refreshToken == null && !tokenStore.hasValidAccessToken()) {
             runCatching { tokenStore.clear() }
@@ -125,7 +125,7 @@ class FxaAuthRepository(
     }
 
     suspend fun ensureFreshAccessToken(force: Boolean = false): RuntimeAuth {
-        val current = tokenStore.loadAuth()
+        val current = tokenStore.loadSessionAllowingEmptyAccess()
             ?: throw FxaRefreshFailure("Not signed in", permanent = true)
         if (!force && tokenStore.hasValidAccessToken()) return current
 
@@ -181,7 +181,7 @@ class FxaAuthRepository(
     } catch (cancellation: CancellationException) {
         throw cancellation
     } catch (failure: FxaRefreshFailure) {
-        if (failure.permanent) null else tokenStore.loadAuth()?.accessToken
+        if (failure.permanent) null else tokenStore.loadAuth()?.accessToken?.takeIf { it.isNotBlank() }
     }
 
     suspend fun refreshAccessToken(): RuntimeAuth? = try {

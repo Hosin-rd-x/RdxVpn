@@ -45,6 +45,22 @@ class TokenStore(context: Context) {
         return auth.expiresAtEpochSeconds - nowSeconds > CLOCK_SKEW_TOLERANCE_SECONDS
     }
 
+    /**
+     * Like [loadAuth], but also returns a silently seeded session whose access token has
+     * not been minted yet ([silentRestoreFromEmbedded] stores an empty access token on
+     * purpose). The refresh grant must read the session through this function, otherwise
+     * the half-finished seed looks like "Not signed in" and silent sign-in can never run.
+     */
+    fun loadSessionAllowingEmptyAccess(): RuntimeAuth? = runCatching {
+        val access = prefs.getString(KEY_ACCESS_TOKEN, null)?.takeIf { it.isNotBlank() }.orEmpty()
+        val refresh = prefs.getString(KEY_REFRESH_TOKEN, null)?.takeIf { it.isNotBlank() }
+        val expiresAt = prefs.getLong(KEY_EXPIRES_AT, 0L)
+        if (access.isBlank() && refresh.isNullOrBlank()) return@runCatching null
+        RuntimeAuth(access, refresh, expiresAt)
+    }.onFailure {
+        AppLogger.w(TAG, "could not read the stored session", it)
+    }.getOrNull()
+
     fun hasStoredSession(): Boolean = loadAuth() != null
 
     fun hasRefreshToken(): Boolean = loadAuth()?.refreshToken != null
