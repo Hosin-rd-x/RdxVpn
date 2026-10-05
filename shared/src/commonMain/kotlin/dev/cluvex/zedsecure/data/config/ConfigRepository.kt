@@ -1177,7 +1177,8 @@ class ConfigRepository(private val store: KeyValueStore) {
         var failures = 0
         PresetSubscriptions.URLS.forEachIndexed { index, url ->
             val name = names.getOrNull(index) ?: url.substringAfterLast('/')
-            runCatching { importSubscriptionUrl(url, name) }
+            // importSubscriptionUrl already returns a Result — wrap once, not twice.
+            importSubscriptionUrl(url, name)
                 .onSuccess { total += it.count }
                 .onFailure { failures++ }
         }
