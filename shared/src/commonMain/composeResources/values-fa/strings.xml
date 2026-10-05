@@ -60,6 +60,10 @@
 
     <string name="subs_title">سابسکریپشن‌ها</string>
     <string name="subs_add">افزودن سابسکریپشن</string>
+    <string name="preset_add">کانفیگ خودکار</string>
+    <string name="preset_sub_name_1">کانفیگ خودکار ۱</string>
+    <string name="preset_sub_name_2">کانفیگ خودکار ۲</string>
+    <string name="preset_updated">کانفیگ خودکار به‌روز شد</string>
     <string name="subs_add_and_fetch">افزودن و دریافت</string>
     <string name="subs_existing">سابسکریپشن‌های شما</string>
     <string name="groups_add">گروه جدید</string>

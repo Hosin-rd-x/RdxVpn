@@ -49,6 +49,10 @@
 
     <string name="subs_title">Subscriptions</string>
     <string name="subs_add">Add subscription</string>
+    <string name="preset_add">Auto config</string>
+    <string name="preset_sub_name_1">Auto config 1</string>
+    <string name="preset_sub_name_2">Auto config 2</string>
+    <string name="preset_updated">Auto config updated</string>
     <string name="subs_add_and_fetch">Add and fetch</string>
     <string name="subs_existing">Your subscriptions</string>
     <string name="groups_add">New group</string>

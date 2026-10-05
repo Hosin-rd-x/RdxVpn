@@ -1167,6 +1167,24 @@ class ConfigRepository(private val store: KeyValueStore) {
         return importSubscriptionUrl(url, name = null, keepIfUnreachable = false)
     }
 
+    /**
+     * One-tap import of [PresetSubscriptions.URLS]. Re-running refreshes the
+     * entries instead of duplicating them, so the button stays safe to tap.
+     * Returns how many servers now sit behind those subscriptions.
+     */
+    suspend fun importPresetSubscriptions(names: List<String>): Result<Int> = runCatching {
+        var total = 0
+        var failures = 0
+        PresetSubscriptions.URLS.forEachIndexed { index, url ->
+            val name = names.getOrNull(index) ?: url.substringAfterLast('/')
+            runCatching { importSubscriptionUrl(url, name) }
+                .onSuccess { total += it.count }
+                .onFailure { failures++ }
+        }
+        if (failures > 0 && total == 0) throw IllegalArgumentException("preset subscriptions unreachable")
+        total
+    }
+
     suspend fun importSubscriptionUrl(
         url: String,
         name: String?,

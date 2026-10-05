@@ -313,6 +313,31 @@ fun ServersScreen(
         }
     }
 
+    var presetImporting by remember { mutableStateOf(false) }
+
+    /** One-tap: register the built-in subscription links, then fetch them. */
+    fun importPresetConfigs() {
+        if (presetImporting) return
+        presetImporting = true
+        scope.launch {
+            repository.importPresetSubscriptions(
+                listOf(
+                    getString(Res.string.preset_sub_name_1),
+                    getString(Res.string.preset_sub_name_2),
+                ),
+            )
+                .onFailure {
+                    presetImporting = false
+                    toastRes(Res.string.subs_failed)
+                }
+                .onSuccess { added ->
+                    presetImporting = false
+                    if (added > 0) toastRes(Res.string.servers_imported, added)
+                    else toastRes(Res.string.preset_updated)
+                }
+        }
+    }
+
     var showAddSheet by remember { mutableStateOf(false) }
     var showManual by remember { mutableStateOf(false) }
 
@@ -1126,6 +1151,10 @@ fun ServersScreen(
             onFirefox = {
                 showAddSheet = false
                 importFirefoxTunnels()
+            },
+            onPreset = {
+                showAddSheet = false
+                importPresetConfigs()
             },
         )
     }
@@ -1970,6 +1999,7 @@ private fun AddServerSheet(
     onProxyChain: () -> Unit,
     onCrossChain: () -> Unit,
     onSubscription: () -> Unit,
+    onPreset: () -> Unit,
     onFirefox: () -> Unit,
 ) {
     ModalBottomSheet(onDismissRequest = onDismiss) {
@@ -2016,6 +2046,7 @@ private fun AddServerSheet(
 
             OptionGroup(Res.string.add_group_subscription)
             Option(Res.drawable.ic_add_link, Res.string.subs_add, onSubscription)
+            Option(Res.drawable.ic_bolt, Res.string.preset_add, onPreset)
         }
     }
 }
