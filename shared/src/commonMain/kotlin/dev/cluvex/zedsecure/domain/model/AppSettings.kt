@@ -371,7 +371,7 @@ data class AppSettings(
 
     val autoSelectRetry: Boolean = true,
 
-    val autoConnectOnBoot: Boolean = false,
+    val autoConnectOnBoot: Boolean = true,
     val delayTestUrl: String = "https://www.gstatic.com/generate_204",
     val realPingConcurrency: Int = 16,
     val ipApiUrl: String = "https://api.ip.sb/geoip",
@@ -388,7 +388,7 @@ data class AppSettings(
 
     val geoFilesSource: GeoFilesSource = GeoFilesSource.Loyalsoldier,
 
-    val autoUpdateSubscriptions: Boolean = false,
+    val autoUpdateSubscriptions: Boolean = true,
     val subscriptionUpdateIntervalHours: Int = 12,
     val autoTestAfterUpdate: Boolean = false,
     val autoRemoveInvalidAfterTest: Boolean = false,

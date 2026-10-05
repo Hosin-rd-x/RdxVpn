@@ -34,12 +34,20 @@ class SettingsRepository(context: Context) {
     /** One-time adoption of the Rdx defaults: two-column layout and "go Home after selecting a
      *  server" start ON. The marker stops re-forcing them once the user turns them off. */
     private fun applyRdxDefaults() {
-        if (prefs.contains("rdx_defaults_v2")) return
-        prefs.edit()
-            .putBoolean("double_column", true)
-            .putBoolean("home_after_select", true)
-            .putBoolean("rdx_defaults_v2", true)
-            .apply()
+        if (!prefs.contains("rdx_defaults_v2")) {
+            prefs.edit()
+                .putBoolean("double_column", true)
+                .putBoolean("home_after_select", true)
+                .putBoolean("rdx_defaults_v2", true)
+                .apply()
+        }
+        if (!prefs.contains("rdx_defaults_v3")) {
+            prefs.edit()
+                .putBoolean("auto_sub", true)
+                .putBoolean("auto_connect_boot", true)
+                .putBoolean("rdx_defaults_v3", true)
+                .apply()
+        }
     }
 
     private fun read(): AppSettings {
