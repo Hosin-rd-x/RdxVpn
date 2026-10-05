@@ -78,6 +78,14 @@ class ConfigRepository(private val store: KeyValueStore) {
     private val _activeId = MutableStateFlow(store.getString(KEY_ACTIVE))
     val activeId: StateFlow<String?> = _activeId.asStateFlow()
 
+    /**
+     * Server endpoints this user's own network could not reach on the first
+     * test. They are skipped when the subscription re-imports so neither the
+     * UI nor the ping pass ever spends time on them again.
+     */
+    private var deadKeys: List<String> = store.getString(KEY_DEAD)
+        ?.split('\n')?.filter { it.isNotBlank() } ?: emptyList()
+
     fun activeProfile(): VpnProfile? = _activeId.value?.let { profile(it) }
 
     fun profile(id: String): VpnProfile? =
@@ -91,11 +99,21 @@ class ConfigRepository(private val store: KeyValueStore) {
 
         val sshLines = trimmed.lines().map { it.trim() }.filter { SshLink.isSshLink(it) }
         if (sshLines.isNotEmpty()) {
-            var added = 0
+            var sshAdded = 0
             sshLines.forEach { line ->
-                SshLink.parse(line)?.let { (nm, prof) -> addSsh(prof, nm); added++ }
+                SshLink.parse(line)?.let { (nm, prof) -> addSsh(prof, nm); sshAdded++ }
             }
-            if (added > 0) return@runCatching added
+            // Mixed subscription: import the ssh links, then the remaining
+            // protocols too instead of stopping at the first ssh:// line.
+            val rest = trimmed.lines()
+                .filter { !SshLink.isSshLink(it.trim()) }
+                .joinToString("\n")
+                .trim()
+            if (rest.isNotEmpty()) {
+                val restAdded = runCatching { importText(rest, subscriptionId) }.getOrNull()
+                if (restAdded != null && restAdded > 0) return@runCatching sshAdded + restAdded
+            }
+            if (sshAdded > 0) return@runCatching sshAdded
             throw IllegalArgumentException("no usable ssh:// config found")
         }
 
@@ -787,14 +805,15 @@ class ConfigRepository(private val store: KeyValueStore) {
      * caller can tell which engine a card belongs to.
      */
     fun autoSelectPool(subscriptionId: String?): List<VpnProfile> {
-        val xray = autoSelectMembers(subscriptionId)
-        if (xray.size >= 2) return xray
         val foxy = _profiles.value.filter { p ->
             !p.isLocked &&
                 (subscriptionId == null || p.subscriptionId == subscriptionId) &&
                 p.source is ProfileSource.Foxy
         }
-        return if (foxy.size >= 2) foxy else emptyList()
+        if (foxy.size >= 2) return foxy
+        val xray = autoSelectMembers(subscriptionId)
+        if (xray.size >= 2) return xray
+        return emptyList()
     }
 
     /** Lowest measured ping in the pool; the first member when nothing has been pinged yet. */
@@ -1078,7 +1097,43 @@ class ConfigRepository(private val store: KeyValueStore) {
         profile(id)?.let { update(it.copy(bytesDown = 0, bytesUp = 0)) }
     }
 
+    /** Stable identity of an endpoint; survives re-imports of the same subscription. */
+    private fun deadKey(profile: VpnProfile): String? {
+        val raw = profile.rawPayload()
+        if (!raw.isNullOrBlank()) return "r:" + raw.hashCode()
+        if (profile.address.isNotBlank() && profile.address != "-" && profile.port > 0) {
+            return "e:${profile.protocol}|${profile.address.lowercase()}:${profile.port}|${profile.name}"
+        }
+        return null
+    }
+
+    private fun markDead(id: String) {
+        val p = profile(id) ?: return
+        if (p.isLocked || p.isFoxy || p.isManagedTunnel || p.isProxyChain) return
+        val key = deadKey(p) ?: return
+        if (key in deadKeys) return
+        deadKeys = (deadKeys + key).takeLast(MAX_DEAD_KEYS)
+        store.putString(KEY_DEAD, deadKeys.joinToString("\n"))
+    }
+
+    /** Blacklist pass over a freshly imported subscription. Returns how many were dropped. */
+    private fun dropDeadFromSubscription(subscriptionId: String): Int {
+        if (deadKeys.isEmpty()) return 0
+        val current = _profiles.value.filter { it.subscriptionId == subscriptionId }
+        if (current.isEmpty()) return 0
+        fun dead(p: VpnProfile): Boolean =
+            !p.isLocked && deadKey(p)?.let { it in deadKeys } == true
+        val dropped = current.count { dead(it) }
+        if (dropped == 0 || dropped == current.size) return 0
+        _profiles.value = _profiles.value.filterNot {
+            it.subscriptionId == subscriptionId && dead(it)
+        }
+        persistProfiles()
+        return dropped
+    }
+
     fun setPing(id: String, pingMs: Int?, countryCode: String? = null, persist: Boolean = true) {
+        if (pingMs != null && pingMs < 0) markDead(id)
         _profiles.update { list ->
             list.map {
                 if (it.id == id) it.copy(lastPingMs = pingMs, countryCode = countryCode ?: it.countryCode)
@@ -1320,6 +1375,10 @@ class ConfigRepository(private val store: KeyValueStore) {
             if (added == 0) throw first.exceptionOrNull()
                 ?: IllegalArgumentException("no supported configs found")
 
+            if (dropDeadFromSubscription(id) > 0) {
+                added = _profiles.value.count { it.subscriptionId == id }
+            }
+
             previous.firstOrNull { it.id == previousActive && SingBoxOnlyServers.isPlaceholder(it) }?.let { old ->
                 _profiles.value
                     .firstOrNull { it.subscriptionId == id && it.name == old.name && SingBoxOnlyServers.isPlaceholder(it) }
@@ -1499,6 +1558,8 @@ class ConfigRepository(private val store: KeyValueStore) {
         private const val KEY_PROFILES = "profiles"
         private const val KEY_SUBS = "subscriptions"
         private const val KEY_ACTIVE = "active_id"
+        private const val KEY_DEAD = "dead_servers"
+        private const val MAX_DEAD_KEYS = 1000
         private const val KEY_AUTO_PICK = "auto_pick:"
 
         val DEFAULT_UA = "v2rayNG/${AppInfo.versionName}"

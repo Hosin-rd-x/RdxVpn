@@ -30,6 +30,7 @@ import dev.cluvex.zedsecure.core.VaultImportBus
 import dev.cluvex.zedsecure.core.VpnManager
 import dev.cluvex.zedsecure.core.platform.LocaleManager
 import dev.cluvex.zedsecure.data.config.ConfigRepository
+import dev.cluvex.zedsecure.data.net.PingService
 import dev.cluvex.zedsecure.data.settings.SettingsRepository
 import dev.cluvex.zedsecure.domain.model.ThemeMode
 import dev.cluvex.zedsecure.platform.AndroidPlatform
@@ -207,9 +208,44 @@ class MainActivity : ComponentActivity() {
         LocaleManager.reassert(SettingsRepository.readLanguageTag(this))
     }
 
+    private var lastSubscriptionRefreshAt = 0L
+
     override fun onResume() {
         super.onResume()
         runCatching { dev.cluvex.zedsecure.core.Ikev2Controller.resync(this) }
+        refreshSubscriptionsOnOpen()
+    }
+
+    /**
+     * Entering the app pulls the newest subscription configs (blacklisted
+     * servers are skipped) and gives servers that were never tested their
+     * first ping, so failures are dropped once instead of on every launch.
+     */
+    private fun refreshSubscriptionsOnOpen() {
+        val now = System.currentTimeMillis()
+        if (now - lastSubscriptionRefreshAt < 60_000L) return
+        lastSubscriptionRefreshAt = now
+        val container = (application as ZedSecureApp).container
+        lifecycleScope.launch {
+            val repo = container.configRepository
+            runCatching { repo.updateAllSubscriptions() }
+            val settings = container.settingsRepository.settings.value
+            if (!settings.autoTestAfterUpdate) return@launch
+            val untested = repo.profiles.value.filter { it.lastPingMs == null && !it.isLocked }
+            if (untested.isEmpty()) return@launch
+            PingService.measureAll(
+                untested,
+                useRealDelay = true,
+                concurrency = settings.realPingConcurrency,
+                delayUrl = settings.delayTestUrl,
+                chainConfig = repo::chainProbeConfig,
+            ) { id, ms, cc ->
+                repo.setPing(id, ms, cc, persist = false)
+            }
+            repo.flushProfiles()
+            if (settings.autoRemoveInvalidAfterTest) repo.removeInvalid()
+            if (settings.autoSortAfterTest) repo.sortByTestResults()
+        }
     }
 
     override fun onNewIntent(intent: Intent) {

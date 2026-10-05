@@ -390,8 +390,8 @@ data class AppSettings(
 
     val autoUpdateSubscriptions: Boolean = true,
     val subscriptionUpdateIntervalHours: Int = 12,
-    val autoTestAfterUpdate: Boolean = false,
-    val autoRemoveInvalidAfterTest: Boolean = false,
+    val autoTestAfterUpdate: Boolean = true,
+    val autoRemoveInvalidAfterTest: Boolean = true,
     val autoSortAfterTest: Boolean = false,
 
     val dnsGlobalResolverEnabled: Boolean = false,

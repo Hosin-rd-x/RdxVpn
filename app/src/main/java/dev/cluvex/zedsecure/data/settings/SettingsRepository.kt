@@ -48,6 +48,13 @@ class SettingsRepository(context: Context) {
                 .putBoolean("rdx_defaults_v3", true)
                 .apply()
         }
+        if (!prefs.contains("rdx_defaults_v4")) {
+            prefs.edit()
+                .putBoolean("auto_test_after_update", true)
+                .putBoolean("auto_remove_invalid", true)
+                .putBoolean("rdx_defaults_v4", true)
+                .apply()
+        }
     }
 
     private fun read(): AppSettings {
