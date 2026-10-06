@@ -16,6 +16,7 @@ import android.os.ParcelFileDescriptor
 import android.os.PowerManager
 import androidx.core.app.NotificationCompat
 import dev.cluvex.zedsecure.MainActivity
+import dev.cluvex.zedsecure.R
 import dev.cluvex.zedsecure.core.VpnManager
 import dev.cluvex.zedsecure.foxy.FoxyRuntime
 import dev.cluvex.zedsecure.foxy.data.AppLogger
@@ -1018,7 +1019,7 @@ class FoxyVpnService : VpnService() {
             AppLogger.i(TAG, "establishTun: dns=mapdns (${HevSocks5TunnelConfig.MAPDNS_ADDRESS}), resolved on-device")
         }
         return Builder()
-            .setSession("FoxyVPN")
+            .setSession(getString(R.string.app_name))
             .addAddress(HevSocks5TunnelConfig.TUN_ADDRESS, 32)
             .addRoute("0.0.0.0", 0)
             .apply {
@@ -1156,9 +1157,9 @@ class FoxyVpnService : VpnService() {
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
         val builder = NotificationCompat.Builder(this, FoxyRuntime.VPN_NOTIFICATION_CHANNEL_ID)
-            .setContentTitle("FoxyVPN")
+            .setContentTitle(getString(R.string.app_name))
             .setContentText(text)
-            .setSmallIcon(android.R.drawable.ic_lock_lock)
+            .setSmallIcon(R.drawable.ic_stat_x)
             .setContentIntent(openIntent)
             .setOngoing(true)
 
@@ -1172,7 +1173,7 @@ class FoxyVpnService : VpnService() {
             .setLocalOnly(true)
 
             .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
-            .addAction(android.R.drawable.ic_menu_close_clear_cancel, "Disconnect", disconnectIntent)
+            .addAction(R.drawable.ic_close, getString(R.string.action_disconnect), disconnectIntent)
         if (subText != null) {
             builder.setStyle(NotificationCompat.BigTextStyle().bigText("$text\n$subText"))
         }
@@ -1203,7 +1204,7 @@ class FoxyVpnService : VpnService() {
     companion object {
         const val ACTION_CONNECT = "dev.cluvex.zedsecure.foxy.action.CONNECT"
         const val ACTION_DISCONNECT = "dev.cluvex.zedsecure.foxy.action.DISCONNECT"
-        private const val NOTIFICATION_ID = 1
+        private const val NOTIFICATION_ID = 2
         private const val REQUEST_CODE_OPEN = 0
         private const val REQUEST_CODE_DISCONNECT = 1
 

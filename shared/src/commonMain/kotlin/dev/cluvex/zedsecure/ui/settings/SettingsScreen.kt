@@ -152,6 +152,7 @@ fun SettingsScreen(
                 onOpen = { page = it },
                 onAbout = { showAbout = true },
                 onReplayTour = onReplayTour,
+                onUpdate = onUpdate,
                 hasAi = ai != null,
             )
             SettingsPage.Ui -> UiPage(settings, contentPadding, modifier, onUpdate, onLanguage)
@@ -237,7 +238,7 @@ private fun RootPage(
     onOpen: (SettingsPage) -> Unit,
     onAbout: () -> Unit,
     onReplayTour: (() -> Unit)?,
-
+    onUpdate: ((AppSettings) -> AppSettings) -> Unit,
     hasAi: Boolean,
 ) {
     val platform = LocalPlatform.current
@@ -363,8 +364,11 @@ private fun RootPage(
             modifier = Modifier.tourTargetInPage(TourTargets.SETTINGS_ABOUT),
         ) {
             val fromPlay = platform.distribution == Distribution.PlayStore
+            val updateAvailable = settings.pendingUpdateVersion.isNotBlank()
             SettingsMenuRow(
-                stringResource(Res.string.update_check_title),
+                stringResource(
+                    if (updateAvailable) Res.string.update_pending_title else Res.string.update_check_title,
+                ),
                 when {
                     checking -> stringResource(Res.string.update_checking)
                     fromPlay -> stringResource(Res.string.update_check_summary)
@@ -389,6 +393,8 @@ private fun RootPage(
             settings = settings,
             trigger = checkTrigger,
             onFinished = { checking = false },
+            onUpdateAvailable = { version -> onUpdate { it.copy(pendingUpdateVersion = version) } },
+            onUpToDate = { onUpdate { it.copy(pendingUpdateVersion = "") } },
         )
     }
 }

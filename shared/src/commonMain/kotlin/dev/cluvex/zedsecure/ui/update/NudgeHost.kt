@@ -64,11 +64,10 @@ fun NudgeHost(
 
     LaunchedEffect(settings.lastUpdateCheckMs) {
         val now = currentTimeMillis()
-        if (settings.lastUpdateCheckMs == 0L) {
-            onUpdateSettings { it.copy(lastUpdateCheckMs = now) }
+        val firstRun = settings.lastUpdateCheckMs == 0L
+        if (!firstRun && now - settings.lastUpdateCheckMs < NudgePolicy.UPDATE_CHECK_INTERVAL_MS) {
             return@LaunchedEffect
         }
-        if (now - settings.lastUpdateCheckMs < NudgePolicy.UPDATE_CHECK_INTERVAL_MS) return@LaunchedEffect
 
         onUpdateSettings { it.copy(lastUpdateCheckMs = now) }
         val socks = if (VpnManager.status.value.state == ConnectionState.Connected) {
@@ -82,10 +81,18 @@ fun NudgeHost(
             socks,
             settings.language.tag ?: "en",
         ) ?: return@LaunchedEffect
-        if (UpdateChecker.compareVersions(info.versionName, AppInfo.versionName) <= 0) return@LaunchedEffect
-        val snoozed = info.versionName == settings.dismissedUpdateVersion &&
-            now - settings.dismissedUpdateAtMs < NudgePolicy.UPDATE_DISMISS_SNOOZE_MS
-        if (!snoozed) pendingUpdate = info
+        if (UpdateChecker.compareVersions(info.versionName, AppInfo.versionName) <= 0) {
+            if (settings.pendingUpdateVersion.isNotBlank()) {
+                onUpdateSettings { it.copy(pendingUpdateVersion = "") }
+            }
+            return@LaunchedEffect
+        }
+        // "Later" silences this version's dialog for good; the settings row keeps the flag.
+        if (info.versionName == settings.dismissedUpdateVersion) return@LaunchedEffect
+        if (settings.pendingUpdateVersion != info.versionName) {
+            onUpdateSettings { it.copy(pendingUpdateVersion = info.versionName) }
+        }
+        pendingUpdate = info
     }
 
     LaunchedEffect(settings.successfulConnections, settings.ratePromptLastShownMs) {
@@ -235,6 +242,8 @@ fun ManualUpdateCheckHost(
     settings: AppSettings,
     trigger: Int,
     onFinished: () -> Unit,
+    onUpdateAvailable: (String) -> Unit = {},
+    onUpToDate: () -> Unit = {},
 ) {
     val platform = LocalPlatform.current
     var found by remember { mutableStateOf<UpdateInfo?>(null) }
@@ -256,8 +265,14 @@ fun ManualUpdateCheckHost(
         )
         when {
             info == null -> platform.toast(failed)
-            UpdateChecker.compareVersions(info.versionName, AppInfo.versionName) > 0 -> found = info
-            else -> platform.toast(upToDate)
+            UpdateChecker.compareVersions(info.versionName, AppInfo.versionName) > 0 -> {
+                onUpdateAvailable(info.versionName)
+                found = info
+            }
+            else -> {
+                onUpToDate()
+                platform.toast(upToDate)
+            }
         }
         onFinished()
     }

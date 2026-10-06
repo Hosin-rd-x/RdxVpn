@@ -49,10 +49,14 @@
 
     <string name="subs_title">Subscriptions</string>
     <string name="subs_add">Add subscription</string>
-    <string name="preset_add">Auto config</string>
-    <string name="preset_sub_name_1">Auto config 1</string>
+    <string name="preset_add">Cloudflare configs</string>
+    <string name="add_group_rdx">Rdx connection methods</string>
+    <string name="sub_auto_name">Subscription link %1$d</string>
+    <string name="update_pending_title">A new update is available</string>
+    <string name="notif_channel_foxy">Rdx VPN · Firefox tunnel</string>
+    <string name="preset_sub_name_1">Cloudflare configs</string>
     <string name="preset_sub_name_2">Auto config 2</string>
-    <string name="preset_updated">Auto config updated</string>
+    <string name="preset_updated">Cloudflare configs updated</string>
     <string name="subs_add_and_fetch">Add and fetch</string>
     <string name="subs_existing">Your subscriptions</string>
     <string name="groups_add">New group</string>
@@ -704,6 +708,8 @@
     <string name="tor_bridges_unreachable">Unreachable</string>
     <string name="tor_bridges_empty">No bundled bridges for this transport.</string>
     <string name="snispoof_add_title">Add SNI spoof (root)</string>
+    <string name="foxy_edit_title">Edit Firefox server</string>
+    <string name="foxy_label">Label (country / city)</string>
     <string name="foxy_add_title">Firefox Tunnel</string>
     <string name="foxy_import_none">The Firefox server list is already up to date</string>
     <string name="foxy_import_failed">Could not fetch the Firefox server list</string>

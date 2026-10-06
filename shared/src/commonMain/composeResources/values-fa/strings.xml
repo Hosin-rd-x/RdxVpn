@@ -60,10 +60,14 @@
 
     <string name="subs_title">سابسکریپشن‌ها</string>
     <string name="subs_add">افزودن سابسکریپشن</string>
-    <string name="preset_add">کانفیگ خودکار</string>
-    <string name="preset_sub_name_1">کانفیگ خودکار ۱</string>
+    <string name="preset_add">کانفیگ‌های کلادفلر</string>
+    <string name="add_group_rdx">روش‌های اتصال Rdx</string>
+    <string name="sub_auto_name">ساب لینک %1$d</string>
+    <string name="update_pending_title">آپدیت جدیدی وجود دارد</string>
+    <string name="notif_channel_foxy">Rdx VPN · تونل فایرفاکس</string>
+    <string name="preset_sub_name_1">کانفیگ‌های کلادفلر</string>
     <string name="preset_sub_name_2">کانفیگ خودکار ۲</string>
-    <string name="preset_updated">کانفیگ خودکار به‌روز شد</string>
+    <string name="preset_updated">کانفیگ‌های کلادفلر به‌روز شد</string>
     <string name="subs_add_and_fetch">افزودن و دریافت</string>
     <string name="subs_existing">سابسکریپشن‌های شما</string>
     <string name="groups_add">گروه جدید</string>
@@ -697,6 +701,8 @@
     <string name="tor_bridges_unreachable">در دسترس نیست</string>
     <string name="tor_bridges_empty">برای این ترنسپورت پل داخلی‌ای نیست.</string>
     <string name="snispoof_add_title">افزودن SNI spoof (روت)</string>
+    <string name="foxy_edit_title">ویرایش سرور فایرفاکس</string>
+    <string name="foxy_label">برچسب (کشور / شهر)</string>
     <string name="foxy_add_title">تونل فایرفاکس</string>
     <string name="foxy_import_none">فهرست سرورهای فایرفاکس به‌روز است</string>
     <string name="foxy_import_failed">دریافت فهرست سرورهای فایرفاکس ممکن نشد</string>

@@ -1078,6 +1078,15 @@ class ConfigRepository(private val store: KeyValueStore) {
     fun exportAllPayloads(): String =
         _profiles.value.mapNotNull { it.rawPayload() }.joinToString("\n")
 
+    /** Payloads of exactly [ids], in list order — the selection-aware export. */
+    fun exportPayloads(ids: Collection<String>): String {
+        val wanted = ids.toSet()
+        return _profiles.value
+            .filter { it.id in wanted }
+            .mapNotNull { it.rawPayload() }
+            .joinToString("\n")
+    }
+
     fun setActive(id: String?) {
         _activeId.value = id
         store.putString(KEY_ACTIVE, id)
@@ -1155,8 +1164,12 @@ class ConfigRepository(private val store: KeyValueStore) {
         if (persist) persistProfiles()
     }
 
-    suspend fun importPasted(text: String, subscriptionId: String = ""): Result<PastedImport> {
-        subscriptionUrlIn(text)?.let { return importSubscriptionUrl(it, name = null) }
+    suspend fun importPasted(
+        text: String,
+        subscriptionId: String = "",
+        autoName: String? = null,
+    ): Result<PastedImport> {
+        subscriptionUrlIn(text)?.let { return importSubscriptionUrl(it, name = autoName) }
         val parsed = runCatching {
             lastImportDuplicates = 0
             val added = importText(text, subscriptionId).getOrThrow()
@@ -1164,7 +1177,7 @@ class ConfigRepository(private val store: KeyValueStore) {
         }
         if (parsed.getOrNull()?.let { it.count > 0 || it.duplicates > 0 } == true) return parsed
         val url = soleUrlIn(text) ?: return parsed
-        return importSubscriptionUrl(url, name = null, keepIfUnreachable = false)
+        return importSubscriptionUrl(url, name = autoName, keepIfUnreachable = false)
     }
 
     /**
@@ -1183,7 +1196,22 @@ class ConfigRepository(private val store: KeyValueStore) {
                 .onFailure { failures++ }
         }
         if (failures > 0 && total == 0) throw IllegalArgumentException("preset subscriptions unreachable")
+        dropLegacyPresets()
         total
+    }
+
+    /**
+     * Preset subscriptions merged away server-side: their configs now
+     * arrive through PresetSubscriptions.URLS, so both the entry and its
+     * servers go away. Runs only after a successful refresh of the merged
+     * sub, so nothing is lost while the network is down.
+     */
+    private fun dropLegacyPresets() {
+        val legacy = PresetSubscriptions.LEGACY_URLS.map { it.lowercase() }.toSet()
+        val keep = PresetSubscriptions.URLS.map { it.lowercase() }.toSet()
+        _subscriptions.value
+            .filter { it.url.lowercase() in legacy && it.url.lowercase() !in keep }
+            .forEach { removeSubscription(it.id, alsoRemoveServers = true) }
     }
 
     suspend fun importSubscriptionUrl(

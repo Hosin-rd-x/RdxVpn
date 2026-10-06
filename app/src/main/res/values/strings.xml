@@ -206,6 +206,7 @@
     <string name="transport_unsupported">This transport (%1$s) was removed from the Xray core and can\'t be used</string>
     <string name="notif_channel_name">Connection status</string>
     <string name="notif_channel_desc">Shows the live tunnel, speeds and duration while connected</string>
+    <string name="notif_channel_foxy">Rdx VPN · Firefox tunnel</string>
     <string name="notif_speeds">↓ %1$s   ↑ %2$s</string>
     <string name="notif_totals">Session: %1$s down · %2$s up</string>
     <string name="notif_connected_to">Connected to %1$s</string>

@@ -381,6 +381,7 @@ data class AppSettings(
 
     val dismissedUpdateVersion: String = "",
     val dismissedUpdateAtMs: Long = 0L,
+    val pendingUpdateVersion: String = "",
 
     val successfulConnections: Int = 0,
     val ratePromptLastShownMs: Long = 0L,
@@ -392,7 +393,7 @@ data class AppSettings(
     val subscriptionUpdateIntervalHours: Int = 12,
     val autoTestAfterUpdate: Boolean = true,
     val autoRemoveInvalidAfterTest: Boolean = true,
-    val autoSortAfterTest: Boolean = false,
+    val autoSortAfterTest: Boolean = true,
 
     val dnsGlobalResolverEnabled: Boolean = false,
     val dnsGlobalResolvers: String = "",

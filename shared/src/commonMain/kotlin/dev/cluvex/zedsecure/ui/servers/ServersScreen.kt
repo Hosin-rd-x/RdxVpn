@@ -136,6 +136,18 @@ fun ServersScreen(
     val platform = LocalPlatform.current
     val scope = rememberCoroutineScope()
     val lockedCannotShare = stringResource(Res.string.locked_cannot_share)
+    val subAutoNamePattern = stringResource(Res.string.sub_auto_name)
+
+    /** "Subscription link 1", "Subscription link 2", … — never collides with a name in use. */
+    fun nextAutoSubName(): String {
+        val taken = repository.subscriptions.value.map { it.name }.toSet()
+        var i = 1
+        while (true) {
+            val candidate = subAutoNamePattern.replace("%1\$d", i.toString()).replace("%d", i.toString())
+            if (candidate !in taken) return candidate
+            i++
+        }
+    }
 
     fun toastImportFailure(e: Throwable) {
         if (e is ConfigRepository.SubscriptionNotFetchedException) {
@@ -196,7 +208,8 @@ fun ServersScreen(
     fun importScanned(text: String, subscriptionId: String) {
         scope.launch(kotlinx.coroutines.Dispatchers.Default) {
             var outcome: Result<dev.cluvex.zedsecure.data.config.ConfigRepository.PastedImport>? = null
-            offerObfuscationAfter { outcome = repository.importPasted(text, subscriptionId) }
+            val autoName = nextAutoSubName()
+            offerObfuscationAfter { outcome = repository.importPasted(text, subscriptionId, autoName) }
             outcome!!
                 .onSuccess { r ->
                     platform.toast(
@@ -244,7 +257,10 @@ fun ServersScreen(
                     .onFailure { toastImportFailure(it) }
                 return@launch
             }
-            withContext(kotlinx.coroutines.Dispatchers.Default) { repository.importPasted(text, subscriptionId) }
+            val autoName = nextAutoSubName()
+            withContext(kotlinx.coroutines.Dispatchers.Default) {
+                repository.importPasted(text, subscriptionId, autoName)
+            }
                 .onSuccess { r ->
                     platform.toast(
                         when {
@@ -268,7 +284,8 @@ fun ServersScreen(
 
         scope.launch(kotlinx.coroutines.Dispatchers.Default) {
             var outcome: Result<dev.cluvex.zedsecure.data.config.ConfigRepository.PastedImport>? = null
-            offerObfuscationAfter { outcome = repository.importPasted(text, subscriptionId) }
+            val autoName = nextAutoSubName()
+            offerObfuscationAfter { outcome = repository.importPasted(text, subscriptionId, autoName) }
             outcome!!
                 .onSuccess { r ->
                     platform.toast(
@@ -321,10 +338,7 @@ fun ServersScreen(
         presetImporting = true
         scope.launch {
             repository.importPresetSubscriptions(
-                listOf(
-                    getString(Res.string.preset_sub_name_1),
-                    getString(Res.string.preset_sub_name_2),
-                ),
+                listOf(getString(Res.string.preset_sub_name_1)),
             )
                 .onFailure {
                     presetImporting = false
@@ -368,8 +382,6 @@ fun ServersScreen(
     var showIkev2 by remember { mutableStateOf(false) }
     var showSsh by remember { mutableStateOf(false) }
     var showSniSpoof by remember { mutableStateOf(false) }
-    var showProxyChain by remember { mutableStateOf(false) }
-    var showCrossChain by remember { mutableStateOf(false) }
 
     val servers = profiles.filterNot { it.isLocked }
 
@@ -588,6 +600,14 @@ fun ServersScreen(
                                 repository.sortByTestResults()
                             },
                         )
+                        DropdownMenuItem(
+                            text = { Text(stringResource(Res.string.snispoof_add_title)) },
+                            leadingIcon = { Icon(painterResource(Res.drawable.ic_bolt), null) },
+                            onClick = {
+                                overflowOpen = false
+                                showSniSpoof = true
+                            },
+                        )
                         HorizontalDivider()
                         DropdownMenuItem(
                             text = { Text(stringResource(Res.string.del_duplicates)) },
@@ -734,6 +754,22 @@ fun ServersScreen(
                             )
                         }
                         IconButton(
+                            onClick = {
+                                val payload = repository.exportPayloads(selected)
+                                if (payload.isBlank()) {
+                                    toastRes(Res.string.nothing_to_export)
+                                } else {
+                                    platform.shareText(payload)
+                                }
+                            },
+                            enabled = selected.isNotEmpty(),
+                        ) {
+                            Icon(
+                                painterResource(Res.drawable.ic_ios_share),
+                                contentDescription = stringResource(Res.string.export_all),
+                            )
+                        }
+                        IconButton(
                             onClick = { confirmDeleteSelection = true },
                             enabled = selected.isNotEmpty(),
                         ) {
@@ -810,6 +846,13 @@ fun ServersScreen(
                                 onServerActivated()
                             }
                         },
+                        onLongClick = {
+                            if (!selecting) {
+                                selecting = true
+                                selected = emptySet()
+                            }
+                            selected = selected + profile.id
+                        },
 
                         shareLink = runCatching { repository.shareLinkOf(profile) }.getOrNull(),
                         onShare = {
@@ -829,6 +872,7 @@ fun ServersScreen(
                                 val ms = PingService.tcpPing(profile.address, profile.port)
                                 val cc = if (ms > 0) GeoLookup.countryOf(profile.address) else null
                                 repository.setPing(profile.id, if (ms > 0) ms.toInt() else PingService.FAILED_PING, cc)
+                                if (autoSortAfterTest) repository.sortByTestResults()
                             }
                         },
                         onPingReal = {
@@ -840,6 +884,7 @@ fun ServersScreen(
                                 )
                                 val cc = if (ms > 0) GeoLookup.countryOf(profile.address) else null
                                 repository.setPing(profile.id, if (ms > 0) ms.toInt() else PingService.FAILED_PING, cc)
+                                if (autoSortAfterTest) repository.sortByTestResults()
                             }
                         },
                         onDelete = {
@@ -890,15 +935,7 @@ fun ServersScreen(
 
                                 Modifier
                                     .then(if (twoColumns) Modifier.fillMaxHeight() else Modifier)
-
-                                    .then(if (position == 0) Modifier.tourTarget(TourTargets.SERVER_CARD) else Modifier)
-                                    .then(
-
-                                        if (selecting) Modifier
-                                        else Modifier.longPressDraggableHandle(
-                                            onDragStopped = { repository.reorder(order.map { it.id }) },
-                                        ),
-                                    ),
+                                    .then(if (position == 0) Modifier.tourTarget(TourTargets.SERVER_CARD) else Modifier),
                             ) {
                                 card(profile)
                             }
@@ -1132,18 +1169,6 @@ fun ServersScreen(
                 showAddSheet = false
                 showSsh = true
             },
-            onSniSpoof = {
-                showAddSheet = false
-                showSniSpoof = true
-            },
-            onProxyChain = {
-                showAddSheet = false
-                showProxyChain = true
-            },
-            onCrossChain = {
-                showAddSheet = false
-                showCrossChain = true
-            },
             onSubscription = {
                 showAddSheet = false
                 showSubs = true
@@ -1233,32 +1258,6 @@ fun ServersScreen(
             onSave = { name, settings ->
                 showSniSpoof = false
                 repository.addSniSpoof(settings, name)
-                onServerActivated()
-            },
-        )
-    }
-
-    if (showProxyChain) {
-        ProxyChainSheet(
-            candidates = chainCandidates,
-            onDismiss = { showProxyChain = false },
-            onSave = { name, memberIds ->
-                showProxyChain = false
-                repository.addProxyChain(memberIds, name)
-                onServerActivated()
-            },
-        )
-    }
-
-    if (showCrossChain) {
-        CrossChainSheet(
-            exits = crossExits,
-            carriers = crossCarriers,
-            pairError = crossPairError,
-            onDismiss = { showCrossChain = false },
-            onSave = { name, innerId, outerId ->
-                showCrossChain = false
-                repository.addCrossChain(innerId = innerId, outerId = outerId, name = name)
                 onServerActivated()
             },
         )
@@ -1496,6 +1495,17 @@ fun ServersScreen(
                         repository.update(
                             VpnProfile.fromSsh(settings = settings, id = target.id, addedAt = target.addedAt, name = name),
                         )
+                        toastRes(Res.string.saved)
+                        editTarget = null
+                    },
+                )
+            }
+            target.isFoxy -> {
+                FoxyEditSheet(
+                    profile = target,
+                    onDismiss = { editTarget = null },
+                    onSave = { updated ->
+                        repository.update(updated)
                         toastRes(Res.string.saved)
                         editTarget = null
                     },
@@ -1747,6 +1757,7 @@ private fun ServerCard(
     active: Boolean,
     subscriptionName: String?,
     onClick: () -> Unit,
+    onLongClick: () -> Unit = {},
     onShare: () -> Unit,
     onShareQr: () -> Unit,
 
@@ -1778,7 +1789,6 @@ private fun ServerCard(
     }
     val vPad = personalization.density.cardVerticalDp.dp
     Surface(
-        onClick = onClick,
         shape = RoundedCornerShape(personalization.cornerStyle.serverCardDp.dp),
         color = if (selecting && isSelected) MaterialTheme.colorScheme.secondaryContainer else container,
         contentColor = if (selecting && isSelected) MaterialTheme.colorScheme.onSecondaryContainer else onContainer,
@@ -1789,7 +1799,10 @@ private fun ServerCard(
             null
         },
 
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth().combinedClickable(
+            onClick = onClick,
+            onLongClick = onLongClick,
+        ),
     ) {
         Row(
             Modifier.fillMaxWidth().padding(start = 14.dp, end = 4.dp, top = vPad, bottom = vPad),
@@ -1995,9 +2008,6 @@ private fun AddServerSheet(
     onIkev2: () -> Unit,
     onTor: () -> Unit,
     onSsh: () -> Unit,
-    onSniSpoof: () -> Unit,
-    onProxyChain: () -> Unit,
-    onCrossChain: () -> Unit,
     onSubscription: () -> Unit,
     onPreset: () -> Unit,
     onFirefox: () -> Unit,
@@ -2029,8 +2039,6 @@ private fun AddServerSheet(
 
             OptionGroup(Res.string.add_group_tunnels)
             Option(Res.drawable.ic_speed, Res.string.ssh_add_title, onSsh)
-            Option(Res.drawable.ic_bolt, Res.string.snispoof_add_title, onSniSpoof)
-            Option(Res.drawable.ic_public, Res.string.foxy_add_title, onFirefox)
 
             OptionGroup(Res.string.add_group_dns)
             Option(Res.drawable.ic_public, Res.string.dns_tunnel_add_title, onDnsTunnel)
@@ -2040,13 +2048,12 @@ private fun AddServerSheet(
             Option(Res.drawable.ic_lock, Res.string.openconnect_add_title, onOpenConnect)
             Option(Res.drawable.ic_lock, Res.string.ikev2_add_title, onIkev2)
 
-            OptionGroup(Res.string.add_group_chains)
-            Option(Res.drawable.ic_add_link, Res.string.proxychain_add_title, onProxyChain)
-            Option(Res.drawable.ic_add_link, Res.string.crosschain_add_title, onCrossChain)
+            OptionGroup(Res.string.add_group_rdx)
+            Option(Res.drawable.ic_public, Res.string.foxy_add_title, onFirefox)
+            Option(Res.drawable.ic_bolt, Res.string.preset_add, onPreset)
 
             OptionGroup(Res.string.add_group_subscription)
             Option(Res.drawable.ic_add_link, Res.string.subs_add, onSubscription)
-            Option(Res.drawable.ic_bolt, Res.string.preset_add, onPreset)
         }
     }
 }

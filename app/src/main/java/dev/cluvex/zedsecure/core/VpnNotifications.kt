@@ -54,7 +54,7 @@ class VpnNotifications(private val ctx: Context) {
     ): android.app.Notification {
         val title = BidiText.auto(server.ifBlank { ctx.getString(R.string.app_name) })
         val b = NotificationCompat.Builder(ctx, CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_tile_zed)
+            .setSmallIcon(R.drawable.ic_stat_x)
             .setContentTitle(title)
             .setColor(BRAND)
             .setOngoing(true)

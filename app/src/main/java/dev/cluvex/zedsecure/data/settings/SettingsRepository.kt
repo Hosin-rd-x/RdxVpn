@@ -55,6 +55,12 @@ class SettingsRepository(context: Context) {
                 .putBoolean("rdx_defaults_v4", true)
                 .apply()
         }
+        if (!prefs.contains("rdx_defaults_v5")) {
+            prefs.edit()
+                .putBoolean("auto_sort_after_test", true)
+                .putBoolean("rdx_defaults_v5", true)
+                .apply()
+        }
     }
 
     private fun read(): AppSettings {
@@ -193,6 +199,7 @@ class SettingsRepository(context: Context) {
             lastUpdateCheckMs = prefs.getLong("last_update_check", d.lastUpdateCheckMs),
             dismissedUpdateVersion = prefs.str("dismissed_update_version", d.dismissedUpdateVersion),
             dismissedUpdateAtMs = prefs.getLong("dismissed_update_at", d.dismissedUpdateAtMs),
+            pendingUpdateVersion = prefs.str("pending_update_version", d.pendingUpdateVersion),
             successfulConnections = prefs.getInt("successful_connections", d.successfulConnections),
             ratePromptLastShownMs = prefs.getLong("rate_prompt_last", d.ratePromptLastShownMs),
             rateNeverAsk = prefs.getBoolean("rate_never_ask", d.rateNeverAsk),
@@ -401,6 +408,7 @@ class SettingsRepository(context: Context) {
             putLong("last_update_check", s.lastUpdateCheckMs)
             putString("dismissed_update_version", s.dismissedUpdateVersion)
             putLong("dismissed_update_at", s.dismissedUpdateAtMs)
+            putString("pending_update_version", s.pendingUpdateVersion)
             putInt("successful_connections", s.successfulConnections)
             putLong("rate_prompt_last", s.ratePromptLastShownMs)
             putBoolean("rate_never_ask", s.rateNeverAsk)

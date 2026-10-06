@@ -207,8 +207,6 @@ object UpdateChecker {
 object NudgePolicy {
     const val UPDATE_CHECK_INTERVAL_MS = 12L * 60 * 60 * 1000
 
-    const val UPDATE_DISMISS_SNOOZE_MS = 24L * 60 * 60 * 1000
-
     const val RATE_INTERVAL_MS = 24L * 60 * 60 * 1000
 
     const val RATE_MIN_CONNECTIONS = 5
