@@ -1404,4 +1404,5 @@
     <string name="sstp_user">Username</string>
     <string name="sstp_pass">Password</string>
     <string name="sstp_not_ready">This SSTP profile is saved; the connection engine ships with the next release.</string>
+    <string name="sstp_timeout">SSTP did not answer in time; try another server.</string>
 </resources>

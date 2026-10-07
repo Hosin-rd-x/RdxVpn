@@ -681,4 +681,5 @@
     <string name="auto_group_all_short">همهٔ سرورها</string>
     <string name="auto_group_manual_short">دستی</string>
     <string name="sstp_not_ready">کانفیگ SSTP ذخیره شد؛ موتور اتصالش توی نسخه بعد میاد.</string>
+    <string name="sstp_timeout">SSTP به‌موقع جواب نداد؛ سرور دیگه‌ای رو امتحان کن.</string>
 </resources>

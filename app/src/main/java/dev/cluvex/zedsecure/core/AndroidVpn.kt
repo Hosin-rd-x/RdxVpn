@@ -40,6 +40,14 @@ object AndroidVpn {
 
     fun stop(context: Context) {
         if (!VpnManager.onStopping()) return
+
+        // the SSTP engine runs in its own service: stop that one instead
+        if (VpnManager.activeKind.value == VpnManager.KIND_SSTP) {
+            SstpBridge.stop(context)
+            VpnManager.onDisconnected()
+            return
+        }
+
         val intent = Intent(context, ZedVpnService::class.java).apply {
             putExtra(VpnManager.EXTRA_COMMAND, VpnManager.CMD_STOP)
         }

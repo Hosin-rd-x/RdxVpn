@@ -51,6 +51,10 @@ class MainActivity : ComponentActivity() {
 
     private var pendingFoxyRemark: String? = null
 
+    private var pendingSstp: dev.cluvex.zedsecure.domain.config.SstpProfile? = null
+
+    private var pendingSstpRemark: String? = null
+
     private val planner by lazy { StartPlanner(this) }
 
     private var planning = false
@@ -61,10 +65,16 @@ class MainActivity : ComponentActivity() {
             pendingStart = null
             val foxyRemark = pendingFoxyRemark
             pendingFoxyRemark = null
+            val sstp = pendingSstp
+            pendingSstp = null
+            val sstpRemark = pendingSstpRemark
+            pendingSstpRemark = null
             if (result.resultCode == RESULT_OK && start != null) {
                 AndroidVpn.start(this, start.configJson, start.remark, start.socksPort, start.kind)
             } else if (result.resultCode == RESULT_OK && foxyRemark != null) {
                 launchFoxy(foxyRemark)
+            } else if (result.resultCode == RESULT_OK && sstp != null) {
+                launchSstp(sstpRemark ?: sstp.server, sstp)
             } else if (result.resultCode != RESULT_OK) {
                 toast(getString(R.string.vpn_permission_denied))
             }
@@ -500,6 +510,7 @@ class MainActivity : ComponentActivity() {
             when (plan) {
                 is StartPlanner.Plan.Ikev2 -> startIkev2(plan.remark, plan.profile)
                 is StartPlanner.Plan.Foxy -> startFoxy(plan.remark)
+                is StartPlanner.Plan.Sstp -> startSstp(plan.remark, plan.profile)
                 is StartPlanner.Plan.Failure -> toast(plan.message)
                 is StartPlanner.Plan.Start -> {
                     if (plan.proxyOnly) {
@@ -526,6 +537,29 @@ class MainActivity : ComponentActivity() {
         } else {
             launchFoxy(remark)
         }
+    }
+
+    private fun startSstp(
+        remark: String,
+        profile: dev.cluvex.zedsecure.domain.config.SstpProfile,
+    ) {
+        val consent = VpnService.prepare(this)
+        if (consent != null) {
+            pendingSstp = profile
+            pendingSstpRemark = remark
+            vpnPermissionLauncher.launch(consent)
+        } else {
+            launchSstp(remark, profile)
+        }
+    }
+
+    private fun launchSstp(
+        remark: String,
+        profile: dev.cluvex.zedsecure.domain.config.SstpProfile,
+    ) {
+        VpnManager.onStarting(remark)
+        dev.cluvex.zedsecure.core.SstpBridge.start(this, profile)
+        dev.cluvex.zedsecure.core.SstpBridge.watch(lifecycleScope, this, remark)
     }
 
     private fun launchFoxy(remark: String) {

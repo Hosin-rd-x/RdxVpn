@@ -1397,4 +1397,5 @@
     <string name="sstp_user">نام کاربری</string>
     <string name="sstp_pass">رمز عبور</string>
     <string name="sstp_not_ready">کانفیگ SSTP ذخیره شد؛ موتور اتصالش توی نسخه بعد میاد.</string>
+    <string name="sstp_timeout">SSTP به‌موقع جواب نداد؛ سرور دیگه‌ای رو امتحان کن.</string>
 </resources>

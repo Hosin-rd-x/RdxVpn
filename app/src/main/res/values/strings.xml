@@ -693,4 +693,5 @@
     <string name="auto_group_all_short">All servers</string>
     <string name="auto_group_manual_short">Manual</string>
     <string name="sstp_not_ready">This SSTP profile is saved; the connection engine ships with the next release.</string>
+    <string name="sstp_timeout">SSTP did not answer in time; try another server.</string>
 </resources>

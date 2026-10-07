@@ -44,6 +44,8 @@ class StartPlanner(context: Context) {
 
         data class Ikev2(val remark: String, val profile: Ikev2Profile) : Plan
 
+        data class Sstp(val remark: String, val profile: dev.cluvex.zedsecure.domain.config.SstpProfile) : Plan
+
         data class Failure(val message: String) : Plan
 
         data class Foxy(val remark: String) : Plan
@@ -55,7 +57,7 @@ class StartPlanner(context: Context) {
         AutoSelect.clearPrepared()
         if (profile == null) return Plan.Failure(appContext.getString(R.string.select_config_first))
         profile.ikev2Settings()?.let { return Plan.Ikev2(profile.name, it) }
-        profile.sstpSettings()?.let { return Plan.Failure(appContext.getString(R.string.sstp_not_ready)) }
+        profile.sstpSettings()?.let { return Plan.Sstp(profile.name, it) }
         if (profile.isFoxy) return Plan.Foxy(profile.name)
         if (profile.isAutoSelect) {
             val foxyTarget = configRepository.foxyConnectProfile(profile)
