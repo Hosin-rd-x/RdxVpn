@@ -121,7 +121,9 @@ object PingService {
         val customPermits = Semaphore(minOf(realPermits, CUSTOM_PROBE_CONCURRENCY))
         val geoPermits = Semaphore(GEO_CONCURRENCY)
 
-        val targets = profiles.filterNot { (it.isManagedTunnel && !it.isSingBoxConfig) || it.isDnsBasedTunnel }
+        val targets = profiles.filterNot {
+            ((it.isManagedTunnel && !it.isSingBoxConfig && !it.isSstp) || it.isDnsBasedTunnel)
+        }
         val total = targets.size
         var done = 0
         val doneLock = Semaphore(1)
@@ -131,8 +133,11 @@ object PingService {
                 val heavy = useRealDelay || profile.isProxyChain
                 val pool = if (heavy && profile.isCustom) customPermits else permits
                 val ms = pool.withPermit {
-                    if (heavy) measureProfile(profile, url, chainConfig)
-                    else tcpPing(profile.address, profile.port)
+                    when {
+                        profile.isSstp -> tcpPing(profile.address, profile.port)
+                        heavy -> measureProfile(profile, url, chainConfig)
+                        else -> tcpPing(profile.address, profile.port)
+                    }
                 }
 
                 val latency = if (ms > 0) ms.toInt() else FAILED_PING
@@ -155,6 +160,10 @@ object PingService {
         url: String,
         chainConfig: (VpnProfile) -> String? = { null },
     ): Long {
+        // No xray core can speak SSTP - the honest number for it is how fast
+        // its port answers, which is also what tells a live relay from a dead
+        // one in the list.
+        if (profile.isSstp) return tcpPing(profile.address, profile.port)
         if (profile.isFoxy) return foxyRealDelay(profile, url)
         val config = if (profile.isProxyChain) {
             chainConfig(profile) ?: return -1L
