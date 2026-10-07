@@ -77,18 +77,27 @@
                 <data android:mimeType="*/*" />
                 <data android:pathPattern=".*\\.conf" />
                 <data android:pathPattern=".*\\..*\\.conf" />
+                <data android:pathPattern=".*\\..*\\..*\\.conf" />
                 <data android:pathPattern=".*\\.ovpn" />
                 <data android:pathPattern=".*\\..*\\.ovpn" />
+                <data android:pathPattern=".*\\..*\\..*\\.ovpn" />
                 <data android:pathPattern=".*\\.wg" />
-                <data android:pathPattern=".*\\.npvs" />
-                <data android:pathPattern=".*\\.npv" />
+                <data android:pathPattern=".*\\..*\\.wg" />
+                <data android:pathPattern=".*\\..*\\..*\\.wg" />
                 <data android:pathPattern=".*\\.npvt" />
+                <data android:pathPattern=".*\\..*\\.npvt" />
+                <data android:pathPattern=".*\\..*\\..*\\.npvt" />
+                <data android:pathPattern=".*\\.npvs" />
+                <data android:pathPattern=".*\\..*\\.npvs" />
+                <data android:pathPattern=".*\\.npv" />
+                <data android:pathPattern=".*\\..*\\.npv" />
             </intent-filter>
             <intent-filter android:label="@string/config_file_open">
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="content" />
+                <data android:scheme="file" />
                 <data android:mimeType="application/octet-stream" />
             </intent-filter>
             <intent-filter android:label="@string/config_file_open">
