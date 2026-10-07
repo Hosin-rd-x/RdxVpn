@@ -90,6 +90,30 @@ class ConfigRepository(private val store: KeyValueStore) {
         // Installs that predate the Foxy group still carry their Firefox
         // relays in the manual list - move them once, then never again.
         if (_profiles.value.any { it.isFoxy }) ensureFoxyGroup()
+        seedBundledSstp()
+    }
+
+    /**
+     * Ships one known-good relay so the SSTP engine works before the user has
+     * typed anything: the VPN Gate mirror with the demo credentials every
+     * VPN Gate client ships with. Added exactly once per install, so removing
+     * it stays removed.
+     */
+    private fun seedBundledSstp() {
+        if (store.getBoolean(KEY_SSTP_SEEDED, false)) return
+        val group = ensureGroup(SSTP_GROUP)
+        addSstp(
+            settings = dev.cluvex.zedsecure.domain.config.SstpProfile(
+                server = BUNDLED_SSTP_HOST,
+                port = BUNDLED_SSTP_PORT,
+                username = BUNDLED_SSTP_USER,
+                password = BUNDLED_SSTP_PASSWORD,
+            ),
+            name = BUNDLED_SSTP_NAME,
+            subscriptionId = group.id,
+            activate = false,
+        )
+        store.putBoolean(KEY_SSTP_SEEDED, true)
     }
 
     fun activeProfile(): VpnProfile? = _activeId.value?.let { profile(it) }
@@ -514,6 +538,8 @@ class ConfigRepository(private val store: KeyValueStore) {
         settings: dev.cluvex.zedsecure.domain.config.SstpProfile,
         name: String,
         id: String? = null,
+        subscriptionId: String? = null,
+        activate: Boolean = true,
     ): VpnProfile {
         val existing = id?.let { profile(it) }
         val profile = VpnProfile(
@@ -523,6 +549,7 @@ class ConfigRepository(private val store: KeyValueStore) {
             address = settings.server,
             port = settings.port,
             transportLabel = "SSTP",
+            subscriptionId = subscriptionId ?: existing?.subscriptionId,
             source = ProfileSource.Sstp(settings),
             addedAt = currentTimeMillis(),
         ).let { carryOver(existing, it) }
@@ -532,7 +559,7 @@ class ConfigRepository(private val store: KeyValueStore) {
             listOf(profile) + _profiles.value
         }
         persistProfiles()
-        if (_activeId.value == null) setActive(profile.id)
+        if (activate && _activeId.value == null) setActive(profile.id)
         return profile
     }
 
@@ -1664,6 +1691,14 @@ class ConfigRepository(private val store: KeyValueStore) {
     companion object {
         const val FOXY_GROUP = "Foxy . RDX"
         const val SSTP_GROUP = "SSTP . RDX"
+
+        /** The relay shipped with the app so SSTP is usable out of the box. */
+        const val BUNDLED_SSTP_HOST = "public-vpn-156.opengw.net"
+        const val BUNDLED_SSTP_NAME = "VPN Gate · OpenGW"
+        private const val BUNDLED_SSTP_PORT = 443
+        private const val BUNDLED_SSTP_USER = "Vpn"
+        private const val BUNDLED_SSTP_PASSWORD = "vpn"
+        private const val KEY_SSTP_SEEDED = "seeded_sstp"
         private const val PREFS = "zed_configs"
         private const val KEY_PROFILES = "profiles"
         private const val KEY_SUBS = "subscriptions"
