@@ -55,6 +55,7 @@ class StartPlanner(context: Context) {
         AutoSelect.clearPrepared()
         if (profile == null) return Plan.Failure(appContext.getString(R.string.select_config_first))
         profile.ikev2Settings()?.let { return Plan.Ikev2(profile.name, it) }
+        profile.sstpSettings()?.let { return Plan.Failure(appContext.getString(R.string.sstp_not_ready)) }
         if (profile.isFoxy) return Plan.Foxy(profile.name)
         if (profile.isAutoSelect) {
             val foxyTarget = configRepository.foxyConnectProfile(profile)

@@ -86,6 +86,12 @@ class ConfigRepository(private val store: KeyValueStore) {
     private var deadKeys: List<String> = store.getString(KEY_DEAD)
         ?.split('\n')?.filter { it.isNotBlank() } ?: emptyList()
 
+    init {
+        // Installs that predate the Foxy group still carry their Firefox
+        // relays in the manual list - move them once, then never again.
+        if (_profiles.value.any { it.isFoxy }) ensureFoxyGroup()
+    }
+
     fun activeProfile(): VpnProfile? = _activeId.value?.let { profile(it) }
 
     fun profile(id: String): VpnProfile? =
@@ -501,6 +507,27 @@ class ConfigRepository(private val store: KeyValueStore) {
         if (pin.isBlank() || settings.serverCertSha256 == pin) return false
         addOpenConnect(settings.copy(serverCertSha256 = pin), target.name, target.id)
         return true
+    }
+
+    /** Manual SSTP entry: host/port plus the PAP/MS-CHAPv2 credentials. */
+    fun addSstp(
+        settings: dev.cluvex.zedsecure.domain.config.SstpProfile,
+        name: String,
+        id: String? = null,
+    ): VpnProfile {
+        val existing = id?.let { profile(it) }
+        val profile = VpnProfile(
+            id = existing?.id ?: newId(),
+            name = name.ifBlank { settings.server },
+            protocol = "SSTP",
+            address = settings.server,
+            port = settings.port,
+            transportLabel = "SSTP",
+            source = ProfileSource.Sstp(settings),
+            addedAt = currentTimeMillis(),
+        )
+        add(profile)
+        return profile
     }
 
     fun addIkev2(
@@ -931,6 +958,7 @@ class ConfigRepository(private val store: KeyValueStore) {
         val known = current.mapNotNull { (it.source as? ProfileSource.Foxy)?.hostname }.toSet()
         val fresh = relays.filter { it.hostname.isNotBlank() && it.hostname !in known }
         if (fresh.isEmpty()) return 0
+        val foxyGroupId = ensureFoxyGroup().id
         val built = fresh.map { relay ->
             VpnProfile(
                 id = newId(),
@@ -938,6 +966,7 @@ class ConfigRepository(private val store: KeyValueStore) {
                 protocol = "Firefox",
                 address = relay.host,
                 port = relay.port,
+                subscriptionId = foxyGroupId,
                 transportLabel = relay.countryName.ifBlank { "Firefox" },
                 source = ProfileSource.Foxy(
                     hostname = relay.hostname,
@@ -1261,6 +1290,31 @@ class ConfigRepository(private val store: KeyValueStore) {
         _subscriptions.value = _subscriptions.value + sub
         persistSubscriptions()
         return sub
+    }
+
+    /** Reuses an existing empty-URL group of [name], creating it when missing. */
+    fun ensureGroup(name: String): Subscription {
+        val trimmed = name.trim()
+        return _subscriptions.value.firstOrNull {
+            it.url.isBlank() && it.name.equals(trimmed, ignoreCase = true)
+        } ?: addGroup(trimmed)
+    }
+
+    /**
+     * Firefox relays get their own group so they stay out of the manual list
+     * and a Mozilla server-list refresh can never look like a user edit.
+     */
+    fun ensureFoxyGroup(): Subscription {
+        val group = ensureGroup(FOXY_GROUP)
+        val strays = _profiles.value.filter { it.isFoxy && it.subscriptionId != group.id }
+        if (strays.isNotEmpty()) {
+            val strayIds = strays.map { it.id }.toSet()
+            _profiles.value = _profiles.value.map {
+                if (it.id in strayIds) it.copy(subscriptionId = group.id) else it
+            }
+            persistProfiles()
+        }
+        return group
     }
 
     fun addGroup(name: String): Subscription {
@@ -1602,6 +1656,8 @@ class ConfigRepository(private val store: KeyValueStore) {
     }
 
     companion object {
+        const val FOXY_GROUP = "Foxy . RDX"
+        const val SSTP_GROUP = "SSTP . RDX"
         private const val PREFS = "zed_configs"
         private const val KEY_PROFILES = "profiles"
         private const val KEY_SUBS = "subscriptions"

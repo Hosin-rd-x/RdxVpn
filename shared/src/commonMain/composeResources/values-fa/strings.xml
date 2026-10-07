@@ -1390,4 +1390,11 @@
     <string name="update_check_summary_github">جست‌وجوی نسخهٔ جدیدتر در گیت‌هاب</string>
     <string name="rate_title_github">Rdx VPN در گیت‌هاب</string>
     <string name="rate_summary_github">صفحهٔ پروژه را باز کنید تا ستاره بدهید، مشکلی را گزارش کنید یا کد را ببینید</string>
+    <string name="sstp_option_title">SSTP (مایکروسافت)</string>
+    <string name="sstp_sheet_title">افزودن سرور SSTP</string>
+    <string name="sstp_server">آدرس سرور</string>
+    <string name="sstp_port">پورت</string>
+    <string name="sstp_user">نام کاربری</string>
+    <string name="sstp_pass">رمز عبور</string>
+    <string name="sstp_not_ready">کانفیگ SSTP ذخیره شد؛ موتور اتصالش توی نسخه بعد میاد.</string>
 </resources>

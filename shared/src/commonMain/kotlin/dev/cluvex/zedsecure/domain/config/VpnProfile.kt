@@ -54,6 +54,10 @@ sealed interface ProfileSource {
     data class Ikev2(val settings: Ikev2Profile) : ProfileSource
 
     @Serializable
+    @SerialName("sstp")
+    data class Sstp(val settings: SstpProfile) : ProfileSource
+
+    @Serializable
     @SerialName("proxy_chain")
     data class ProxyChain(val memberIds: List<String>) : ProfileSource
 
@@ -127,6 +131,7 @@ data class VpnProfile(
 
     val isSingBoxConfig: Boolean get() = source is ProfileSource.SingBoxConfig
     val isFoxy: Boolean get() = source is ProfileSource.Foxy
+    val isSstp: Boolean get() = source is ProfileSource.Sstp
 
     fun autoSelectSettings(): ProfileSource.AutoSelect? = source as? ProfileSource.AutoSelect
 
@@ -145,7 +150,7 @@ data class VpnProfile(
 
     val isManagedTunnel: Boolean
         get() = isPsiphon || isDnsTunnel || isMasterDns || isTor || isSsh || isSniSpoof ||
-            isOpenConnect || isIkev2 || isCrossChain || isSingBoxConfig
+            isOpenConnect || isIkev2 || isSstp || isCrossChain || isSingBoxConfig
 
     val isDnsBasedTunnel: Boolean get() = isDnsTunnel || isMasterDns
 
@@ -158,6 +163,8 @@ data class VpnProfile(
     fun openConnectSettings(): OpenConnectProfile? = (source as? ProfileSource.OpenConnect)?.settings
 
     fun ikev2Settings(): Ikev2Profile? = (source as? ProfileSource.Ikev2)?.settings
+
+    fun sstpSettings(): SstpProfile? = (source as? ProfileSource.Sstp)?.settings
 
     fun proxyChainSettings(): List<String>? = (source as? ProfileSource.ProxyChain)?.memberIds
 

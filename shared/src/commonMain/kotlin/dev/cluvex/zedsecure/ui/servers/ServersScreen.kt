@@ -357,6 +357,7 @@ fun ServersScreen(
 
     var fanOpen by remember { mutableStateOf(false) }
     var showSubs by remember { mutableStateOf(false) }
+    var editSubscription by remember { mutableStateOf<dev.cluvex.zedsecure.domain.config.Subscription?>(null) }
     var renameTarget by remember { mutableStateOf<VpnProfile?>(null) }
     var deleteTarget by remember { mutableStateOf<VpnProfile?>(null) }
     var updating by remember { mutableStateOf(false) }
@@ -380,6 +381,7 @@ fun ServersScreen(
     var showMasterDns by remember { mutableStateOf(false) }
     var showOpenConnect by remember { mutableStateOf(false) }
     var showIkev2 by remember { mutableStateOf(false) }
+    var showSstp by remember { mutableStateOf(false) }
     var showSsh by remember { mutableStateOf(false) }
     var showSniSpoof by remember { mutableStateOf(false) }
 
@@ -710,6 +712,7 @@ fun ServersScreen(
                             count = counts[sub.id] ?: 0,
                             selected = groupIndex == index + 2,
                             onClick = { groupIndex = index + 2 },
+                            onLongClick = { editSubscription = sub },
                         )
                     }
                 }
@@ -1159,6 +1162,10 @@ fun ServersScreen(
                 showAddSheet = false
                 showIkev2 = true
             },
+            onSstp = {
+                showAddSheet = false
+                showSstp = true
+            },
             onTor = {
                 showAddSheet = false
                 repository.addTor("Tor")
@@ -1240,6 +1247,17 @@ fun ServersScreen(
         )
     }
 
+    if (showSstp) {
+        SstpSheet(
+            onDismiss = { showSstp = false },
+            onSave = { name, settings ->
+                showSstp = false
+                repository.addSstp(settings, name)
+                onServerActivated()
+            },
+        )
+    }
+
     if (showSsh) {
         SshSheet(
             onDismiss = { showSsh = false },
@@ -1271,6 +1289,14 @@ fun ServersScreen(
                 repository.addPsiphon(settings, name)
                 onServerActivated()
             },
+        )
+    }
+
+    editSubscription?.let { target ->
+        SubscriptionEditDialog(
+            target = target,
+            repository = repository,
+            onDismiss = { editSubscription = null },
         )
     }
 
@@ -1731,12 +1757,21 @@ fun ServersScreen(
 }
 
 @Composable
-private fun GroupTab(label: String, count: Int, selected: Boolean, onClick: () -> Unit) {
+private fun GroupTab(
+    label: String,
+    count: Int,
+    selected: Boolean,
+    onClick: () -> Unit,
+    onLongClick: (() -> Unit)? = null,
+) {
     Surface(
-        onClick = onClick,
         shape = RoundedCornerShape(50),
         color = if (selected) MaterialTheme.colorScheme.primary
         else MaterialTheme.colorScheme.surfaceContainerHighest,
+        modifier = Modifier.combinedClickable(
+            onClick = onClick,
+            onLongClick = onLongClick,
+        ),
     ) {
         Text(
             text = "$label  $count",
@@ -2006,6 +2041,7 @@ private fun AddServerSheet(
     onMasterDns: () -> Unit,
     onOpenConnect: () -> Unit,
     onIkev2: () -> Unit,
+    onSstp: () -> Unit,
     onTor: () -> Unit,
     onSsh: () -> Unit,
     onSubscription: () -> Unit,
@@ -2047,10 +2083,12 @@ private fun AddServerSheet(
             OptionGroup(Res.string.add_group_vpn)
             Option(Res.drawable.ic_lock, Res.string.openconnect_add_title, onOpenConnect)
             Option(Res.drawable.ic_lock, Res.string.ikev2_add_title, onIkev2)
+            Option(Res.drawable.ic_lock, Res.string.sstp_option_title, onSstp)
 
             OptionGroup(Res.string.add_group_rdx)
             Option(Res.drawable.ic_public, Res.string.foxy_add_title, onFirefox)
             Option(Res.drawable.ic_bolt, Res.string.preset_add, onPreset)
+            Option(Res.drawable.ic_public, Res.string.sstp_option_title, onSstp)
 
             OptionGroup(Res.string.add_group_subscription)
             Option(Res.drawable.ic_add_link, Res.string.subs_add, onSubscription)
