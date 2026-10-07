@@ -168,6 +168,56 @@ internal actual suspend fun tlsHandshakeMillis(host: String, port: Int, timeoutM
         }
     }
 
+/**
+ * The greeting Open-SSTP-Client sends right after TLS is up. The server
+ * answering "200" is what tells an actual SSTP listener from any other
+ * TLS port in the list.
+ */
+internal actual suspend fun sstpProbeMillis(host: String, port: Int, timeoutMs: Int): Long =
+    withContext(Dispatchers.IO) {
+        var plain: Socket? = null
+        var sslClose: SSLSocket? = null
+        val start = System.currentTimeMillis()
+        try {
+            val base = Socket()
+            plain = base
+            base.connect(InetSocketAddress(host, port), timeoutMs)
+            val ssl = SSLContext.getDefault().socketFactory.createSocket(base, host, port, true) as SSLSocket
+            sslClose = ssl
+            ssl.soTimeout = timeoutMs
+            ssl.startHandshake()
+
+            val request = (
+                arrayOf(
+                    "SSTP_DUPLEX_POST /sra_{BA195980-CD49-458b-9E23-C84EE0ADCD75}/ HTTP/1.1",
+                    "Content-Length: 18446744073709551615",
+                    "Host: $host",
+                ).joinToString("\r\n", postfix = "\r\n\r\n")
+                ).toByteArray(Charsets.US_ASCII)
+            ssl.getOutputStream().apply {
+                write(request)
+                flush()
+            }
+
+            val reply = StringBuilder()
+            val buf = ByteArray(256)
+            while (System.currentTimeMillis() - start < timeoutMs && !reply.contains("\r\n\r\n")) {
+                val n = ssl.getInputStream().read(buf)
+                if (n < 0) break
+                reply.append(String(buf, 0, n, Charsets.ISO_8859_1))
+                if (reply.length > 16_384) break
+            }
+
+            val status = reply.split("\r\n").firstOrNull().orEmpty()
+            if (status.contains("200")) System.currentTimeMillis() - start else -1L
+        } catch (e: Exception) {
+            -1L
+        } finally {
+            runCatching { sslClose?.takeIf { !it.isClosed }?.close() }
+            runCatching { plain?.takeIf { !it.isClosed }?.close() }
+        }
+    }
+
 internal actual suspend fun httpStreamTransfer(
     url: String,
     socksPort: Int?,

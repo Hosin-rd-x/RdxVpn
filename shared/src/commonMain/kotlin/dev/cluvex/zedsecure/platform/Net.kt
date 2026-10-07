@@ -31,6 +31,15 @@ internal expect suspend fun tcpConnectMillis(host: String, port: Int, timeoutMs:
 
 internal expect suspend fun tlsHandshakeMillis(host: String, port: Int, timeoutMs: Int): Long
 
+/**
+ * Speaks the real SSTP greeting: TCP connect, TLS handshake, then the
+ * HTTP request the client sends before PPP starts, timed until the server
+ * answers.
+ *
+ * @return elapsed ms, or -1 when the host does not answer as an SSTP server.
+ */
+internal expect suspend fun sstpProbeMillis(host: String, port: Int, timeoutMs: Int): Long
+
 internal expect suspend fun httpStreamTransfer(
     url: String,
     socksPort: Int?,

@@ -1,6 +1,7 @@
 package kittoku.osc.terminal
 
 import android.os.ParcelFileDescriptor
+import dev.cluvex.zedsecure.core.SstpTraffic
 import kittoku.osc.ControlMessage
 import kittoku.osc.Result
 import kittoku.osc.SharedBridge
@@ -150,11 +151,14 @@ internal class IPTerminal(private val bridge: SharedBridge) {
         // nothing will be written until initialized
         // the position won't be changed
         outputStream?.write(buffer.array(), start, size)
+        SstpTraffic.down.addAndGet(size.toLong())
     }
 
     internal fun readPacket(buffer: ByteBuffer) {
         buffer.clear()
-        buffer.position(inputStream?.read(buffer.array(), 0, bridge.PPP_MTU) ?: buffer.position())
+        val read = inputStream?.read(buffer.array(), 0, bridge.PPP_MTU) ?: buffer.position()
+        if (read > 0) SstpTraffic.up.addAndGet(read.toLong())
+        buffer.position(read)
         buffer.flip()
     }
 

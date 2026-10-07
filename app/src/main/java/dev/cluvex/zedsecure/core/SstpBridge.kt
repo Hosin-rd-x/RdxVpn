@@ -71,16 +71,48 @@ object SstpBridge {
         scope.launch {
             var up = false
             val deadline = now() + CONNECT_TIMEOUT_MS
+            var startedAt = 0L
+            var tickedAt = 0L
+            var seenDown = 0L
+            var seenUp = 0L
 
             while (true) {
                 val status = status(context)
 
                 if (!up && status.isNotBlank()) {
                     up = true
+                    startedAt = now()
+                    tickedAt = 0L
+                    seenDown = 0L
+                    seenUp = 0L
+                    SstpTraffic.reset()
                     VpnManager.onConnected(remark)
                 } else if (up && status.isBlank()) {
                     VpnManager.onDisconnected()
                     return@launch
+                }
+
+                // The engine owns the tunnel, so the counters it bumps are the
+                // only source the home screen can draw from.
+                if (up) {
+                    val stamp = now()
+                    val down = SstpTraffic.down.get()
+                    val sent = SstpTraffic.up.get()
+
+                    if (tickedAt > 0L) {
+                        val seconds = (stamp - tickedAt).coerceAtLeast(1L) / 1000.0
+                        VpnManager.onMetrics(
+                            durationSeconds = ((stamp - startedAt) / 1000L).toInt(),
+                            downBps = ((down - seenDown) / seconds).toLong(),
+                            upBps = ((sent - seenUp) / seconds).toLong(),
+                            totalDown = down,
+                            totalUp = sent,
+                        )
+                    }
+
+                    tickedAt = stamp
+                    seenDown = down
+                    seenUp = sent
                 }
 
                 if (!up && now() > deadline) {

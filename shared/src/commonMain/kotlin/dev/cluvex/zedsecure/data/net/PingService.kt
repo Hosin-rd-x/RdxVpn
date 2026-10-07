@@ -7,6 +7,7 @@ import dev.cluvex.zedsecure.domain.config.CustomConfig
 import dev.cluvex.zedsecure.domain.config.VpnProfile
 import dev.cluvex.zedsecure.platform.httpTimedTransfer
 import dev.cluvex.zedsecure.platform.tcpConnectMillis
+import dev.cluvex.zedsecure.platform.sstpProbeMillis
 import dev.cluvex.zedsecure.platform.tlsHandshakeMillis
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -134,7 +135,7 @@ object PingService {
                 val pool = if (heavy && profile.isCustom) customPermits else permits
                 val ms = pool.withPermit {
                     when {
-                        profile.isSstp -> tcpPing(profile.address, profile.port)
+                        profile.isSstp && !useRealDelay -> tcpPing(profile.address, profile.port)
                         heavy -> measureProfile(profile, url, chainConfig)
                         else -> tcpPing(profile.address, profile.port)
                     }
@@ -160,10 +161,13 @@ object PingService {
         url: String,
         chainConfig: (VpnProfile) -> String? = { null },
     ): Long {
-        // No xray core can speak SSTP - the honest number for it is how fast
-        // its port answers, which is also what tells a live relay from a dead
-        // one in the list.
-        if (profile.isSstp) return tcpPing(profile.address, profile.port)
+        // No xray core can speak SSTP, so measure it the way the client does:
+        // TCP + TLS + the SSTP greeting, timed up to the server's own reply.
+        if (profile.isSstp) {
+            return runCatching {
+                sstpProbeMillis(profile.address, profile.port, PRECHECK_TIMEOUT_MS)
+            }.getOrElse { -1L }
+        }
         if (profile.isFoxy) return foxyRealDelay(profile, url)
         val config = if (profile.isProxyChain) {
             chainConfig(profile) ?: return -1L
