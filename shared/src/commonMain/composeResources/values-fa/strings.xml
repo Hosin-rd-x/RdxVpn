@@ -281,6 +281,8 @@
     <string name="about_built_on">ساخته شده بر پایهٔ هستهٔ Xray، همراه با sing-box، DNSTT، VayDNS، MasterDNS، AmneziaWG، OpenConnect و IKEv2.</string>
     <string name="about_telegram">کانال تلگرام</string>
     <string name="about_github">گیت‌هاب</string>
+    <string name="about_contact_hint">پیام مستقیم در تلگرام</string>
+    <string name="about_contact">ارتباط با سازنده</string>
     <string name="about_source_title">هستهٔ اوپن‌سورس</string>
     <string name="about_source_body">هسته‌ای که ترافیک شما را می‌برد روی پروژه‌های اوپن‌سورس با لایسنس‌های GPL-3.0، LGPL-3.0 و MPL-2.0 ساخته شده. سورس پچ‌شدهٔ ما، همان‌طور که این لایسنس‌ها لازم دارند، منتشر شده است.</string>
     <string name="about_source_xray">هستهٔ Xray — پچ‌های ما</string>

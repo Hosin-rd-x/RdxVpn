@@ -310,6 +310,8 @@
     <string name="about_built_on">基于 Xray 核心构建，并集成 Psiphon、Tor、Snowflake、obfs4、Conjure、DNSTT、VayDNS、MasterDNS、AmneziaWG、OpenConnect 与 IKEv2。</string>
     <string name="about_telegram">Telegram 频道</string>
     <string name="about_github">GitHub</string>
+    <string name="about_contact_hint">电报直接消息</string>
+    <string name="about_contact">联系开发者</string>
     <string name="about_source_title">开源核心</string>
     <string name="about_source_body">承载流量的核心基于采用 GPL-3.0、LGPL-3.0 和 MPL-2.0 许可的开源项目构建。我们已按这些许可的要求公开了修改后的源代码。</string>
     <string name="about_source_xray">Xray 核心 — 我们的修改</string>

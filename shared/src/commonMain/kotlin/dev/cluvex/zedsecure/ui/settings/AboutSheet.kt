@@ -34,6 +34,10 @@ import dev.cluvex.zedsecure.ui.platform.LocalPlatform
 import dev.cluvex.zedsecure.ui.components.MorphingBlob
 import dev.cluvex.zedsecure.ui.theme.ZedGradients
 
+// Opens my Telegram profile straight in the app: a numeric deep link is the
+// only form that works without a public @username.
+private const val TELEGRAM_CONTACT = "tg://user?id=1200622005"
+
 private const val GITHUB_URL = "https://github.com/Hosin-rd-x/RdxVpn"
 
 private const val XRAY_SOURCE_URL = "https://github.com/CluvexStudio/Xray-core"
@@ -79,6 +83,13 @@ fun AboutSheet(onDismiss: () -> Unit) {
             )
 
             Spacer(Modifier.size(4.dp))
+
+            LinkRow(
+                iconRes = Res.drawable.ic_send,
+                title = stringResource(Res.string.about_contact),
+                subtitle = stringResource(Res.string.about_contact_hint),
+                onClick = { platform.openUri(TELEGRAM_CONTACT) },
+            )
 
             LinkRow(
                 iconRes = Res.drawable.ic_add_link,

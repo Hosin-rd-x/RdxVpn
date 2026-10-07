@@ -317,6 +317,8 @@
     <string name="about_built_on">Built on the Xray core, with sing-box, DNSTT, VayDNS, MasterDNS, AmneziaWG, OpenConnect and IKEv2.</string>
     <string name="about_telegram">Telegram channel</string>
     <string name="about_github">GitHub</string>
+    <string name="about_contact_hint">Direct message on Telegram</string>
+    <string name="about_contact">Contact the developer</string>
     <string name="about_source_title">Open-source core</string>
     <string name="about_source_body">The core that carries your traffic is built on open-source projects licensed under GPL-3.0, LGPL-3.0 and MPL-2.0. Our patched sources are published, as those licences require.</string>
     <string name="about_source_xray">Xray core — our patches</string>
