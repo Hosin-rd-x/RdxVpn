@@ -24,6 +24,7 @@ import libv2ray.Libv2ray
 class AppContainer(context: Context) {
     val settingsRepository: SettingsRepository = SettingsRepository(context)
     val configRepository: ConfigRepository = ConfigRepository(AndroidKeyValueStore(context, "zed_configs"))
+        .also { it.ensureBundledSstp() }
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 

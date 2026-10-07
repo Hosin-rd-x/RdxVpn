@@ -90,16 +90,16 @@ class ConfigRepository(private val store: KeyValueStore) {
         // Installs that predate the Foxy group still carry their Firefox
         // relays in the manual list - move them once, then never again.
         if (_profiles.value.any { it.isFoxy }) ensureFoxyGroup()
-        seedBundledSstp()
     }
 
     /**
      * Ships one known-good relay so the SSTP engine works before the user has
      * typed anything: the VPN Gate mirror with the demo credentials every
      * VPN Gate client ships with. Added exactly once per install, so removing
-     * it stays removed.
+     * it stays removed. Called by the app container, never by the
+     * constructor: tests build a repo and expect it empty.
      */
-    private fun seedBundledSstp() {
+    fun ensureBundledSstp() {
         if (store.getBoolean(KEY_SSTP_SEEDED, false)) return
         val group = ensureGroup(SSTP_GROUP)
         addSstp(
