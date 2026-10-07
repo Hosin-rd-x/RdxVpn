@@ -525,8 +525,14 @@ class ConfigRepository(private val store: KeyValueStore) {
             transportLabel = "SSTP",
             source = ProfileSource.Sstp(settings),
             addedAt = currentTimeMillis(),
-        )
-        add(profile)
+        ).let { carryOver(existing, it) }
+        _profiles.value = if (existing != null) {
+            _profiles.value.map { if (it.id == profile.id) profile else it }
+        } else {
+            listOf(profile) + _profiles.value
+        }
+        persistProfiles()
+        if (_activeId.value == null) setActive(profile.id)
         return profile
     }
 

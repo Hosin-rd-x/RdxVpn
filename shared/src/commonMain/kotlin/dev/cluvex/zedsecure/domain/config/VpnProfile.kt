@@ -214,6 +214,8 @@ data class VpnProfile(
         is ProfileSource.OpenConnect -> ZedLink.build(name, src)
         is ProfileSource.Ikev2 -> ZedLink.build(name, src)
 
+        is ProfileSource.Sstp -> null
+
         is ProfileSource.ProxyChain -> null
         is ProfileSource.CrossChain -> null
 
@@ -255,6 +257,7 @@ data class VpnProfile(
         is ProfileSource.MasterDns -> throw IllegalStateException("MasterDNS profiles do not build Xray config")
         is ProfileSource.OpenConnect -> throw IllegalStateException("OpenConnect profiles do not build Xray config")
         is ProfileSource.Ikev2 -> throw IllegalStateException("IKEv2 profiles do not build Xray config")
+        is ProfileSource.Sstp -> throw IllegalStateException("SSTP profiles do not build Xray config")
         is ProfileSource.Tor -> throw IllegalStateException("Tor profiles do not build Xray config")
         is ProfileSource.Ssh -> throw IllegalStateException("SSH profiles do not build Xray config")
 

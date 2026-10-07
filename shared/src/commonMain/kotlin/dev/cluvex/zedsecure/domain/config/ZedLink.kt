@@ -68,6 +68,7 @@ object ZedLink {
 
         is ProfileSource.SingBox,
         is ProfileSource.SingBoxConfig,
+        is ProfileSource.Sstp,
         -> false
     }
 }

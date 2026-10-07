@@ -193,6 +193,7 @@ data class DeepLinkPreview(
             is ProfileSource.Ssh -> "SSH"
             is ProfileSource.MasterDns -> "MasterDNS"
             is ProfileSource.OpenConnect -> "OpenConnect"
+            is ProfileSource.Sstp -> "SSTP"
             is ProfileSource.Ikev2 -> "IKEv2"
             is ProfileSource.ProxyChain -> "Proxy chain"
             is ProfileSource.CrossChain -> "Cross chain"
