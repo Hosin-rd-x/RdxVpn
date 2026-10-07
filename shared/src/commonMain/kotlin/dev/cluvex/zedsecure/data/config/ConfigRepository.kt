@@ -549,7 +549,7 @@ class ConfigRepository(private val store: KeyValueStore) {
             address = settings.server,
             port = settings.port,
             transportLabel = "SSTP",
-            subscriptionId = subscriptionId ?: existing?.subscriptionId,
+            subscriptionId = subscriptionId ?: existing?.subscriptionId ?: "",
             source = ProfileSource.Sstp(settings),
             addedAt = currentTimeMillis(),
         ).let { carryOver(existing, it) }
