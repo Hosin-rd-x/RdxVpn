@@ -209,6 +209,10 @@
     <string name="paste_empty">کلیپ‌بورد خالی است</string>
     <string name="config_added">کانفیگ اضافه شد</string>
     <string name="config_invalid">این کانفیگ خوانده نشد</string>
+    <string name="config_file_open">باز کردن کانفیگ در RdxVpn</string>
+    <string name="file_open_unreadable">این فایل خوانده نشد</string>
+    <string name="file_open_npvs">این فایل کانتینر رمزنگاری‌شده نپسترنت است. اول لینک‌های ساده‌اش را دربیار، بعد همان‌ها را اینجا باز کن.</string>
+    <string name="servers_already_added">%1$d مورد تکراری بود و اضافه نشد</string>
     <string name="coming_soon">به‌زودی</string>
 
     <string name="vault_create_title">ساخت کانفیگ قفل‌شده</string>

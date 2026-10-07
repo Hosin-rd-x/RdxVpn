@@ -215,6 +215,10 @@
     <string name="paste_empty">Clipboard is empty</string>
     <string name="config_added">Config added</string>
     <string name="config_invalid">Couldn\'t read that config</string>
+    <string name="config_file_open">Open config in RdxVpn</string>
+    <string name="file_open_unreadable">That file couldn\'t be read</string>
+    <string name="file_open_npvs">This is an encrypted Napsternet container. Unwrap it to plain links first, then open those in RdxVpn.</string>
+    <string name="servers_already_added">%1$d duplicate config(s) skipped</string>
     <string name="coming_soon">Coming soon</string>
 
     <string name="vault_create_title">Create locked config</string>

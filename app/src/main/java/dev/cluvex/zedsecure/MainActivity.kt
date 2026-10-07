@@ -251,7 +251,7 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
-        if (!handleDeepLink(intent)) handleIncomingZsx(intent)
+        if (!handleDeepLink(intent)) handleIncomingFile(intent)
         handleConnectRequest(intent)
     }
 
@@ -277,7 +277,7 @@ class MainActivity : ComponentActivity() {
         toggleConnection()
     }
 
-    private fun handleIncomingZsx(intent: Intent?) {
+    private fun handleIncomingFile(intent: Intent?) {
         val uri = when (intent?.action) {
             Intent.ACTION_VIEW -> intent.data
             Intent.ACTION_SEND -> IntentCompat.getParcelableExtra(
@@ -286,7 +286,22 @@ class MainActivity : ComponentActivity() {
             else -> null
         } ?: return
 
-        offerLockedConfig(uri)
+        val bytes = runCatching {
+            contentResolver.openInputStream(uri)?.use { it.readBytes() }
+        }.getOrNull()
+        if (bytes == null) {
+            toast(getString(R.string.file_open_unreadable))
+            return
+        }
+
+        val peeked = runCatching { configRepository.peekLocked(bytes) }
+        if (peeked.getOrNull() != null ||
+            peeked.exceptionOrNull() is dev.cluvex.zedsecure.crypto.ZsxLegacyException
+        ) {
+            offerLockedConfig(bytes)
+            return
+        }
+        importSharedConfigText(bytes)
     }
 
     private fun offerLockedConfig(uri: Uri) {
@@ -297,6 +312,10 @@ class MainActivity : ComponentActivity() {
             toast(getString(R.string.zsx_invalid))
             return
         }
+        offerLockedConfig(bytes)
+    }
+
+    private fun offerLockedConfig(bytes: ByteArray) {
         val peeked = runCatching { configRepository.peekLocked(bytes) }
         val meta = peeked.getOrNull()
         if (meta == null) {
@@ -311,6 +330,37 @@ class MainActivity : ComponentActivity() {
         VaultImportBus.request(bytes, meta)
     }
 
+    /** A plain config file (.conf / .ovpn / link list / sing-box json) opens straight into the app. */
+    private fun importSharedConfigText(bytes: ByteArray) {
+        val head = bytes.decodeToString(0, minOf(bytes.size, 10), throwOnInvalidSequence = false)
+        if (head.startsWith("NPVT") || head.startsWith("NPVS")) {
+            lifecycleScope.launch { toast(getString(R.string.file_open_npvs)) }
+            return
+        }
+        val text = bytes.decodeToString(throwOnInvalidSequence = false)
+            .replace('\u0000', ' ')
+            .trim()
+        if (text.isEmpty()) {
+            toast(getString(R.string.file_open_unreadable))
+            return
+        }
+        lifecycleScope.launch(Dispatchers.Default) {
+            val message = runCatching {
+                configRepository.importPasted(text).fold(
+                    onSuccess = { r ->
+                        when {
+                            r.count > 0 -> getString(R.string.servers_imported, r.count)
+                            r.duplicates > 0 -> getString(R.string.servers_already_added, r.duplicates)
+                            else -> getString(R.string.config_invalid)
+                        }
+                    },
+                    onFailure = { getString(R.string.config_invalid) },
+                )
+            }.getOrElse { getString(R.string.config_invalid) }
+            withContext(Dispatchers.Main) { toast(message) }
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         dev.cluvex.zedsecure.core.Ikev2CertBridgeAndroid.install(this)
@@ -320,7 +370,7 @@ class MainActivity : ComponentActivity() {
         maybeRequestNotificationPermission()
 
         if (savedInstanceState == null) {
-            if (!handleDeepLink(intent)) handleIncomingZsx(intent)
+            if (!handleDeepLink(intent)) handleIncomingFile(intent)
         }
         handleConnectRequest(intent)
         val repo = (application as ZedSecureApp).container.settingsRepository
