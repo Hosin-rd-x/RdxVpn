@@ -1400,6 +1400,8 @@
     <string name="rate_title_github">Rdx VPN on GitHub</string>
     <string name="rate_summary_github">Open the project page to star it, report a problem or read the code</string>
     <string name="sstp_option_title">SSTP (Microsoft)</string>
+    <string name="sstp_online_empty">No new server came back</string>
+    <string name="sstp_online_title">SSTP servers (online list)</string>
     <string name="sstp_sheet_title">Add SSTP server</string>
     <string name="sstp_server">Server address</string>
     <string name="sstp_port">Port</string>

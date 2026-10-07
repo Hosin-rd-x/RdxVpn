@@ -1393,6 +1393,8 @@
     <string name="rate_title_github">Rdx VPN در گیت‌هاب</string>
     <string name="rate_summary_github">صفحهٔ پروژه را باز کنید تا ستاره بدهید، مشکلی را گزارش کنید یا کد را ببینید</string>
     <string name="sstp_option_title">SSTP (مایکروسافت)</string>
+    <string name="sstp_online_empty">سرور جدیدی برنگشت</string>
+    <string name="sstp_online_title">سرورهای SSTP (فهرست آنلاین)</string>
     <string name="sstp_sheet_title">افزودن سرور SSTP</string>
     <string name="sstp_server">آدرس سرور</string>
     <string name="sstp_port">پورت</string>

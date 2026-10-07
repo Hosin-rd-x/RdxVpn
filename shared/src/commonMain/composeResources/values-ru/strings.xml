@@ -1386,4 +1386,6 @@
     <string name="update_check_summary_github">Искать новую версию на GitHub</string>
     <string name="rate_title_github">Rdx VPN на GitHub</string>
     <string name="rate_summary_github">Открыть страницу проекта: поставить звезду, сообщить о проблеме или посмотреть код</string>
+    <string name="sstp_online_title">Серверы SSTP (онлайн-список)</string>
+    <string name="sstp_online_empty">Новых серверов не пришло</string>
 </resources>

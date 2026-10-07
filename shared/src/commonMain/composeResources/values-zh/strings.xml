@@ -1386,4 +1386,6 @@
     <string name="update_check_summary_github">在 GitHub 上查找新版本</string>
     <string name="rate_title_github">GitHub 上的 Rdx VPN</string>
     <string name="rate_summary_github">打开项目页面：点星、报告问题或查看代码</string>
+    <string name="sstp_online_title">SSTP 服务器（在线列表）</string>
+    <string name="sstp_online_empty">没有新服务器</string>
 </resources>

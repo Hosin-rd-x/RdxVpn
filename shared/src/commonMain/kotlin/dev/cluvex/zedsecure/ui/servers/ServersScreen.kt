@@ -453,6 +453,38 @@ fun ServersScreen(
         else -> subscriptions.firstOrNull { it.id == autoScope }?.name.orEmpty()
     }
 
+    var sstpImporting by remember { mutableStateOf(false) }
+
+    /**
+     * One-tap for the Rdx group: pulls the live SSTP list into its own
+     * subscription, so new relays show up without an app update. The manual
+     * sheet behind the VPN group stays as it was.
+     */
+    fun importSstpServers() {
+        if (sstpImporting) return
+        sstpImporting = true
+        scope.launch {
+            repository.importSubscriptionUrl(
+                ConfigRepository.BUNDLED_SSTP_URL,
+                ConfigRepository.SSTP_GROUP,
+            )
+                .onFailure {
+                    sstpImporting = false
+                    toastRes(Res.string.subs_failed)
+                }
+                .onSuccess { result ->
+                    sstpImporting = false
+                    if (result.count > 0) toastRes(Res.string.servers_imported, result.count)
+                    else toastRes(Res.string.sstp_online_empty)
+                    val subId = repository.subscriptions.value.firstOrNull {
+                        it.url.equals(ConfigRepository.BUNDLED_SSTP_URL, ignoreCase = true)
+                    }?.id
+                    val idx = repository.subscriptions.value.indexOfFirst { it.id == subId }
+                    if (idx >= 0) groupIndex = idx + 2
+                }
+        }
+    }
+
     var selecting by remember { mutableStateOf(false) }
     var selected by remember { mutableStateOf(setOf<String>()) }
 
@@ -1165,6 +1197,10 @@ fun ServersScreen(
             onSstp = {
                 showAddSheet = false
                 showSstp = true
+            },
+            onSstpList = {
+                showAddSheet = false
+                importSstpServers()
             },
             onTor = {
                 showAddSheet = false
@@ -2042,6 +2078,7 @@ private fun AddServerSheet(
     onOpenConnect: () -> Unit,
     onIkev2: () -> Unit,
     onSstp: () -> Unit,
+    onSstpList: () -> Unit,
     onTor: () -> Unit,
     onSsh: () -> Unit,
     onSubscription: () -> Unit,
@@ -2088,7 +2125,7 @@ private fun AddServerSheet(
             OptionGroup(Res.string.add_group_rdx)
             Option(Res.drawable.ic_public, Res.string.foxy_add_title, onFirefox)
             Option(Res.drawable.ic_bolt, Res.string.preset_add, onPreset)
-            Option(Res.drawable.ic_public, Res.string.sstp_option_title, onSstp)
+            Option(Res.drawable.ic_sync, Res.string.sstp_online_title, onSstpList)
 
             OptionGroup(Res.string.add_group_subscription)
             Option(Res.drawable.ic_add_link, Res.string.subs_add, onSubscription)
