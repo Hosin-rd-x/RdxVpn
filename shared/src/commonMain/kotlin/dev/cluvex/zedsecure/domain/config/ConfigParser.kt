@@ -42,7 +42,7 @@ object ConfigParser {
 
     fun isSupportedLink(link: String): Boolean {
         val scheme = link.trim().substringBefore("://", "").lowercase()
-        return Protocol.fromScheme(scheme) != null || SingBoxLinks.handles(link)
+        return scheme == "sstp" || Protocol.fromScheme(scheme) != null || SingBoxLinks.handles(link)
     }
 
     private fun parseVless(link: String): ServerConfig {

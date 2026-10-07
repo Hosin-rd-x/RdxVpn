@@ -19,6 +19,7 @@ import dev.cluvex.zedsecure.domain.config.AutoSelectBuild
 import dev.cluvex.zedsecure.domain.config.AutoSelectIds
 import dev.cluvex.zedsecure.domain.config.AutoSelectTuning
 import dev.cluvex.zedsecure.domain.config.SniSpoofLink
+import dev.cluvex.zedsecure.domain.config.SstpLink
 import dev.cluvex.zedsecure.domain.config.ZedLink
 import dev.cluvex.zedsecure.domain.config.ConfigParser
 import dev.cluvex.zedsecure.domain.config.AwgConfig
@@ -101,18 +102,11 @@ class ConfigRepository(private val store: KeyValueStore) {
      */
     fun ensureBundledSstp() {
         if (store.getBoolean(KEY_SSTP_SEEDED, false)) return
-        val group = ensureGroup(SSTP_GROUP)
-        addSstp(
-            settings = dev.cluvex.zedsecure.domain.config.SstpProfile(
-                server = BUNDLED_SSTP_HOST,
-                port = BUNDLED_SSTP_PORT,
-                username = BUNDLED_SSTP_USER,
-                password = BUNDLED_SSTP_PASSWORD,
-            ),
-            name = BUNDLED_SSTP_NAME,
-            subscriptionId = group.id,
-            activate = false,
-        )
+        val existing = _subscriptions.value.firstOrNull { it.url == BUNDLED_SSTP_URL }
+        val sub = existing ?: addSubscription(name = SSTP_GROUP, url = BUNDLED_SSTP_URL)
+        // Seed the relay offline; the first refresh replaces it with whatever
+        // the remote list holds, so new servers need no app update.
+        runCatching { importText(BUNDLED_SSTP_LINK, subscriptionId = sub.id) }
         store.putBoolean(KEY_SSTP_SEEDED, true)
     }
 
@@ -249,6 +243,20 @@ class ConfigRepository(private val store: KeyValueStore) {
                         subscriptionId = subscriptionId,
                         name = parsed.name,
                         link = link,
+                    )
+                } else if (SstpLink.isSstpLink(link)) {
+                    val (name, settings) = SstpLink.parse(link)
+                        ?: throw IllegalArgumentException("invalid sstp:// link")
+                    VpnProfile(
+                        id = newId(),
+                        name = name,
+                        protocol = "SSTP",
+                        address = settings.server,
+                        port = settings.port,
+                        transportLabel = "SSTP",
+                        source = ProfileSource.Sstp(settings),
+                        addedAt = currentTimeMillis(),
+                        subscriptionId = subscriptionId,
                     )
                 } else {
                     VpnProfile.fromLink(
@@ -1692,12 +1700,10 @@ class ConfigRepository(private val store: KeyValueStore) {
         const val FOXY_GROUP = "Foxy . RDX"
         const val SSTP_GROUP = "SSTP . RDX"
 
-        /** The relay shipped with the app so SSTP is usable out of the box. */
-        const val BUNDLED_SSTP_HOST = "public-vpn-156.opengw.net"
-        const val BUNDLED_SSTP_NAME = "VPN Gate · OpenGW"
-        private const val BUNDLED_SSTP_PORT = 443
-        private const val BUNDLED_SSTP_USER = "Vpn"
-        private const val BUNDLED_SSTP_PASSWORD = "vpn"
+        /** Remote list behind the SSTP tab - servers are added there, not in a release. */
+        const val BUNDLED_SSTP_URL =
+            "https://gist.githubusercontent.com/Hosin-rd-x/ba90aa95ae8d4e2d95d59c759ec5a2a1/raw/sstp.txt"
+        private const val BUNDLED_SSTP_LINK = "sstp://Vpn:vpn@public-vpn-156.opengw.net:443"
         private const val KEY_SSTP_SEEDED = "seeded_sstp"
         private const val PREFS = "zed_configs"
         private const val KEY_PROFILES = "profiles"

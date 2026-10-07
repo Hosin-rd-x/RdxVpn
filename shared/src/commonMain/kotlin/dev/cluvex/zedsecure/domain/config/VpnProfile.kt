@@ -214,7 +214,7 @@ data class VpnProfile(
         is ProfileSource.OpenConnect -> ZedLink.build(name, src)
         is ProfileSource.Ikev2 -> ZedLink.build(name, src)
 
-        is ProfileSource.Sstp -> null
+        is ProfileSource.Sstp -> SstpLink.build(src.settings)
 
         is ProfileSource.ProxyChain -> null
         is ProfileSource.CrossChain -> null
