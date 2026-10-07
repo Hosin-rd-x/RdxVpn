@@ -2,7 +2,7 @@ package kittoku.osc.terminal
 
 import android.os.ParcelFileDescriptor
 import kittoku.osc.ControlMessage
-import dev.cluvex.zedsecure.Result
+import kittoku.osc.Result
 import kittoku.osc.SharedBridge
 import kittoku.osc.Where
 import kittoku.osc.extension.toHexByteArray

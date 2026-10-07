@@ -27,6 +27,7 @@ object SstpBridge {
 
     private const val CONNECT_TIMEOUT_MS = 45_000L
     private const val POLL_MS = 500L
+    private const val POLL_MS_CONNECTED = 2_000L
 
     /** Writes the profile (seeding every engine default) and asks to connect. */
     fun start(context: Context, profile: SstpProfile) {
@@ -88,7 +89,7 @@ object SstpBridge {
                     return@launch
                 }
 
-                delay(POLL_MS)
+                delay(if (up) POLL_MS_CONNECTED else POLL_MS)
             }
         }
     }

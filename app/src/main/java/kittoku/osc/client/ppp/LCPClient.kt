@@ -3,7 +3,7 @@ package kittoku.osc.client.ppp
 import kittoku.osc.ControlMessage
 import kittoku.osc.DEFAULT_MRU
 import kittoku.osc.MIN_MRU
-import dev.cluvex.zedsecure.Result
+import kittoku.osc.Result
 import kittoku.osc.SharedBridge
 import kittoku.osc.Where
 import kittoku.osc.preference.AUTH_PROTOCOL_EAP_MSCHAPv2

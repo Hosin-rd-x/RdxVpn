@@ -7,7 +7,7 @@ import androidx.core.app.NotificationCompat
 import androidx.documentfile.provider.DocumentFile
 import kittoku.osc.ControlMessage
 import dev.cluvex.zedsecure.R
-import dev.cluvex.zedsecure.Result
+import kittoku.osc.Result
 import kittoku.osc.SharedBridge
 import kittoku.osc.Where
 import kittoku.osc.extension.capacityAfterLimit

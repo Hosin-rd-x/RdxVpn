@@ -1,7 +1,7 @@
 package kittoku.osc.io.incoming
 
 import kittoku.osc.ControlMessage
-import dev.cluvex.zedsecure.Result
+import kittoku.osc.Result
 import kittoku.osc.Where
 import kittoku.osc.extension.move
 import kittoku.osc.unit.DataUnit

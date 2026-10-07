@@ -189,6 +189,16 @@ class ZedVpnService : VpnService() {
                     VpnManager.onStarting(plan.remark)
                     dev.cluvex.zedsecure.foxy.vpn.FoxyVpnService.start(this@ZedVpnService, plan.remark)
                 }
+                is StartPlanner.Plan.Sstp -> {
+                    stopEverything()
+                    VpnManager.onStarting(plan.remark)
+                    dev.cluvex.zedsecure.core.SstpBridge.start(this@ZedVpnService, plan.profile)
+                    dev.cluvex.zedsecure.core.SstpBridge.watch(
+                        kotlinx.coroutines.MainScope(),
+                        this@ZedVpnService,
+                        plan.remark,
+                    )
+                }
                 is StartPlanner.Plan.Failure -> {
                     VpnManager.onError(plan.message)
                     stopEverything()

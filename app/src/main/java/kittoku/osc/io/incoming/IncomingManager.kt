@@ -2,7 +2,7 @@ package kittoku.osc.io.incoming
 
 import kittoku.osc.ControlMessage
 import kittoku.osc.MAX_MRU
-import dev.cluvex.zedsecure.Result
+import kittoku.osc.Result
 import kittoku.osc.SharedBridge
 import kittoku.osc.Where
 import kittoku.osc.client.SstpClient

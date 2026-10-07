@@ -1,7 +1,7 @@
 package kittoku.osc.client.ppp
 
 import kittoku.osc.ControlMessage
-import dev.cluvex.zedsecure.Result
+import kittoku.osc.Result
 import kittoku.osc.SharedBridge
 import kittoku.osc.Where
 import kittoku.osc.unit.ppp.Ipv6cpConfigureAck
