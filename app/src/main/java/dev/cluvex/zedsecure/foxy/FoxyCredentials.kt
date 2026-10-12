@@ -15,7 +15,7 @@ object FoxyCredentials {
 
     // base64(XOR(refresh_token, KEY))
     private const val OBFUSCATED_REFRESH_TOKEN =
-        "ZVFIYkYIGycOTRofBQUDVzABTWMRW0xwXxpATAIIAwQ2VR01Ew0eIgtNHRpTUQYHMVJKMhFcSXAMSRtLCgdUBg=="
+        "NlNPZUcKFn8OTRsZAFVXUmsHGjUWXEp0CksYSwQAB1dkXE80EwwfcF1BH00GA1EGYAFAMxUPTn8LHhwcUQlTAA=="
 
     fun refreshToken(): String = runCatching {
         val raw = Base64.decode(OBFUSCATED_REFRESH_TOKEN, Base64.NO_WRAP)

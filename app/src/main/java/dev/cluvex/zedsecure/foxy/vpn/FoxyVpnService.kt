@@ -629,31 +629,53 @@ class FoxyVpnService : VpnService() {
             ensureGenerationCurrent(myGeneration)
 
             suspend fun mintProxyPass(): ProxyPass {
-                var auth = tokenStore.loadAuth() ?: throw TokenInvalidError("Not signed in")
+                val pool = dev.cluvex.zedsecure.foxy.FoxyConfig.refreshTokens()
+                val currentRt = tokenStore.loadAuth()?.refreshToken
+                val candidates = if (!currentRt.isNullOrBlank() && pool.contains(currentRt)) {
+                    val idx = pool.indexOf(currentRt)
+                    pool.drop(idx) + pool.take(idx)
+                } else {
+                    pool
+                }
 
-                if (!tokenStore.hasValidSession()) {
-                    val renewed = renewAccessToken(tokenStore)
-                    if (renewed != null) {
-                        auth = renewed
-                        AppLogger.i(TAG, "the account's access token had expired and was renewed")
-                    } else {
+                val guardian = GuardianClient()
+                var lastQuotaError: QuotaExceededError? = null
 
-                        AppLogger.w(
-                            TAG,
-                            "the account's access token is past its expiry and could not be renewed automatically; " +
-                                "you may need to sign in again",
-                        )
+                for (rt in candidates) {
+                    try {
+                        if (tokenStore.loadAuth()?.refreshToken != rt) {
+                            tokenStore.silentRestoreFromEmbedded(rt)
+                        }
+                        var auth = tokenStore.loadAuth() ?: throw TokenInvalidError("Not signed in")
+                        if (!tokenStore.hasValidSession() || auth.accessToken.isBlank()) {
+                            val renewed = renewAccessToken(tokenStore)
+                            if (renewed != null) {
+                                auth = renewed
+                            } else {
+                                AppLogger.w(TAG, "could not renew token for account in pool, skipping")
+                                continue
+                            }
+                        }
+
+                        return try {
+                            guardian.fetchProxyPass(GUARDIAN_ENDPOINT_DEFAULT, auth.accessToken)
+                        } catch (invalid: TokenInvalidError) {
+                            AppLogger.w(TAG, "proxy pass rejected, activating Guardian entitlement and retrying", invalid)
+                            guardian.activateGuardian(GUARDIAN_ENDPOINT_DEFAULT, auth.accessToken)
+                            guardian.fetchProxyPass(GUARDIAN_ENDPOINT_DEFAULT, auth.accessToken)
+                        }
+                    } catch (quota: QuotaExceededError) {
+                        AppLogger.w(TAG, "account quota exhausted, failing over to next account in pool", quota)
+                        lastQuotaError = quota
+                        dev.cluvex.zedsecure.foxy.FoxyConfig.invalidateCache()
+                        continue
+                    } catch (invalid: TokenInvalidError) {
+                        AppLogger.w(TAG, "account token invalid, trying next account in pool", invalid)
+                        continue
                     }
                 }
-                val guardian = GuardianClient()
 
-                return try {
-                    guardian.fetchProxyPass(GUARDIAN_ENDPOINT_DEFAULT, auth.accessToken)
-                } catch (invalid: TokenInvalidError) {
-                    AppLogger.w(TAG, "proxy pass rejected, activating Guardian entitlement and retrying", invalid)
-                    guardian.activateGuardian(GUARDIAN_ENDPOINT_DEFAULT, auth.accessToken)
-                    guardian.fetchProxyPass(GUARDIAN_ENDPOINT_DEFAULT, auth.accessToken)
-                }
+                throw (lastQuotaError ?: QuotaExceededError("All accounts in pool exhausted"))
             }
 
             var currentPassExpiry: Long? = null
