@@ -15,7 +15,7 @@ on:
         default: play
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   apk:
