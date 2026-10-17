@@ -1495,6 +1495,21 @@ class ZedVpnService : VpnService() {
                 startTunnel(plan.configJson, plan.socksPort, plan.kind)
             }
             is StartPlanner.Plan.Ikev2 -> holdTraffic(getString(R.string.engine_ikev2_needs_app))
+            is StartPlanner.Plan.Foxy -> {
+                stopEverything()
+                VpnManager.onStarting(plan.remark)
+                dev.cluvex.zedsecure.foxy.vpn.FoxyVpnService.start(this@ZedVpnService, plan.remark)
+            }
+            is StartPlanner.Plan.Sstp -> {
+                stopEverything()
+                VpnManager.onStarting(plan.remark)
+                dev.cluvex.zedsecure.core.SstpBridge.start(this@ZedVpnService, plan.profile)
+                dev.cluvex.zedsecure.core.SstpBridge.watch(
+                    kotlinx.coroutines.MainScope(),
+                    this@ZedVpnService,
+                    plan.remark,
+                )
+            }
             is StartPlanner.Plan.Failure -> holdTraffic(plan.message)
         }
     }
