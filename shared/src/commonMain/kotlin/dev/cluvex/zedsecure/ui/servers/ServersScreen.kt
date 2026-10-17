@@ -391,6 +391,8 @@ fun ServersScreen(
     var showSstp by remember { mutableStateOf(false) }
     var showSsh by remember { mutableStateOf(false) }
     var showSniSpoof by remember { mutableStateOf(false) }
+    var showProxyChain by remember { mutableStateOf(false) }
+    var showCrossChain by remember { mutableStateOf(false) }
 
     val servers = profiles.filterNot { it.isLocked }
 
@@ -1315,6 +1317,18 @@ fun ServersScreen(
                 showAddSheet = false
                 showSsh = true
             },
+            onSniSpoof = {
+                showAddSheet = false
+                showSniSpoof = true
+            },
+            onProxyChain = {
+                showAddSheet = false
+                showProxyChain = true
+            },
+            onCrossChain = {
+                showAddSheet = false
+                showCrossChain = true
+            },
             onSubscription = {
                 showAddSheet = false
                 showSubs = true
@@ -1415,6 +1429,32 @@ fun ServersScreen(
             onSave = { name, settings ->
                 showSniSpoof = false
                 repository.addSniSpoof(settings, name)
+                onServerActivated()
+            },
+        )
+    }
+
+    if (showProxyChain) {
+        ProxyChainSheet(
+            candidates = chainCandidates,
+            onDismiss = { showProxyChain = false },
+            onSave = { name, memberIds ->
+                showProxyChain = false
+                repository.addProxyChain(memberIds, name)
+                onServerActivated()
+            },
+        )
+    }
+
+    if (showCrossChain) {
+        CrossChainSheet(
+            exits = crossExits,
+            carriers = crossCarriers,
+            pairError = crossPairError,
+            onDismiss = { showCrossChain = false },
+            onSave = { name, innerId, outerId ->
+                showCrossChain = false
+                repository.addCrossChain(innerId = innerId, outerId = outerId, name = name)
                 onServerActivated()
             },
         )
@@ -2187,6 +2227,9 @@ private fun AddServerSheet(
     onSstpList: () -> Unit,
     onTor: () -> Unit,
     onSsh: () -> Unit,
+    onSniSpoof: () -> Unit,
+    onProxyChain: () -> Unit,
+    onCrossChain: () -> Unit,
     onSubscription: () -> Unit,
     onPreset: () -> Unit,
     onFirefox: () -> Unit,
@@ -2245,6 +2288,10 @@ private fun AddServerSheet(
             Option(Res.drawable.ic_lock, Res.string.openconnect_add_title, onOpenConnect)
             Option(Res.drawable.ic_lock, Res.string.ikev2_add_title, onIkev2)
             Option(Res.drawable.ic_lock, Res.string.sstp_option_title, onSstp)
+
+            OptionGroup(Res.string.add_group_chains)
+            Option(Res.drawable.ic_add_link, Res.string.proxychain_add_title, onProxyChain)
+            Option(Res.drawable.ic_add_link, Res.string.crosschain_add_title, onCrossChain)
 
             OptionGroup(Res.string.add_group_rdx)
             Option(Res.drawable.ic_public, Res.string.foxy_add_title, onFirefox)
