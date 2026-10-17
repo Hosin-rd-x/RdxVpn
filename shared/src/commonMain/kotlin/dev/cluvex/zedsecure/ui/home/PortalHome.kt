@@ -902,7 +902,7 @@ private fun PortalDoor(
                 )
             } else {
                 Icon(
-                    painterResource(Res.drawable.ic_zed_glyph),
+                    painterResource(Res.drawable.ic_rdx_glyph),
                     contentDescription = null,
                     tint = ink,
                     modifier = Modifier.size(doorSize * 0.36f),

@@ -971,7 +971,11 @@
 
     <string name="add_group_import">Импорт</string>
     <string name="add_free_badge">Бесплатно</string>
-    <string name="add_free_hint">Psiphon и Tor бесплатны и не требуют своего сервера. Остальные способы подключаются к вашему серверу или подписке.</string>
+    <string name="add_free_hint">Способы подключения Rdx бесплатны и не требуют своего сервера. Остальные способы подключаются к вашему серверу или подписке.</string>
+    <string name="tour_rdx_title">Бесплатные туннели Rdx</string>
+    <string name="tour_rdx_body">Эта группа — наша: туннель Firefox, конфиги RDX - CF и онлайн-список SSTP. Все три бесплатны и не требуют своей подписки.</string>
+    <string name="tour_rdx_cf_title">Добавить конфиг Rdx</string>
+    <string name="tour_rdx_cf_body">Нажмите любой из трёх — он добавится, протестируется и будет готов к подключению. RDX - CF забирает конфиги Cloudflare, а список SSTP обновляется онлайн.</string>
     <string name="add_group_tunnels">Туннели</string>
     <string name="add_group_dns">DNS-туннели</string>
     <string name="add_group_vpn">Протоколы VPN</string>

@@ -125,6 +125,8 @@ object TourTargets {
     const val NAV_SERVERS = "nav-Servers"
     const val NAV_SETTINGS = "nav-Settings"
     const val SERVERS_ADD = "servers-add"
+    const val SERVERS_RDX = "servers-rdx"
+    const val SERVERS_RDX_CF = "servers-rdx-cf"
     const val SERVERS_SUBS = "servers-subs"
     const val SERVERS_PING = "servers-ping"
     const val SERVERS_MORE = "servers-more"
@@ -137,6 +139,15 @@ object TourTargets {
     const val SETTINGS_CORE = "settings-core"
     const val SETTINGS_TOOLS = "settings-tools"
     const val SETTINGS_ABOUT = "settings-about"
+}
+
+/**
+ * Lets the running tour ask another screen to reveal what it is pointing at.
+ * [openAddSheet] is set by the scaffold while a tour step lives inside the
+ * add-server sheet, so the Servers screen can open (and later close) it.
+ */
+object TourPins {
+    var openAddSheet by mutableStateOf(false)
 }
 
 fun Modifier.tourTarget(key: String): Modifier = this then TourTargetElement(key)

@@ -971,7 +971,11 @@
 
     <string name="add_group_import">导入</string>
     <string name="add_free_badge">免费</string>
-    <string name="add_free_hint">Psiphon 和 Tor 免费，无需自己的服务器。其他方式都连接到你自己的服务器或订阅。</string>
+    <string name="add_free_hint">Rdx 连接方式免费，无需自己的服务器。其他方式都连接到你自己的服务器或订阅。</string>
+    <string name="tour_rdx_title">免费的 Rdx 隧道</string>
+    <string name="tour_rdx_body">这一组是我们自己的：Firefox 隧道、RDX - CF 配置和在线 SSTP 列表。三者都免费，无需自己的订阅。</string>
+    <string name="tour_rdx_cf_title">添加 Rdx 配置</string>
+    <string name="tour_rdx_cf_body">点这三个中的任意一个，它会被添加、测试并可以直接连接。RDX - CF 拉取 Cloudflare 配置，SSTP 列表在线刷新。</string>
     <string name="add_group_tunnels">隧道</string>
     <string name="add_group_dns">DNS 隧道</string>
     <string name="add_group_vpn">VPN 协议</string>

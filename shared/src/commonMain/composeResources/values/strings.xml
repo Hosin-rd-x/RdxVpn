@@ -49,12 +49,12 @@
 
     <string name="subs_title">Subscriptions</string>
     <string name="subs_add">Add subscription</string>
-    <string name="preset_add">Cloudflare configs</string>
+    <string name="preset_add">RDX - CF</string>
     <string name="add_group_rdx">Rdx connection methods</string>
     <string name="sub_auto_name">Subscription link %1$d</string>
     <string name="update_pending_title">A new update is available</string>
     <string name="notif_channel_foxy">Rdx VPN · Firefox tunnel</string>
-    <string name="preset_sub_name_1">Cloudflare configs</string>
+    <string name="preset_sub_name_1">RDX - CF</string>
     <string name="preset_sub_name_2">Auto config 2</string>
     <string name="preset_updated">Cloudflare configs updated</string>
     <string name="subs_add_and_fetch">Add and fetch</string>
@@ -984,7 +984,11 @@
 
     <string name="add_group_import">Import</string>
     <string name="add_free_badge">Free</string>
-    <string name="add_free_hint">Psiphon and Tor are free and need no server of your own. Everything else connects to your own server or subscription.</string>
+    <string name="add_free_hint">The Rdx connection methods are free and need no server of your own. The other methods connect to your own server or subscription.</string>
+    <string name="tour_rdx_cf_body">Pick one of these three and it is added, tested and ready to connect. RDX - CF pulls the Cloudflare configs, and the SSTP list is refreshed online.</string>
+    <string name="tour_rdx_cf_title">Add an Rdx config</string>
+    <string name="tour_rdx_body">This group is ours: the Firefox tunnel, the RDX - CF configs and the online SSTP list. All of them are free and need no subscription of your own.</string>
+    <string name="tour_rdx_title">Free Rdx tunnels</string>
     <string name="add_group_tunnels">Tunnels</string>
     <string name="add_group_dns">DNS tunnels</string>
     <string name="add_group_vpn">VPN protocols</string>

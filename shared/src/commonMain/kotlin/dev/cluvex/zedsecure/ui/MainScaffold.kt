@@ -347,6 +347,15 @@ fun MainScaffold(
                 dev.cluvex.zedsecure.ui.onboarding.TourDestination.Settings -> TopDestination.Settings
             }
         }
+        // The Rdx steps point at rows inside the add-server sheet: ask it to open.
+        val sheetStep = step.target == dev.cluvex.zedsecure.ui.onboarding.TourTargets.SERVERS_RDX ||
+            step.target == dev.cluvex.zedsecure.ui.onboarding.TourTargets.SERVERS_RDX_CF
+        androidx.compose.runtime.LaunchedEffect(sheetStep) {
+            dev.cluvex.zedsecure.ui.onboarding.TourPins.openAddSheet = sheetStep
+        }
+        androidx.compose.runtime.DisposableEffect(Unit) {
+            onDispose { dev.cluvex.zedsecure.ui.onboarding.TourPins.openAddSheet = false }
+        }
         dev.cluvex.zedsecure.ui.onboarding.TourOverlay(
             step = step,
             index = tourStep,

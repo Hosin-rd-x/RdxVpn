@@ -60,12 +60,12 @@
 
     <string name="subs_title">سابسکریپشن‌ها</string>
     <string name="subs_add">افزودن سابسکریپشن</string>
-    <string name="preset_add">کانفیگ‌های کلادفلر</string>
+    <string name="preset_add">RDX - CF</string>
     <string name="add_group_rdx">روش‌های اتصال Rdx</string>
     <string name="sub_auto_name">ساب لینک %1$d</string>
     <string name="update_pending_title">آپدیت جدیدی وجود دارد</string>
     <string name="notif_channel_foxy">Rdx VPN · تونل فایرفاکس</string>
-    <string name="preset_sub_name_1">کانفیگ‌های کلادفلر</string>
+    <string name="preset_sub_name_1">RDX - CF</string>
     <string name="preset_sub_name_2">کانفیگ خودکار ۲</string>
     <string name="preset_updated">کانفیگ‌های کلادفلر به‌روز شد</string>
     <string name="subs_add_and_fetch">افزودن و دریافت</string>
@@ -977,7 +977,11 @@
 
     <string name="add_group_import">افزودن</string>
     <string name="add_free_badge">رایگان</string>
-    <string name="add_free_hint">سایفون و Tor رایگان هستند و سرور شخصی لازم ندارند. بقیهٔ روش‌ها به سرور یا اشتراک خودتان وصل می‌شوند.</string>
+    <string name="add_free_hint">روش‌های اتصال Rdx رایگان هستند و سرور شخصی لازم ندارند. بقیهٔ روش‌ها به سرور یا اشتراک خودتان وصل می‌شوند.</string>
+    <string name="tour_rdx_cf_body">یکی از این سه را بزن؛ اضافه می‌شود، تست می‌شود و آمادهٔ اتصال است. RDX - CF کانفیگ‌های کلادفلر را می‌گیرد و لیست SSTP به‌صورت آنلاین به‌روز می‌شود.</string>
+    <string name="tour_rdx_cf_title">افزودن کانفیگ Rdx</string>
+    <string name="tour_rdx_body">این گروه مال خودمان است: تونل فایرفاکس، کانفیگ‌های RDX - CF و لیست آنلاین SSTP. هر سه رایگان‌اند و اشتراک شخصی لازم ندارند.</string>
+    <string name="tour_rdx_title">تونل‌های رایگان Rdx</string>
     <string name="add_group_tunnels">تونل‌ها</string>
     <string name="add_group_dns">تونل‌های DNS</string>
     <string name="add_group_vpn">پروتکل‌های VPN</string>
