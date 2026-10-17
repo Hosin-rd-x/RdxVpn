@@ -7,9 +7,7 @@
 package dev.cluvex.zedsecure.ui.servers
 
 import org.jetbrains.compose.resources.DrawableResource
-
 import org.jetbrains.compose.resources.StringResource
-
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
@@ -68,7 +66,8 @@ import androidx.compose.foundation.lazy.grid.itemsIndexed as gridItemsIndexed
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material3.AssistChip
-import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.material3.SheetValue
+import androidx.compose.material3.rememberBottomSheetState
 import androidx.compose.ui.Modifier
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.ui.input.pointer.pointerInput
@@ -103,7 +102,6 @@ import dev.cluvex.zedsecure.ui.onboarding.TourTargets
 import dev.cluvex.zedsecure.ui.onboarding.tourTarget
 import dev.cluvex.zedsecure.ui.platform.LocalPlatform
 import dev.cluvex.zedsecure.ui.format.formatBytes
-
 import dev.cluvex.zedsecure.ui.components.MorphingBlob
 import dev.cluvex.zedsecure.ui.components.PageHeader
 import dev.cluvex.zedsecure.ui.theme.Personalization
@@ -114,6 +112,12 @@ import dev.cluvex.zedsecure.ui.theme.ZedLime
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import dev.cluvex.zedsecure.ui.platform.mouseDragScroll
+import dev.cluvex.zedsecure.ui.platform.onSecondaryClick
+import dev.cluvex.zedsecure.ui.platform.GridScrollbar
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.ui.draw.clip
+import androidx.compose.material3.CircularProgressIndicator
 
 @Composable
 fun ServersScreen(
@@ -132,9 +136,12 @@ fun ServersScreen(
     autoSortAfterTest: Boolean = false,
 
     personalization: Personalization = Personalization.Default,
+    reduceMotion: Boolean = false,
 ) {
     val platform = LocalPlatform.current
     val scope = rememberCoroutineScope()
+    val entranceStart = remember { System.currentTimeMillis() }
+    val springIn = !reduceMotion && dev.cluvex.zedsecure.ui.theme.LocalAppDesign.current == dev.cluvex.zedsecure.domain.model.AppDesign.Pixel
     val lockedCannotShare = stringResource(Res.string.locked_cannot_share)
     val subAutoNamePattern = stringResource(Res.string.sub_auto_name)
 
@@ -420,6 +427,26 @@ fun ServersScreen(
     }
 
     var groupIndex by rememberSaveable { mutableIntStateOf(activeGroupIndex()) }
+    var updatingSubId by remember { mutableStateOf<String?>(null) }
+    val openSubscription = subscriptions.getOrNull(groupIndex - 2)
+    var openSubscriptionId by remember { mutableStateOf(openSubscription?.id) }
+    LaunchedEffect(groupIndex) { openSubscriptionId = subscriptions.getOrNull(groupIndex - 2)?.id }
+    LaunchedEffect(subscriptions) {
+        val id = openSubscriptionId ?: return@LaunchedEffect
+        val index = subscriptions.indexOfFirst { it.id == id }
+        if (index >= 0 && index + 2 != groupIndex) groupIndex = index + 2
+    }
+
+    fun updateSubscription(sub: dev.cluvex.zedsecure.domain.config.Subscription) {
+        if (updatingSubId != null) return
+        updatingSubId = sub.id
+        scope.launch {
+            repository.updateSubscription(sub.id)
+                .onSuccess { platform.toast(getString(Res.string.servers_imported, it)) }
+                .onFailure { platform.toast(getString(Res.string.subs_failed)) }
+            updatingSubId = null
+        }
+    }
 
     androidx.compose.runtime.LaunchedEffect(activeId, subscriptions.size, showAllGroup) {
         groupIndex = activeGroupIndex()
@@ -554,11 +581,26 @@ fun ServersScreen(
                     }
                 }
 
-                IconButton(onClick = { showRealDelayNote = true }) {
-                    Icon(
-                        painterResource(Res.drawable.ic_info),
-                        contentDescription = stringResource(Res.string.real_delay_note_title),
-                    )
+                if (openSubscription != null) {
+                    if (updatingSubId == openSubscription.id) {
+                        Box(Modifier.size(48.dp), contentAlignment = Alignment.Center) {
+                            CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
+                        }
+                    } else {
+                        IconButton(onClick = { updateSubscription(openSubscription) }, enabled = updatingSubId == null) {
+                            Icon(
+                                painterResource(Res.drawable.ic_sync),
+                                contentDescription = stringResource(Res.string.subs_update),
+                            )
+                        }
+                    }
+                } else {
+                    IconButton(onClick = { showRealDelayNote = true }) {
+                        Icon(
+                            painterResource(Res.drawable.ic_info),
+                            contentDescription = stringResource(Res.string.real_delay_note_title),
+                        )
+                    }
                 }
                 IconButton(
                     onClick = { showSubs = true },
@@ -739,13 +781,47 @@ fun ServersScreen(
                         )
                     }
                     itemsIndexed(subscriptions, key = { _, sub -> sub.id }) { index, sub ->
-                        GroupTab(
-                            label = sub.name,
-                            count = counts[sub.id] ?: 0,
-                            selected = groupIndex == index + 2,
-                            onClick = { groupIndex = index + 2 },
-                            onLongClick = { editSubscription = sub },
-                        )
+                        var menuOpen by remember { mutableStateOf(false) }
+                        Box {
+                            GroupTab(
+                                label = sub.name,
+                                count = counts[sub.id] ?: 0,
+                                selected = groupIndex == index + 2,
+                                onClick = { groupIndex = index + 2 },
+                                onMenu = { menuOpen = true },
+                            )
+                            DropdownMenu(
+                                expanded = menuOpen,
+                                onDismissRequest = { menuOpen = false },
+                                shape = MaterialTheme.shapes.largeIncreased,
+                            ) {
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(Res.string.subs_update)) },
+                                    leadingIcon = { Icon(painterResource(Res.drawable.ic_sync), null) },
+                                    enabled = updatingSubId == null,
+                                    onClick = {
+                                        menuOpen = false
+                                        updateSubscription(sub)
+                                    },
+                                )
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(Res.string.subs_edit)) },
+                                    leadingIcon = { Icon(painterResource(Res.drawable.ic_description), null) },
+                                    onClick = {
+                                        menuOpen = false
+                                        editSubscription = sub
+                                    },
+                                )
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(Res.string.subs_title)) },
+                                    leadingIcon = { Icon(painterResource(Res.drawable.ic_edit), null) },
+                                    onClick = {
+                                        menuOpen = false
+                                        showSubs = true
+                                    },
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -939,43 +1015,65 @@ fun ServersScreen(
                         order = order.toMutableList().apply { add(toIndex, removeAt(fromIndex)) }
                     }
                 }
-                LazyVerticalGrid(
-                    state = gridState,
-                    columns = GridCells.Fixed(if (twoColumns) 2 else 1),
-                    modifier = Modifier.fillMaxSize().then(groupSwipe),
-                    contentPadding = gridPadding,
-                    horizontalArrangement = Arrangement.spacedBy(personalization.density.gapDp.dp),
-                    verticalArrangement = Arrangement.spacedBy(personalization.density.gapDp.dp),
-                ) {
-                    if (autoMembers.size >= 2) {
-                        item(key = "auto-select", span = { GridItemSpan(maxLineSpan) }) {
-                            AutoSelectCard(
-                                groupLabel = autoLabel,
-                                memberCount = autoMembers.size,
-                                active = activeId == autoId,
-                                live = autoLive,
-                                memberName = { id -> profiles.firstOrNull { it.id == id }?.name },
-                                onSelect = {
-                                    repository.setActive(autoId)
-                                    onServerActivated()
-                                },
-                                onDetails = { showAutoSheet = true },
-                                personalization = personalization,
-                            )
+                Box(Modifier.fillMaxSize()) {
+                    LazyVerticalGrid(
+                        state = gridState,
+                        columns = GridCells.Fixed(if (twoColumns) 2 else 1),
+                        modifier = Modifier.fillMaxSize().then(groupSwipe),
+                        contentPadding = gridPadding,
+                        horizontalArrangement = Arrangement.spacedBy(personalization.density.gapDp.dp),
+                        verticalArrangement = Arrangement.spacedBy(personalization.density.gapDp.dp),
+                    ) {
+                        if (autoMembers.size >= 2) {
+                            item(key = "auto-select", span = { GridItemSpan(maxLineSpan) }) {
+                                AutoSelectCard(
+                                    groupLabel = autoLabel,
+                                    memberCount = autoMembers.size,
+                                    active = activeId == autoId,
+                                    live = autoLive,
+                                    memberName = { id -> profiles.firstOrNull { it.id == id }?.name },
+                                    onSelect = {
+                                        repository.setActive(autoId)
+                                        onServerActivated()
+                                    },
+                                    onDetails = { showAutoSheet = true },
+                                    personalization = personalization,
+                                )
+                            }
                         }
-                    }
-                    gridItemsIndexed(order, key = { _, p -> p.id }) { position, profile ->
-                        ReorderableItem(reorderState, key = profile.id) {
-                            Box(
+                        gridItemsIndexed(order, key = { _, p -> p.id }) { position, profile ->
+                            ReorderableItem(reorderState, key = profile.id) {
+                                Box(
 
-                                Modifier
-                                    .then(if (twoColumns) Modifier.fillMaxHeight() else Modifier)
-                                    .then(if (position == 0) Modifier.tourTarget(TourTargets.SERVER_CARD) else Modifier),
-                            ) {
-                                card(profile)
+                                    Modifier
+                                        .springEntrance(position, entranceStart, springIn)
+                                        .then(if (twoColumns) Modifier.fillMaxHeight() else Modifier)
+
+                                        .then(if (position == 0) Modifier.tourTarget(TourTargets.SERVER_CARD) else Modifier)
+                                        .then(
+
+                                            if (selecting) Modifier
+                                            else Modifier.longPressDraggableHandle(
+                                                onDragStopped = { repository.reorder(order.map { it.id }) },
+                                            ),
+                                        ),
+                                ) {
+                                    card(profile)
+                                }
                             }
                         }
                     }
+                    GridScrollbar(
+                        state = gridState,
+                        modifier = Modifier
+                            .align(Alignment.CenterEnd)
+                            .fillMaxHeight()
+                            .padding(
+                                top = gridPadding.calculateTopPadding(),
+                                bottom = gridPadding.calculateBottomPadding(),
+                                end = 2.dp,
+                            ),
+                    )
                 }
             }
         }
@@ -1103,6 +1201,19 @@ fun ServersScreen(
     ovpnPrompt?.let { prompt ->
         var username by remember(prompt) { mutableStateOf("") }
         var password by remember(prompt) { mutableStateOf("") }
+        val save = {
+            val text = prompt.text
+            val name = prompt.name
+            val user = username
+            val pass = password
+            ovpnPrompt = null
+            scope.launch {
+                repository.addOvpn(text, name = name, username = user, password = pass)
+                    .onSuccess { platform.toast(getString(Res.string.servers_imported, 1)) }
+                    .onFailure { toastImportFailure(it) }
+            }
+            Unit
+        }
         AlertDialog(
             onDismissRequest = { ovpnPrompt = null },
             title = { Text(stringResource(Res.string.ovpn_credentials_title)) },
@@ -1115,6 +1226,7 @@ fun ServersScreen(
                         onValueChange = { username = it },
                         singleLine = true,
                         label = { Text(stringResource(Res.string.ovpn_username)) },
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
                         modifier = Modifier.fillMaxWidth(),
                     )
                     Spacer(Modifier.height(8.dp))
@@ -1123,23 +1235,14 @@ fun ServersScreen(
                         onValueChange = { password = it },
                         singleLine = true,
                         label = { Text(stringResource(Res.string.ovpn_password)) },
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                        keyboardActions = KeyboardActions(onDone = { save() }),
                         modifier = Modifier.fillMaxWidth(),
                     )
                 }
             },
             confirmButton = {
-                TextButton(onClick = {
-                    val text = prompt.text
-                    val name = prompt.name
-                    val user = username
-                    val pass = password
-                    ovpnPrompt = null
-                    scope.launch {
-                        repository.addOvpn(text, name = name, username = user, password = pass)
-                            .onSuccess { platform.toast(getString(Res.string.servers_imported, 1)) }
-                            .onFailure { toastImportFailure(it) }
-                    }
-                }) { Text(stringResource(Res.string.action_save)) }
+                TextButton(onClick = save) { Text(stringResource(Res.string.action_save)) }
             },
             dismissButton = {
                 TextButton(onClick = { ovpnPrompt = null }) { Text(stringResource(Res.string.action_cancel)) }
@@ -1613,6 +1716,10 @@ fun ServersScreen(
 
     renameTarget?.let { target ->
         var name by remember(target.id) { mutableStateOf(target.name) }
+        val save = {
+            repository.rename(target.id, name.trim().ifBlank { target.name })
+            renameTarget = null
+        }
         AlertDialog(
             onDismissRequest = { renameTarget = null },
             title = { Text(stringResource(Res.string.servers_rename)) },
@@ -1621,14 +1728,13 @@ fun ServersScreen(
                     value = name,
                     onValueChange = { name = it },
                     singleLine = true,
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                    keyboardActions = KeyboardActions(onDone = { save() }),
                     modifier = Modifier.fillMaxWidth(),
                 )
             },
             confirmButton = {
-                TextButton(onClick = {
-                    repository.rename(target.id, name.trim().ifBlank { target.name })
-                    renameTarget = null
-                }) { Text(stringResource(Res.string.action_save)) }
+                TextButton(onClick = save) { Text(stringResource(Res.string.action_save)) }
             },
             dismissButton = {
                 TextButton(onClick = { renameTarget = null }) {
@@ -1798,16 +1904,16 @@ private fun GroupTab(
     count: Int,
     selected: Boolean,
     onClick: () -> Unit,
-    onLongClick: (() -> Unit)? = null,
+    onMenu: (() -> Unit)? = null,
 ) {
     Surface(
         shape = RoundedCornerShape(50),
         color = if (selected) MaterialTheme.colorScheme.primary
         else MaterialTheme.colorScheme.surfaceContainerHighest,
-        modifier = Modifier.combinedClickable(
-            onClick = onClick,
-            onLongClick = onLongClick,
-        ),
+        modifier = Modifier
+            .clip(RoundedCornerShape(50))
+            .combinedClickable(onClick = onClick, onLongClick = onMenu)
+            .then(if (onMenu != null) Modifier.onSecondaryClick(onMenu) else Modifier),
     ) {
         Text(
             text = "$label  $count",
@@ -2098,6 +2204,21 @@ private fun AddServerSheet(
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.padding(horizontal = 22.dp, vertical = 8.dp),
             )
+            Surface(
+                shape = RoundedCornerShape(16.dp),
+                color = MaterialTheme.colorScheme.tertiaryContainer,
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+            ) {
+                Row(Modifier.padding(horizontal = 14.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                    FreeBadge()
+                    Spacer(Modifier.width(10.dp))
+                    Text(
+                        stringResource(Res.string.add_free_hint),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onTertiaryContainer,
+                    )
+                }
+            }
 
             OptionGroup(Res.string.add_group_import)
             Option(Res.drawable.ic_content_paste, Res.string.servers_add_clipboard, onPasteLink)
@@ -2111,7 +2232,10 @@ private fun AddServerSheet(
             Option(Res.drawable.ic_description, Res.string.servers_add_custom, onCustom)
 
             OptionGroup(Res.string.add_group_tunnels)
+            Option(Res.drawable.ic_bolt, Res.string.psiphon_add_title, onPsiphon, free = true)
+            Option(Res.drawable.ic_lock, Res.string.tor_add_title, onTor, free = true)
             Option(Res.drawable.ic_speed, Res.string.ssh_add_title, onSsh)
+            if (LocalPlatform.current.supportsSniSpoof) Option(Res.drawable.ic_bolt, Res.string.snispoof_add_title, onSniSpoof)
 
             OptionGroup(Res.string.add_group_dns)
             Option(Res.drawable.ic_public, Res.string.dns_tunnel_add_title, onDnsTunnel)
@@ -2144,7 +2268,7 @@ private fun OptionGroup(labelRes: StringResource) {
 }
 
 @Composable
-private fun Option(iconRes: DrawableResource, labelRes: StringResource, onClick: () -> Unit) {
+private fun Option(iconRes: DrawableResource, labelRes: StringResource, onClick: () -> Unit, free: Boolean = false) {
     Surface(onClick = onClick, color = Color.Transparent, modifier = Modifier.fillMaxWidth()) {
         Row(
             Modifier.fillMaxWidth().padding(horizontal = 22.dp, vertical = 15.dp),
@@ -2152,8 +2276,25 @@ private fun Option(iconRes: DrawableResource, labelRes: StringResource, onClick:
         ) {
             Icon(painterResource(iconRes), null, tint = MaterialTheme.colorScheme.primary)
             Spacer(Modifier.width(18.dp))
-            Text(stringResource(labelRes), style = MaterialTheme.typography.titleMedium)
+            Text(stringResource(labelRes), style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f, fill = false))
+            if (free) {
+                Spacer(Modifier.width(10.dp))
+                FreeBadge()
+            }
         }
+    }
+}
+
+@Composable
+private fun FreeBadge() {
+    Surface(shape = RoundedCornerShape(50), color = MaterialTheme.colorScheme.tertiary) {
+        Text(
+            stringResource(Res.string.add_free_badge),
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onTertiary,
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+        )
     }
 }
 
@@ -2226,7 +2367,7 @@ private fun RawJsonSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
 
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        sheetState = rememberBottomSheetState(SheetValue.Hidden, setOf(SheetValue.Hidden, SheetValue.Expanded)),
     ) {
         Column(
             Modifier
@@ -2316,3 +2457,25 @@ private object JsonEditor {
 }
 
 private data class OvpnPrompt(val text: String, val name: String)
+
+@Composable
+private fun Modifier.springEntrance(index: Int, startedAt: Long, enabled: Boolean): Modifier {
+    if (!enabled || System.currentTimeMillis() - startedAt > ENTRANCE_WINDOW_MS) return this
+    val reveal = remember { androidx.compose.animation.core.Animatable(0f) }
+    LaunchedEffect(Unit) {
+        kotlinx.coroutines.delay(index.coerceAtMost(ENTRANCE_STAGGER_LIMIT) * ENTRANCE_STEP_MS)
+        reveal.animateTo(1f, androidx.compose.animation.core.spring(dampingRatio = 0.62f, stiffness = 380f))
+    }
+    return graphicsLayer {
+        val v = reveal.value
+        alpha = v.coerceIn(0f, 1f)
+        translationY = (1f - v) * 26.dp.toPx()
+        val s = 0.96f + 0.04f * v
+        scaleX = s
+        scaleY = s
+    }
+}
+
+private const val ENTRANCE_WINDOW_MS = 800L
+private const val ENTRANCE_STAGGER_LIMIT = 12
+private const val ENTRANCE_STEP_MS = 45L

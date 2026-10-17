@@ -2,6 +2,9 @@ package dev.cluvex.zedsecure.desktop.platform
 
 import dev.cluvex.zedsecure.core.LogBus
 import dev.cluvex.zedsecure.desktop.DesktopRendering
+import dev.cluvex.zedsecure.desktop.core.LinuxBroker
+import dev.cluvex.zedsecure.desktop.core.Os
+import dev.cluvex.zedsecure.ui.platform.AdminAccess
 import dev.cluvex.zedsecure.ui.platform.AutomaticRendering
 import dev.cluvex.zedsecure.ui.platform.FilePick
 import dev.cluvex.zedsecure.ui.platform.Platform
@@ -17,9 +20,28 @@ import javax.swing.JFileChooser
 
 object DesktopPlatform : Platform {
     override val supportsSystemProxy: Boolean get() = true
+    override val supportsSniSpoof: Boolean get() = false
     override val automaticRendering: AutomaticRendering get() = DesktopRendering.automatic
     override val supportsTun: Boolean get() = dev.cluvex.zedsecure.desktop.core.TunMode.supported()
-    override val choosesTunEngine: Boolean get() = false
+    override val choosesTunEngine: Boolean get() = Os.current == Os.WINDOWS
+    override val geoAssets: dev.cluvex.zedsecure.data.assets.GeoAssets get() = dev.cluvex.zedsecure.desktop.core.DesktopGeoAssets
+    override val adminAccess: AdminAccess?
+        get() = if (Os.current == Os.LINUX) LinuxAdminAccess else null
+
+    private object LinuxAdminAccess : AdminAccess {
+        override val remembered: Boolean get() = LinuxBroker.isRemembered
+
+        override fun setRemembered(on: Boolean): Result<Unit> = if (on) {
+            if (LinuxBroker.ensure(DesktopVpn.work, AdminPassword::ask)) {
+                if (LinuxBroker.isRemembered && LinuxBroker.method == LinuxBroker.Method.Remembered) Result.success(Unit)
+                else LinuxBroker.remember()
+            } else {
+                Result.failure(IllegalStateException("administrator rights were not granted"))
+            }
+        } else {
+            LinuxBroker.forget(DesktopVpn.work, AdminPassword::ask)
+        }
+    }
 
     override fun copyToClipboard(text: String) {
         runCatching {

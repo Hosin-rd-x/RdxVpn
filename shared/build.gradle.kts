@@ -11,6 +11,7 @@ kotlin {
 
     compilerOptions {
         freeCompilerArgs.add("-Xskip-metadata-version-check")
+        freeCompilerArgs.add("-Xexpect-actual-classes")
     }
 
     android {
@@ -40,6 +41,7 @@ kotlin {
                 implementation(libs.compose.components.resources)
 
                 implementation(libs.compose.material3.mp)
+                implementation(libs.material.kolor)
                 implementation(libs.lifecycle.viewmodel.compose.mp)
                 implementation(libs.lifecycle.runtime.compose.mp)
                 implementation(libs.coil.compose)
@@ -53,6 +55,7 @@ kotlin {
             dependsOn(jvmMain)
             dependencies {
                 implementation(libs.kotlinx.coroutines.android)
+                implementation(libs.androidx.compose.material3)
 
                 implementation(libs.androidx.activity.compose)
             }

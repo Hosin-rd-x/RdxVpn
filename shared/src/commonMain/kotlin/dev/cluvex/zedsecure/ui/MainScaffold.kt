@@ -39,6 +39,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import dev.cluvex.zedsecure.data.config.ConfigRepository
 import dev.cluvex.zedsecure.shared.resources.Res
+import dev.cluvex.zedsecure.shared.resources.auto_group_all
 import dev.cluvex.zedsecure.shared.resources.auto_title_for
 import dev.cluvex.zedsecure.shared.resources.tour_done
 import dev.cluvex.zedsecure.shared.resources.tour_next
@@ -86,6 +87,7 @@ fun MainScaffold(
         mutableStateOf(dev.cluvex.zedsecure.ui.settings.SettingsPage.Root)
     }
     val connectionVm: ConnectionViewModel = viewModel { ConnectionViewModel() }
+    val homeVm: dev.cluvex.zedsecure.ui.home.HomeViewModel = viewModel { dev.cluvex.zedsecure.ui.home.HomeViewModel() }
     val effectsSpec = MaterialTheme.motionScheme.defaultEffectsSpec<Float>()
 
     val profiles by configRepository.profiles.collectAsStateWithLifecycle()
@@ -196,6 +198,7 @@ fun MainScaffold(
             when (dest) {
                 TopDestination.Home -> HomeScreen(
                     connectionVm = connectionVm,
+                    homeVm = homeVm,
                     activeConfigName = activeProfile?.let { p ->
                         if (p.isAutoSelect) {
                             stringResource(
@@ -213,6 +216,9 @@ fun MainScaffold(
                         }
                     },
                     lockedNote = lockedNote,
+                    localProxyAddress = if (settings.runMode == dev.cluvex.zedsecure.domain.model.RunMode.ProxyOnly) {
+                        "127.0.0.1:${dev.cluvex.zedsecure.core.VpnManager.activeSocksPort ?: dev.cluvex.zedsecure.domain.config.LocalProxy.SOCKS_PORT}"
+                    } else null,
                     activeLocked = activeProfile?.isLocked == true,
                     reduceMotion = settings.reduceMotion,
 
@@ -222,6 +228,7 @@ fun MainScaffold(
 
                     personalization = settings.toPersonalization(),
                     connectStyle = settings.connectButtonStyle,
+                    design = settings.appDesign,
                     contentPadding = innerPadding,
                     onToggleConnection = onToggleConnection,
 
@@ -240,6 +247,7 @@ fun MainScaffold(
                     autoRemoveInvalidAfterTest = settings.autoRemoveInvalidAfterTest,
                     autoSortAfterTest = settings.autoSortAfterTest,
                     personalization = settings.toPersonalization(),
+                    reduceMotion = settings.reduceMotion,
                     onServerActivated = {
                         if (settings.homeAfterSelect) current = TopDestination.Home
 
@@ -265,6 +273,12 @@ fun MainScaffold(
                     serverTargets = profiles
                         .filter { it.source is dev.cluvex.zedsecure.domain.config.ProfileSource.Link }
                         .map { it.id to it.name },
+                    groupTargets = listOf(
+                        dev.cluvex.zedsecure.domain.config.AutoSelectIds.ALL to
+                            stringResource(Res.string.auto_title_for, stringResource(Res.string.auto_group_all)),
+                    ) + subscriptions.map { sub ->
+                        dev.cluvex.zedsecure.domain.config.AutoSelectIds.of(sub.id) to stringResource(Res.string.auto_title_for, sub.name)
+                    },
                     dnsTunnelActive = activeProfile?.isDnsBasedTunnel == true,
 
                     onReplayTour = {
@@ -292,8 +306,10 @@ fun MainScaffold(
         }
 
         val vpnStatus by dev.cluvex.zedsecure.core.VpnManager.status.collectAsStateWithLifecycle()
+        val detailsOpen by homeVm.expanded.collectAsStateWithLifecycle()
         HomeFabCluster(
-            visible = current == TopDestination.Home,
+            visible = current == TopDestination.Home &&
+                !(detailsOpen && settings.appDesign == dev.cluvex.zedsecure.domain.model.AppDesign.Pixel),
             showSpeedTest = vpnStatus.state == dev.cluvex.zedsecure.domain.model.ConnectionState.Connected &&
                 activeProfile?.isDnsBasedTunnel != true,
             reduceMotion = settings.reduceMotion,

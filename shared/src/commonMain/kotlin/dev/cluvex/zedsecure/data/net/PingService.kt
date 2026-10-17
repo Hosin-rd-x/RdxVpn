@@ -5,6 +5,7 @@ import dev.cluvex.zedsecure.core.LogBus
 import dev.cluvex.zedsecure.core.VpnManager
 import dev.cluvex.zedsecure.domain.config.CustomConfig
 import dev.cluvex.zedsecure.domain.config.VpnProfile
+import dev.cluvex.zedsecure.platform.currentTimeMillis
 import dev.cluvex.zedsecure.platform.httpTimedTransfer
 import dev.cluvex.zedsecure.platform.tcpConnectMillis
 import dev.cluvex.zedsecure.platform.sstpProbeMillis
@@ -32,6 +33,8 @@ object PingService {
     private const val PRECHECK_TIMEOUT_MS = 2_500
 
     private const val PROBE_TIMEOUT_MS = 8_000L
+
+    private const val QUICK_FAILURE_MS = 3_000L
 
     private const val REQUEST_PROBE_TIMEOUT_MS = 8_000
 
@@ -178,6 +181,9 @@ object PingService {
 
             runCatching { profile.toXrayConfigJson(forSpeedtest = true) }.getOrElse { return -1L }
         }
+        val started = currentTimeMillis()
+        val first = probeWithTimeout(profile, config, url)
+        if (first >= 0 || currentTimeMillis() - started > QUICK_FAILURE_MS) return first
         return probeWithTimeout(profile, config, url)
     }
 

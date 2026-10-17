@@ -4,6 +4,7 @@ import android.content.Context
 import dev.cluvex.zedsecure.R
 import dev.cluvex.zedsecure.ZedSecureApp
 import dev.cluvex.zedsecure.data.assets.GeoAssetsRepository
+import dev.cluvex.zedsecure.data.assets.GeoCodeReader
 import dev.cluvex.zedsecure.domain.config.ConfigParser
 import dev.cluvex.zedsecure.domain.config.Ikev2Profile
 import dev.cluvex.zedsecure.domain.config.LocalPorts
@@ -261,15 +262,20 @@ class StartPlanner(context: Context) {
         carrier: Boolean = false,
         resolveFor: VpnProfile? = null,
     ): XrayJsonBuilder.BuildOptions {
-        val ruleOutbounds = configRepository.resolveRuleOutbounds(RoutingMigration.effectiveRulesets(this))
+        val rulesets = RoutingMigration.effectiveRulesets(this)
+        val ruleOutbounds = configRepository.resolveRuleOutbounds(rulesets)
+        val ruleGroups = if (carrier) emptyMap() else configRepository.resolveRuleGroups(rulesets)
         val hosts = if (resolveFor != null && outboundDomainResolve != OutboundDomainResolve.DoNotResolve) {
             resolveServerHosts(physicalServersOf(resolveFor) + ruleOutbounds.values, preferIpv6)
         } else emptyMap()
         return toBuildOptions(
             geoAssetsAvailable = geoReady,
+            geoCodes = if (geoReady) GeoCodeReader.readFor(GeoAssetsRepository(appContext).assetDir, rulesets) else null,
             carrier = carrier,
             ruleOutbounds = ruleOutbounds,
+            ruleGroups = ruleGroups,
             resolvedServerHosts = hosts,
+            networkType = NetworkKind.current(appContext),
         )
     }
 

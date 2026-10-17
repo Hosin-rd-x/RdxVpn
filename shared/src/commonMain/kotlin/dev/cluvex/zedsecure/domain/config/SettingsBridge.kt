@@ -7,11 +7,17 @@ import dev.cluvex.zedsecure.domain.model.VpnBypassLan
 fun AppSettings.toBuildOptions(
     geoAssetsAvailable: Boolean = false,
 
+    geoCodes: GeoCodes? = null,
+
     ruleOutbounds: Map<String, ServerConfig> = emptyMap(),
+
+    ruleGroups: Map<String, RuleGroup> = emptyMap(),
 
     carrier: Boolean = false,
 
     resolvedServerHosts: Map<String, List<String>> = emptyMap(),
+
+    networkType: String? = null,
 ): XrayJsonBuilder.BuildOptions = XrayJsonBuilder.BuildOptions(
     singBox = singBoxTuning(),
     logLevel = logLevel.value,
@@ -23,12 +29,16 @@ fun AppSettings.toBuildOptions(
     bypassIran = routingMode == RoutingMode.BypassIran || routingMode == RoutingMode.BypassLanAndIran,
     blockAds = blockAds,
     geoAssetsAvailable = geoAssetsAvailable,
+    geoCodes = geoCodes,
     customProxyRules = customProxyRules.toRuleList(),
     customDirectRules = customDirectRules.toRuleList(),
     customBlockRules = customBlockRules.toRuleList(),
 
     rulesets = RoutingMigration.effectiveRulesets(this),
+    networkType = networkType,
     ruleOutbounds = ruleOutbounds,
+    ruleGroups = ruleGroups,
+    ruleGroupTuning = autoSelectTuning(),
     remoteDns = remoteDns,
     directDns = directDns,
     muxEnabled = muxEnabled,
@@ -59,6 +69,7 @@ private fun AppSettings.lanShare(): XrayJsonBuilder.LanShare? =
         username = socksUsername.trim(),
         password = socksPassword,
         udp = socksEnableUdp,
+        auth = lanShareAuth,
     )
 
 private fun String.toRuleList(): List<String> =

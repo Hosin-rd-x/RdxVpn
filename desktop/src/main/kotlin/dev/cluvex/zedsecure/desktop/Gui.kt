@@ -3,6 +3,7 @@ package dev.cluvex.zedsecure.desktop
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -10,7 +11,14 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import dev.cluvex.zedsecure.ui.platform.DesktopBack
+import androidx.compose.ui.input.key.type
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Notification
 import androidx.compose.ui.window.Tray
@@ -26,8 +34,26 @@ import coil3.svg.SvgDecoder
 import dev.cluvex.zedsecure.core.VpnManager
 import dev.cluvex.zedsecure.data.config.ConfigRepository
 import dev.cluvex.zedsecure.core.LogBus
+import dev.cluvex.zedsecure.domain.model.AppLanguage
 import dev.cluvex.zedsecure.domain.model.ConnectionState
 import dev.cluvex.zedsecure.shared.resources.Res
+import dev.cluvex.zedsecure.shared.resources.state_connected
+import dev.cluvex.zedsecure.shared.resources.state_connecting
+import dev.cluvex.zedsecure.shared.resources.state_disconnecting
+import dev.cluvex.zedsecure.shared.resources.state_error
+import dev.cluvex.zedsecure.shared.resources.state_idle
+import dev.cluvex.zedsecure.shared.resources.action_connect
+import dev.cluvex.zedsecure.shared.resources.action_disconnect
+import dev.cluvex.zedsecure.shared.resources.tray_server
+import dev.cluvex.zedsecure.shared.resources.tray_mode
+import dev.cluvex.zedsecure.shared.resources.tray_copy_proxy
+import dev.cluvex.zedsecure.shared.resources.tray_show
+import dev.cluvex.zedsecure.shared.resources.tray_hide
+import dev.cluvex.zedsecure.shared.resources.tray_quit
+import dev.cluvex.zedsecure.shared.resources.mode_system_proxy
+import dev.cluvex.zedsecure.shared.resources.mode_socks
+import dev.cluvex.zedsecure.shared.resources.mode_tun
+import dev.cluvex.zedsecure.shared.resources.tray_all_servers
 import dev.cluvex.zedsecure.shared.resources.ic_tray_connected
 import dev.cluvex.zedsecure.shared.resources.ic_tray_connecting
 import dev.cluvex.zedsecure.shared.resources.ic_tray_disconnected
@@ -44,6 +70,7 @@ import dev.cluvex.zedsecure.domain.model.RunMode
 import androidx.compose.runtime.rememberCoroutineScope
 import kotlinx.coroutines.flow.first
 import org.jetbrains.compose.resources.painterResource
+import org.jetbrains.compose.resources.stringResource
 import dev.cluvex.zedsecure.desktop.core.Os
 import dev.cluvex.zedsecure.desktop.core.TunMode
 import dev.cluvex.zedsecure.desktop.platform.AdminPassword
@@ -62,8 +89,8 @@ import dev.cluvex.zedsecure.ui.theme.ZedSecureTheme
 import androidx.compose.ui.platform.LocalWindowInfo
 import java.awt.GraphicsEnvironment
 
-private val configRepository = ConfigRepository(DesktopKeyValueStore("configs"))
-private val desktopSettings = DesktopSettings(DesktopKeyValueStore("settings"))
+private val configRepository by lazy { ConfigRepository(DesktopKeyValueStore("configs")) }
+private val desktopSettings by lazy { DesktopSettings(DesktopKeyValueStore("settings")) }
 
 private val WIN_W = 420.dp
 private val WIN_H = 860.dp
@@ -79,6 +106,10 @@ private fun fittedWindowHeight(): Dp {
 private const val TRAY_SERVERS = 30
 
 fun main(args: Array<String>) {
+    if (args.firstOrNull() == dev.cluvex.zedsecure.desktop.core.WindowsHelper.FLAG) {
+        dev.cluvex.zedsecure.desktop.core.WindowsHelper.serve(args.drop(1))
+        return
+    }
     if (args.firstOrNull() == "--version") {
         println("ZedSecure $BUILD_VERSION")
         return
@@ -101,23 +132,8 @@ fun main(args: Array<String>) {
         }
     }
 
-    DesktopVpn.settingsProvider = { desktopSettings.settings.value }
-
-    DesktopVpn.ruleOutboundsProvider = { configRepository.resolveRuleOutbounds(it) }
-    DesktopVpn.chainConfigProvider = { profile, options ->
-        runCatching { configRepository.buildChainConfig(profile, options) }.getOrNull()
-    }
-
-    dev.cluvex.zedsecure.core.CoreProbe.measureDelay = { url -> DesktopProbe.measureDelay(url) }
-
-    dev.cluvex.zedsecure.core.AutoSelect.readStatus = {
-        dev.cluvex.zedsecure.desktop.platform.DesktopStats.latestAutoSelect
-    }
-
-    VpnManager.deviceVpnProbe = { dev.cluvex.zedsecure.desktop.platform.DesktopVpnDetector.anyVpn() }
-    dev.cluvex.zedsecure.core.CoreProbe.measureOutboundDelay = { cfg, url ->
-        DesktopProbe.measureOutboundDelay(cfg, url)
-    }
+    val background = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.IO)
+    wireDesktopServices(configRepository, desktopSettings, background)
 
     kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.IO).launch {
         while (true) {
@@ -134,7 +150,11 @@ fun main(args: Array<String>) {
         }
 
         val nativeTrayHost = remember {
-            Os.current == Os.LINUX && LinuxDesktop.trayHostAvailable() && LinuxDesktop.nativeTrayLoads()
+            when (Os.current) {
+                Os.LINUX -> LinuxDesktop.trayHostAvailable() && LinuxDesktop.nativeTrayLoads()
+                Os.WINDOWS -> WindowsDesktop.nativeTrayLoads()
+                else -> false
+            }
         }
         var nativeTrayFailed by remember { mutableStateOf(false) }
         val nativeTray = nativeTrayHost && !nativeTrayFailed
@@ -206,42 +226,59 @@ fun main(args: Array<String>) {
                     else -> null
                 }
                 notice?.let {
-                    if (nativeTray) LinuxDesktop.notify(it.title, it.message) else trayState.sendNotification(it)
+                    when {
+                        !nativeTray -> trayState.sendNotification(it)
+                        Os.current == Os.WINDOWS -> WindowsDesktop.notify(it.title, it.message)
+                        else -> LinuxDesktop.notify(it.title, it.message)
+                    }
                 }
             }
+            val stateConnected = stringResource(Res.string.state_connected)
+            val stateConnecting = stringResource(Res.string.state_connecting)
+            val stateDisconnecting = stringResource(Res.string.state_disconnecting)
+            val stateError = stringResource(Res.string.state_error)
+            val stateIdle = stringResource(Res.string.state_idle)
+            val labelConnect = stringResource(Res.string.action_connect)
+            val labelDisconnect = stringResource(Res.string.action_disconnect)
+            val labelServer = stringResource(Res.string.tray_server)
+            val labelMode = stringResource(Res.string.tray_mode)
+            val labelCopyProxy = stringResource(Res.string.tray_copy_proxy)
+            val labelShow = stringResource(Res.string.tray_show)
+            val labelHide = stringResource(Res.string.tray_hide)
+            val labelQuit = stringResource(Res.string.tray_quit)
+            val modeSystem = stringResource(Res.string.mode_system_proxy)
+            val modeSocks = stringResource(Res.string.mode_socks)
+            val modeTun = stringResource(Res.string.mode_tun)
+            val allServers = stringResource(Res.string.tray_all_servers, profiles.size)
             val statusLine = when {
-                connected -> "Connected · ${status.serverName ?: ""}".trimEnd(' ', '·')
-                status.state == ConnectionState.Connecting -> "Connecting…"
-                status.state == ConnectionState.Disconnecting -> "Disconnecting…"
-                status.state == ConnectionState.Error -> "Connection failed"
-                else -> "Not connected"
+                connected -> listOfNotNull(stateConnected, status.serverName?.takeIf { it.isNotBlank() }).joinToString(" · ")
+                status.state == ConnectionState.Connecting -> stateConnecting
+                status.state == ConnectionState.Disconnecting -> stateDisconnecting
+                status.state == ConnectionState.Error -> stateError
+                else -> stateIdle
             }
+            val speeds = "↓ ${humanBps(status.downloadBps)}   ↑ ${humanBps(status.uploadBps)}"
             val tip = buildString {
                 append("ZedSecure · ").append(statusLine)
-                if (connected) {
-                    append("\n↓ ").append(humanBps(status.downloadBps)).append("   ↑ ").append(humanBps(status.uploadBps))
-                }
+                if (connected) append("\n").append(speeds)
             }
             val active = profiles.firstOrNull { it.id == activeId }
             val shown = (listOfNotNull(active) + profiles.filter { it.id != activeId }).take(TRAY_SERVERS)
             val proxyPort = VpnManager.activeSocksPort ?: LocalProxy.SOCKS_PORT
             val entries = buildList {
-                add(TrayEntry.Action("ZedSecure ${AppInfo.versionName}", enabled = false))
                 add(TrayEntry.Action(statusLine, enabled = false))
-                if (connected) {
-                    add(TrayEntry.Action("↓ ${humanBps(status.downloadBps)}    ↑ ${humanBps(status.uploadBps)}", enabled = false))
-                }
+                if (connected) add(TrayEntry.Action(speeds, enabled = false))
                 add(TrayEntry.Separator)
                 add(
                     TrayEntry.Action(
-                        if (connected || connecting) "Disconnect" else "Connect",
+                        if (connected || connecting) labelDisconnect else labelConnect,
                         enabled = status.state != ConnectionState.Disconnecting,
                     ) { DesktopVpn.toggle(configRepository) },
                 )
                 if (profiles.isNotEmpty()) {
                     add(
                         TrayEntry.Sub(
-                            "Server",
+                            labelServer,
                             shown.map { profile ->
                                 TrayEntry.Check(profile.name.take(48), checked = profile.id == activeId) {
                                     if (profile.id != activeId) {
@@ -252,7 +289,7 @@ fun main(args: Array<String>) {
                             } + if (profiles.size > shown.size) {
                                 listOf(
                                     TrayEntry.Separator,
-                                    TrayEntry.Action("All ${profiles.size} servers…") { windowVisible = true; raiseWindow++ },
+                                    TrayEntry.Action(allServers) { windowVisible = true; raiseWindow++ },
                                 )
                             } else {
                                 emptyList()
@@ -262,11 +299,11 @@ fun main(args: Array<String>) {
                 }
                 add(
                     TrayEntry.Sub(
-                        "Mode",
+                        labelMode,
                         listOfNotNull(
-                            RunMode.SystemProxy to "System proxy",
-                            RunMode.ProxyOnly to "SOCKS only",
-                            (RunMode.Vpn to "TUN · all traffic").takeIf { TunMode.supported() },
+                            RunMode.SystemProxy to modeSystem,
+                            RunMode.ProxyOnly to modeSocks,
+                            (RunMode.Vpn to modeTun).takeIf { TunMode.supported() },
                         ).map { (mode, label) ->
                             TrayEntry.Check(label, checked = settings.runMode == mode) {
                                 if (settings.runMode != mode) {
@@ -277,15 +314,15 @@ fun main(args: Array<String>) {
                         },
                     ),
                 )
-                add(TrayEntry.Action("Copy proxy address · 127.0.0.1:$proxyPort") {
+                add(TrayEntry.Action("$labelCopyProxy · 127.0.0.1:$proxyPort") {
                     DesktopPlatform.copyToClipboard("127.0.0.1:$proxyPort")
                 })
                 add(TrayEntry.Separator)
-                add(TrayEntry.Action(if (windowVisible) "Hide window" else "Show window") {
+                add(TrayEntry.Action(if (windowVisible) labelHide else labelShow) {
                     windowVisible = !windowVisible
                     if (windowVisible) raiseWindow++
                 })
-                add(TrayEntry.Action("Quit ZedSecure") { DesktopVpn.shutdown(); exitApplication() })
+                add(TrayEntry.Action(labelQuit) { DesktopVpn.shutdown(); exitApplication() })
             }
             val trayIconKey = when {
                 connected -> "connected"
@@ -300,7 +337,7 @@ fun main(args: Array<String>) {
                 },
             )
             if (nativeTray) {
-                LinuxNativeTray(
+                NativeTray(
                     iconKey = trayIconKey,
                     icon = trayIcon,
                     tooltip = tip,
@@ -327,7 +364,21 @@ fun main(args: Array<String>) {
             icon = painterResource(Res.drawable.ic_zed_mark),
             resizable = false,
             state = windowState,
+            onKeyEvent = { event ->
+                event.type == KeyEventType.KeyUp && event.key == Key.Escape && DesktopBack.dispatch()
+            },
         ) {
+            DisposableEffect(Unit) {
+                val listener = java.awt.event.AWTEventListener { event ->
+                    if (event is java.awt.event.MouseEvent && event.id == java.awt.event.MouseEvent.MOUSE_PRESSED &&
+                        event.button == MOUSE_BACK_BUTTON
+                    ) {
+                        DesktopBack.dispatch()
+                    }
+                }
+                java.awt.Toolkit.getDefaultToolkit().addAWTEventListener(listener, java.awt.AWTEvent.MOUSE_EVENT_MASK)
+                onDispose { java.awt.Toolkit.getDefaultToolkit().removeAWTEventListener(listener) }
+            }
             LaunchedEffect(raiseWindow) {
                 if (raiseWindow > 0) {
                     window.isMinimized = false
@@ -341,14 +392,18 @@ fun main(args: Array<String>) {
                 ThemeMode.Light -> false
                 ThemeMode.Dark -> true
             }
-            val langTag = settings.language.tag ?: "en"
+            val langTag = languageTagFor(settings.language)
 
-            ProvideAppLanguage(langTag, dark) {
+            ProvideAppLanguage(langTag) {
                 ZedSecureTheme(
                     darkTheme = dark,
                     dynamicColor = false,
                     accentColor = settings.accentColor,
                     amoledBlack = settings.amoledBlack,
+                    colorStyle = settings.colorStyle,
+                    colorContrast = settings.colorContrast,
+                    design = settings.appDesign,
+                    animateColors = !settings.reduceMotion,
                     languageTag = langTag,
                     fontScale = settings.uiFontScale.scale,
                 ) {
@@ -374,7 +429,10 @@ fun main(args: Array<String>) {
                                 windowVisible = true
                                 raiseWindow++
                             }
-                            AdminPasswordDialog(request.retry) { AdminPassword.answer(request, it) }
+                            AdminPasswordDialog(
+                                request.retry,
+                                offerRemember = dev.cluvex.zedsecure.desktop.core.Os.current == dev.cluvex.zedsecure.desktop.core.Os.LINUX,
+                            ) { AdminPassword.answer(request, it) }
                         }
                     }
                 }
@@ -383,12 +441,51 @@ fun main(args: Array<String>) {
     }
 }
 
-@Composable
-private fun ProvideAppLanguage(langTag: String, dark: Boolean, content: @Composable () -> Unit) {
-    remember(langTag) {
-        java.util.Locale.setDefault(java.util.Locale.forLanguageTag(langTag)); langTag
+internal fun wireDesktopServices(
+    configRepository: ConfigRepository,
+    desktopSettings: DesktopSettings,
+    background: kotlinx.coroutines.CoroutineScope,
+) {
+    DesktopVpn.settingsProvider = { desktopSettings.settings.value }
+
+    DesktopVpn.ruleOutboundsProvider = { configRepository.resolveRuleOutbounds(it) }
+    DesktopVpn.ruleGroupsProvider = { configRepository.resolveRuleGroups(it) }
+    DesktopVpn.chainConfigProvider = { profile, options ->
+        runCatching { configRepository.buildChainConfig(profile, options) }.getOrNull()
     }
-    content()
+
+    dev.cluvex.zedsecure.core.CoreProbe.measureDelay = { url -> DesktopProbe.measureDelay(url) }
+
+    dev.cluvex.zedsecure.core.AutoSelect.readStatus = {
+        dev.cluvex.zedsecure.desktop.platform.DesktopStats.latestAutoSelect
+    }
+
+    VpnManager.deviceVpnProbe = { dev.cluvex.zedsecure.desktop.platform.DesktopVpnDetector.anyVpn() }
+    dev.cluvex.zedsecure.core.CoreProbe.measureOutboundDelay = { cfg, url ->
+        DesktopProbe.measureOutboundDelay(cfg, url)
+    }
+
+    dev.cluvex.zedsecure.data.assets.GeoAutoFetch.start(background, dev.cluvex.zedsecure.desktop.core.DesktopGeoAssets) {
+        desktopSettings.settings.value
+    }
+    background.launch {
+        dev.cluvex.zedsecure.data.assets.GeoAutoFetch.ready.collect { DesktopVpn.reconnect(configRepository) }
+    }
+}
+
+private val systemLanguageTag: String =
+    java.util.Locale.getDefault(java.util.Locale.Category.DISPLAY).language
+        .takeIf { tag -> AppLanguage.entries.any { it.tag == tag } } ?: "en"
+
+internal fun languageTagFor(language: AppLanguage): String = language.tag ?: systemLanguageTag
+
+@Composable
+internal fun ProvideAppLanguage(langTag: String, content: @Composable () -> Unit) {
+    val locale = remember(langTag) {
+        java.util.Locale.forLanguageTag(langTag).also { java.util.Locale.setDefault(it) }
+    }
+    val direction = if (java.awt.ComponentOrientation.getOrientation(locale).isLeftToRight) LayoutDirection.Ltr else LayoutDirection.Rtl
+    CompositionLocalProvider(LocalLayoutDirection provides direction, content = content)
 }
 
 private fun humanBps(bps: Long): String {
@@ -398,3 +495,5 @@ private fun humanBps(bps: Long): String {
     while (v >= 1024 && i < units.size - 1) { v /= 1024; i++ }
     return (if (v >= 100 || i == 0) "%.0f".format(v) else "%.1f".format(v)) + " " + units[i]
 }
+
+private const val MOUSE_BACK_BUTTON = 4

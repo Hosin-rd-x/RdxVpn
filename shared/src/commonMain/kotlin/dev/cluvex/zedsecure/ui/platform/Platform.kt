@@ -57,15 +57,21 @@ interface Platform {
 
     val supportsSystemProxy: Boolean get() = false
 
+    val supportsSniSpoof: Boolean get() = true
+
     val supportsTun: Boolean get() = true
 
     val choosesTunEngine: Boolean get() = true
+
+    val supportsNetworkTypeRules: Boolean get() = false
 
     val automaticRendering: AutomaticRendering? get() = null
 
     fun lanIpv4Addresses(): List<String> = emptyList()
 
     val supportsPerAppProxy: Boolean get() = false
+
+    val adminAccess: AdminAccess? get() = null
 
     val supportsDynamicColor: Boolean get() = false
 
@@ -92,6 +98,12 @@ interface Platform {
 }
 
 enum class AutomaticRendering { Gpu, SoftwareWindows, SoftwareNvidiaWayland }
+
+interface AdminAccess {
+    val remembered: Boolean
+
+    fun setRemembered(on: Boolean): Result<Unit>
+}
 
 data class FilePick(val name: String, val bytes: ByteArray)
 

@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
@@ -37,9 +38,13 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.Role
+import dev.cluvex.zedsecure.data.assets.usesGeoFiles
+import kotlinx.coroutines.launch
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -54,7 +59,6 @@ import dev.cluvex.zedsecure.domain.model.RoutingPresetType
 import dev.cluvex.zedsecure.domain.model.RoutingPresets
 import dev.cluvex.zedsecure.shared.resources.Res
 import dev.cluvex.zedsecure.shared.resources.*
-import dev.cluvex.zedsecure.ui.components.PageHeader
 import dev.cluvex.zedsecure.ui.components.PickerField
 import dev.cluvex.zedsecure.ui.components.SectionTitle
 import dev.cluvex.zedsecure.ui.platform.LocalPlatform
@@ -71,6 +75,8 @@ fun RoutingScreen(
     modifier: Modifier = Modifier,
 
     serverTargets: List<Pair<String, String>> = emptyList(),
+
+    groupTargets: List<Pair<String, String>> = emptyList(),
 ) {
     val platform = LocalPlatform.current
     val importOkMsg = stringResource(Res.string.routing_import_ok)
@@ -101,6 +107,7 @@ fun RoutingScreen(
 
     var editing by remember { mutableStateOf<RulesetItem?>(null) }
     var deleting by remember { mutableStateOf<RulesetItem?>(null) }
+    var unlocking by remember { mutableStateOf<RulesetItem?>(null) }
     var presetOpen by remember { mutableStateOf(false) }
     var menuOpen by remember { mutableStateOf(false) }
     val duplicateMsg = stringResource(Res.string.routing_preset_duplicate)
@@ -109,6 +116,7 @@ fun RoutingScreen(
         RuleEditSheet(
             initial = rule,
             serverTargets = serverTargets,
+            groupTargets = groupTargets,
             sniffingEnabled = settings.sniffingEnabled,
             onDismiss = { editing = null },
             onSave = { saved ->
@@ -148,6 +156,25 @@ fun RoutingScreen(
         )
     }
 
+    unlocking?.let { rule ->
+        AlertDialog(
+            onDismissRequest = { unlocking = null },
+            title = { Text(stringResource(Res.string.rule_unlock_title)) },
+            text = { Text(stringResource(Res.string.rule_locked_desc)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    mutate { l -> l.map { if (it.id == rule.id) it.copy(locked = false) else it } }
+                    unlocking = null
+                }) { Text(stringResource(Res.string.rule_unlock)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { unlocking = null }) {
+                    Text(stringResource(Res.string.action_cancel))
+                }
+            },
+        )
+    }
+
     fun requestDelete(rule: RulesetItem) {
         if (settings.confirmRemove) deleting = rule
         else mutate { l -> l.filterNot { it.id == rule.id } }
@@ -177,9 +204,10 @@ fun RoutingScreen(
         item(key = "header") {
             Column {
                 Spacer(Modifier.height(8.dp))
-                PageHeader(
+                SettingsHeader(
                     title = stringResource(Res.string.routing_title),
                     subtitle = stringResource(Res.string.routing_subtitle),
+                    art = SettingsArts.Routing,
                 )
                 Spacer(Modifier.height(14.dp))
             }
@@ -225,6 +253,7 @@ fun RoutingScreen(
                         onCheckedChange = { v -> onUpdate { it.copy(blockAds = v) } },
                     )
                 }
+                platform.geoAssets?.let { geo -> GeoFilesBanner(geo, settings) }
 
                 Row(
                     Modifier.fillMaxWidth().padding(top = 6.dp),
@@ -330,14 +359,14 @@ fun RoutingScreen(
                             isLast = index == order.lastIndex,
                             targetLabel = RulesetItem.profileIdOf(rule.outboundTag)?.let { id ->
                                 serverTargets.firstOrNull { it.first == id }?.second
-                            },
+                            } ?: groupTargets.firstOrNull { it.first == rule.outboundTag }?.second,
                             dragHandle = Modifier.draggableHandle(
                                 onDragStopped = { mutate { order } },
                             ),
                             onToggle = { on ->
                                 mutate { l -> l.map { if (it.id == rule.id) it.copy(enabled = on) else it } }
                             },
-                            onEdit = { editing = rule },
+                            onEdit = { if (rule.locked) unlocking = rule else editing = rule },
                             onDelete = { requestDelete(rule) },
                             onMoveUp = { mutate { l -> l.swap(index, index - 1) } },
                             onMoveDown = { mutate { l -> l.swap(index, index + 1) } },
@@ -366,7 +395,8 @@ private fun RulesetItem.sameMatcher(other: RulesetItem): Boolean =
         ip == other.ip &&
         port == other.port &&
         network == other.network &&
-        protocol == other.protocol
+        protocol == other.protocol &&
+        networkType == other.networkType
 
 @Composable
 private fun RoutingPresetType.label(): String = when (this) {
@@ -403,7 +433,8 @@ private fun RuleRow(
     val tagLabel = when {
         targetLabel != null -> targetLabel
 
-        RulesetItem.profileIdOf(rule.outboundTag) != null ->
+        RulesetItem.profileIdOf(rule.outboundTag) != null ||
+            dev.cluvex.zedsecure.domain.config.AutoSelectIds.isAuto(rule.outboundTag) ->
             stringResource(Res.string.rule_outbound_missing)
         rule.outboundTag == RulesetItem.OUTBOUND_DIRECT -> stringResource(Res.string.rule_outbound_direct)
         rule.outboundTag == RulesetItem.OUTBOUND_BLOCK -> stringResource(Res.string.rule_outbound_block)
@@ -415,6 +446,7 @@ private fun RuleRow(
         if (rule.port.isNotBlank()) add("port:${rule.port}")
         if (rule.network.isNotBlank()) add(rule.network)
         rule.protocol.forEach { add(it) }
+        rule.networkType.forEach { add(networkTypeLabel(it)) }
     }.joinToString(", ").ifBlank { stringResource(Res.string.routing_rule_no_match) }
 
     Surface(
@@ -436,7 +468,7 @@ private fun RuleRow(
             Column(
                 Modifier.weight(1f)
 
-                    .clickable(enabled = !rule.locked, onClick = onEdit)
+                    .clickable(onClick = onEdit)
                     .padding(vertical = 4.dp),
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -497,7 +529,10 @@ private fun ToggleRow(
     onCheckedChange: (Boolean) -> Unit,
 ) {
     Row(
-        Modifier.fillMaxWidth().padding(vertical = 6.dp),
+        Modifier
+            .fillMaxWidth()
+            .toggleable(value = checked, role = Role.Switch, onValueChange = onCheckedChange)
+            .padding(vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(Modifier.weight(1f)) {
@@ -515,7 +550,7 @@ private fun ToggleRow(
                 )
             }
         }
-        Switch(checked = checked, onCheckedChange = onCheckedChange)
+        Switch(checked = checked, onCheckedChange = null)
     }
 }
 
@@ -527,5 +562,49 @@ private fun RoutingCard(content: @Composable androidx.compose.foundation.layout.
         modifier = Modifier.fillMaxWidth(),
     ) {
         Column(Modifier.fillMaxWidth().padding(16.dp), content = content)
+    }
+}
+
+@Composable
+private fun GeoFilesBanner(geo: dev.cluvex.zedsecure.data.assets.GeoAssets, settings: AppSettings) {
+    val scope = rememberCoroutineScope()
+    var present by remember { mutableStateOf(geo.allPresent()) }
+    var busy by remember { mutableStateOf(false) }
+    var failed by remember { mutableStateOf(false) }
+    if (present || !settings.usesGeoFiles()) return
+    Surface(
+        shape = RoundedCornerShape(18.dp),
+        color = MaterialTheme.colorScheme.errorContainer,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text(
+                stringResource(Res.string.routing_geo_missing_title),
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.onErrorContainer,
+            )
+            Text(
+                stringResource(if (failed) Res.string.routing_geo_failed else Res.string.routing_geo_missing_body),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onErrorContainer,
+            )
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                TextButton(
+                    enabled = !busy,
+                    onClick = {
+                        busy = true
+                        failed = false
+                        scope.launch {
+                            val ok = dev.cluvex.zedsecure.data.assets.GeoAutoFetch.fetchNow(geo, settings)
+                            present = geo.allPresent()
+                            failed = !ok
+                            busy = false
+                        }
+                    },
+                ) {
+                    Text(stringResource(if (busy) Res.string.routing_geo_downloading else Res.string.routing_geo_download))
+                }
+            }
+        }
     }
 }

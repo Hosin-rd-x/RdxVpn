@@ -57,6 +57,14 @@ License: Wintun Prebuilt Binaries License (WireGuard LLC)
 `wintun.dll` ships unmodified next to `zeptun.exe` in the Windows build, which uses it only through
 the API in `wintun.h`. The license text ships beside it as `wintun-LICENSE.txt`.
 
+Java Native Access (JNA)
+------------------------
+Source: https://github.com/java-native-access/jna
+License: Apache-2.0 (dual-licensed with LGPL-2.1; ZedSecure uses it under Apache-2.0)
+
+The desktop build uses it on Windows to ask for administrator rights and to stop its engines
+cleanly, without PowerShell.
+
 SNI-Spoofing-Go
 ---------------
 Source: https://github.com/aleskxyz/SNI-Spoofing-Go
@@ -154,6 +162,11 @@ Source: https://gitlab.com/openconnect/openconnect
 License: LGPL-2.1
 `app/src/main/jniLibs/<abi>/libopenconnect.so` is a build of our patched fork.
 Ask us for that source and we will provide it, as LGPL-2.1 section 6 requires.
+The Windows desktop build ships `openconnect.exe` built unmodified from the official 9.21 release with
+MinGW, the GnuTLS, nettle, gmp, libxml2 and zlib DLLs it loads (each under its own licence, LGPL or more permissive), the
+Wintun driver DLL (Wintun Prebuilt Binaries License) and `vpnc-script-win.js` from
+https://gitlab.com/openconnect/vpnc-scripts (GPL-2.0-or-later), all unmodified and run as a
+separate process.
 
 KCP, smux, uTLS
 ---------------
@@ -174,4 +187,5 @@ The desktop tray icon on Linux.
 Fonts
 -----
 Inter — SIL Open Font License 1.1 — https://github.com/rsms/inter
+Google Sans Flex — SIL Open Font License 1.1 — https://github.com/googlefonts/googlesans-flex
 Estedad — SIL Open Font License 1.1 — https://github.com/aminabedi68/Estedad

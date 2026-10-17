@@ -72,6 +72,7 @@
     <string name="subs_name">Name</string>
     <string name="subs_url">URL</string>
     <string name="subs_update">Update</string>
+    <string name="subs_reorder">Drag to reorder</string>
     <string name="subs_update_all">Update all</string>
     <string name="subs_updated">Updated: %1$d servers</string>
     <string name="subs_failed">Subscription update failed</string>
@@ -89,6 +90,7 @@
     <string name="info_no_ip">Looking up address…</string>
     <string name="info_no_ipv6">Not available</string>
     <string name="info_unknown_location">Unknown location</string>
+    <string name="info_tap_to_refresh">Tap a tile to fetch it again</string>
 
     <string name="vault_pick_servers">Pick servers to lock</string>
     <string name="vault_form_name">Display name</string>
@@ -309,7 +311,14 @@
     <string name="mode_socks">SOCKS only</string>
     <string name="mode_socks_body">Only opens a local SOCKS and HTTP proxy on 127.0.0.1 and changes nothing else. Point each app at it yourself.</string>
     <string name="mode_tun">TUN (VPN)</string>
-    <string name="mode_tun_body">Sends every app through a virtual network adapter, including apps that ignore the system proxy. Asks for administrator rights each time you connect. Tor and Psiphon keep using the system proxy.</string>
+    <string name="mode_tun_body">Sends every app through a virtual network adapter, including apps that ignore the system proxy. Asks for administrator rights once each time Rdx VPN runs. Tor and Psiphon, and chains that start with them, keep using the system proxy.</string>
+    <string name="tray_server">Server</string>
+    <string name="tray_all_servers">All %1$d servers…</string>
+    <string name="tray_mode">Mode</string>
+    <string name="tray_copy_proxy">Copy proxy address</string>
+    <string name="tray_show">Show window</string>
+    <string name="tray_hide">Hide window</string>
+    <string name="tray_quit">Quit Rdx VPN</string>
     <string name="group_all">All</string>
     <string name="group_manual">Manual</string>
 
@@ -326,6 +335,11 @@
 
     <string name="routing_title">Routing</string>
     <string name="routing_subtitle">Choose which traffic goes through the tunnel</string>
+    <string name="routing_geo_missing_title">Geo files are missing</string>
+    <string name="routing_geo_missing_body">Rules that use geosite or geoip are off until these files are downloaded. Rdx VPN fetches them on its own once it can.</string>
+    <string name="routing_geo_failed">The download failed. Connect and try again, or add the files in Settings › Asset files.</string>
+    <string name="routing_geo_download">Download</string>
+    <string name="routing_geo_downloading">Downloading…</string>
     <string name="routing_domain_strategy">Domain strategy</string>
     <string name="routing_mode">Routing mode</string>
     <string name="routing_mode_global">Global proxy</string>
@@ -356,6 +370,12 @@
     <string name="rule_port">Port</string>
     <string name="rule_network">Network</string>
     <string name="rule_network_any">Any</string>
+    <string name="rule_network_type">Network type</string>
+    <string name="rule_network_type_hint">The rule only applies while the phone is on one of the selected networks. Select none to apply it on every network.</string>
+    <string name="network_type_wifi">Wi-Fi</string>
+    <string name="network_type_cellular">Mobile data</string>
+    <string name="network_type_ethernet">Ethernet</string>
+    <string name="network_type_other">Other</string>
     <string name="rule_protocol">Protocol</string>
     <string name="routing_ruleset_menu">Ruleset options</string>
     <string name="routing_preset_iran">Replace with: Iran whitelist</string>
@@ -370,6 +390,8 @@
     <string name="routing_export_ok">Ruleset copied to clipboard</string>
     <string name="rule_locked">Locked</string>
     <string name="rule_locked_desc">Keep this rule when replacing the ruleset with a preset or an import. Locked rules cannot be edited or deleted.</string>
+    <string name="rule_unlock_title">Unlock this rule?</string>
+    <string name="rule_unlock">Unlock</string>
     <string name="rule_outbound_missing">Proxy (target server missing)</string>
     <string name="rule_field_hint">Separate multiple values with commas. A bare domain matches as a substring — example.com would also match notexample.community. Use domain:example.com for the domain and its subdomains, or full:example.com for an exact match. Also accepted: geosite:, keyword:, regexp:. IPs accept geoip: and CIDR. Protocol: http, tls, bittorrent.</string>
     <string name="rule_move_up">Move up</string>
@@ -489,6 +511,8 @@
     <string name="tun_engine_zeptun">zeptun (recommended)</string>
     <string name="tun_engine_hev">hev-socks5-tunnel</string>
     <string name="tun_engine_sub">What turns the packets Android sends into the tunnel back into proxied connections. zeptun keeps warm connections ready and bounds its own memory; the older engine is here in case a device disagrees.</string>
+    <string name="tun_engine_hev_default">hev-socks5-tunnel (default)</string>
+    <string name="tun_engine_sub_desktop">hev is the default on Windows. zeptun also blocks DNS that tries to leave outside the tunnel through the Windows firewall; switch to it if hev does not work on this PC.</string>
     <string name="title_pref_hev_tunnel_rw_timeout">Hev TUN read/write timeout</string>
     <string name="summary_pref_hev_tunnel_rw_timeout">Seconds, as tcp,udp</string>
 
@@ -701,7 +725,7 @@
     <string name="ssh_cipher_auto">Auto (fastest)</string>
     <string name="ssh_cipher_legacy">AES-128-CTR (legacy)</string>
     <string name="kill_switch">Kill switch</string>
-    <string name="kill_switch_sum">Block all traffic if the VPN drops instead of leaking.</string>
+    <string name="kill_switch_sum">Block all traffic if the VPN drops instead of leaking, then reconnect by itself.</string>
     <string name="tor_bridges_title">Bridges</string>
     <string name="tor_bridges_browse_sum">Browse, ping and select bridges</string>
     <string name="tor_bridges_hint">Pick which bridges to use, or leave all selected. Ping shows the reachability of each bridge's first hop — a direct relay, or the fronting/broker endpoint for Snowflake and meek.</string>
@@ -959,6 +983,8 @@
     <string name="speedtest_data_note">Uses up to %1$d MB per run</string>
 
     <string name="add_group_import">Import</string>
+    <string name="add_free_badge">Free</string>
+    <string name="add_free_hint">Psiphon and Tor are free and need no server of your own. Everything else connects to your own server or subscription.</string>
     <string name="add_group_tunnels">Tunnels</string>
     <string name="add_group_dns">DNS tunnels</string>
     <string name="add_group_vpn">VPN protocols</string>
@@ -1099,6 +1125,9 @@
     <string name="action_share_qr">Share as QR</string>
     <string name="action_close">Close</string>
     <string name="copied">Copied</string>
+    <string name="home_local_proxy">Proxy · %1$s</string>
+    <string name="mode_local_proxy_title">Local proxy address</string>
+    <string name="mode_local_proxy_body">SOCKS5 and HTTP on %1$s. Tap to copy.</string>
     <string name="qr_too_large">This config is too large for a QR code. Use Share or Copy instead.</string>
     <string name="servers_add_scan_qr">Scan QR code</string>
     <string name="servers_add_scan_image">Scan QR from an image</string>
@@ -1146,6 +1175,8 @@
     <string name="fault_transport">Transport mismatch</string>
     <string name="fault_transport_hint">The server answered, but not with the transport this config expects. The path, host header or service name is likely wrong.</string>
     <string name="fault_unknown">Connection failed</string>
+    <string name="fault_port_busy">Port already in use</string>
+    <string name="fault_port_busy_hint">Another app, or another copy of Rdx VPN, is already using the local proxy port. Disconnect it, then try again.</string>
     <string name="lan_share_connect_title">Connect other devices to</string>
     <string name="lan_share_no_address">No local network address yet. Join a Wi-Fi network or turn on the hotspot.</string>
     <string name="lan_share_user">Username: %1$s (the password is below)</string>
@@ -1153,6 +1184,9 @@
     <string name="title_pref_lan_username">LAN sharing username</string>
     <string name="title_pref_lan_password">LAN sharing password</string>
     <string name="toast_lan_port_invalid">Use a port from 1024 to 65534 that Rdx VPN does not use itself</string>
+    <string name="title_pref_lan_auth">Require a username and password</string>
+    <string name="summary_pref_lan_auth">When this is off, anyone on the same network can use the shared proxy.</string>
+    <string name="lan_share_no_auth">No username or password</string>
     <string name="toast_lan_credential_required">LAN sharing needs both a username and a password</string>
     <string name="dns_prevent_fallback_always">Always on. Every resolver a DNS-based tunnel uses is routed into the tunnel, so a query can never fall back to your normal network.</string>
     <string name="settings_sub_interval_hour">Every hour</string>
@@ -1385,9 +1419,13 @@
     <string name="tour_settings_title">Settings</string>
     <string name="tour_settings_body">Everything else lives in this tab. Let us go through it.</string>
     <string name="admin_password_title">Administrator password</string>
-    <string name="admin_password_body">TUN mode needs root to create the tunnel, and no system password prompt (polkit) is available. Enter the password you use with sudo. It goes only to sudo and is not saved.</string>
+    <string name="admin_password_body">Rdx VPN needs administrator rights for TUN mode and OpenConnect. Enter the password you use with sudo. You are asked once each time Rdx VPN runs; the password goes only to sudo and is never saved.</string>
     <string name="admin_password_label">Password</string>
     <string name="admin_password_wrong">Wrong password. Try again.</string>
+    <string name="admin_password_remember">Don't ask again on this computer</string>
+    <string name="settings_admin_remember_title">Remember administrator access</string>
+    <string name="settings_admin_remember_body">Rdx VPN asks for your password once each time it runs. Turn this on to stop asking on this computer. Only Rdx VPN's tunnel helper gets the rights, and you are asked once more after an update.</string>
+    <string name="settings_admin_remember_failed">Could not change administrator access</string>
     <string name="title_pref_rendering">Rendering</string>
     <string name="rendering_auto">Automatic</string>
     <string name="rendering_gpu">Graphics card</string>
@@ -1409,4 +1447,34 @@
     <string name="sstp_pass">Password</string>
     <string name="sstp_not_ready">This SSTP profile is saved; the connection engine ships with the next release.</string>
     <string name="sstp_timeout">SSTP did not answer in time; try another server.</string>
+    <string name="settings_hero_tagline">Make it yours</string>
+    <string name="settings_group_personal">Personalize</string>
+    <string name="settings_group_tools">Tools</string>
+    <string name="settings_group_colors">Colors</string>
+    <string name="settings_group_display">Language and display</string>
+    <string name="settings_group_behaviour">Lists and notifications</string>
+    <string name="color_style_title">Color style</string>
+    <string name="color_style_sub">A full palette is generated from your accent color</string>
+    <string name="color_style_zedsecure">Rdx VPN</string>
+    <string name="color_style_tonal">Tonal</string>
+    <string name="color_style_vibrant">Vibrant</string>
+    <string name="color_style_expressive">Expressive</string>
+    <string name="color_style_rainbow">Rainbow</string>
+    <string name="color_style_fruit_salad">Fruit salad</string>
+    <string name="color_style_fidelity">Fidelity</string>
+    <string name="color_style_neutral">Neutral</string>
+    <string name="color_style_monochrome">Monochrome</string>
+    <string name="contrast_title">Contrast</string>
+    <string name="contrast_standard">Standard</string>
+    <string name="contrast_medium">Medium</string>
+    <string name="contrast_high">High</string>
+    <string name="portal_hint">Tap to connect</string>
+    <string name="home_design_title">App design</string>
+    <string name="home_design_sub">The look of the whole app: home, type, shapes and motion. Colours stay separate.</string>
+    <string name="home_design_portal">Portal</string>
+    <string name="home_design_old">Old</string>
+    <string name="home_design_old_note">Button, tile and card styles belong to the Old design. Pick Old to change them.</string>
+    <string name="home_design_pixel">Pixel</string>
+    <string name="pixel_tap_cancel">Tap to cancel</string>
+    <string name="pixel_other_server">Other server</string>
 </resources>

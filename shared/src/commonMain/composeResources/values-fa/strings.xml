@@ -83,6 +83,7 @@
     <string name="subs_name">نام</string>
     <string name="subs_url">نشانی</string>
     <string name="subs_update">به‌روزرسانی</string>
+    <string name="subs_reorder">برای جابه‌جایی بکشید</string>
     <string name="subs_update_all">به‌روزرسانی همه</string>
     <string name="subs_updated">به‌روزرسانی شد: %1$d سرور</string>
     <string name="subs_failed">به‌روزرسانی سابسکریپشن ناموفق بود</string>
@@ -100,6 +101,7 @@
     <string name="info_no_ip">در حال دریافت نشانی…</string>
     <string name="info_no_ipv6">موجود نیست</string>
     <string name="info_unknown_location">موقعیت نامشخص</string>
+    <string name="info_tap_to_refresh">برای دریافت دوباره، روی هر کاشی بزنید</string>
 
     <string name="vault_pick_servers">سرورها را برای قفل کردن انتخاب کنید</string>
     <string name="vault_form_name">نام نمایشی</string>
@@ -290,6 +292,11 @@
 
     <string name="routing_title">مسیریابی</string>
     <string name="routing_subtitle">انتخاب کنید کدام ترافیک از تانل عبور کند</string>
+    <string name="routing_geo_missing_title">فایل‌های geo نیستند</string>
+    <string name="routing_geo_missing_body">قانون‌هایی که از geosite یا geoip استفاده می‌کنند تا دانلود این فایل‌ها خاموش‌اند. Rdx VPN هر وقت بتواند خودش آن‌ها را می‌گیرد.</string>
+    <string name="routing_geo_failed">دانلود نشد. وصل شوید و دوباره امتحان کنید، یا فایل‌ها را از تنظیمات › فایل‌های داده اضافه کنید.</string>
+    <string name="routing_geo_download">دانلود</string>
+    <string name="routing_geo_downloading">در حال دانلود…</string>
     <string name="routing_domain_strategy">راهبرد دامنه</string>
     <string name="routing_mode">حالت مسیریابی</string>
     <string name="routing_mode_global">پروکسی سراسری</string>
@@ -320,6 +327,12 @@
     <string name="rule_port">پورت</string>
     <string name="rule_network">شبکه</string>
     <string name="rule_network_any">هر کدام</string>
+    <string name="rule_network_type">نوع شبکه</string>
+    <string name="rule_network_type_hint">این قانون فقط وقتی اعمال می‌شود که گوشی به یکی از شبکه‌های انتخاب‌شده وصل است. اگر هیچ‌کدام را انتخاب نکنید، روی همهٔ شبکه‌ها اعمال می‌شود.</string>
+    <string name="network_type_wifi">وای‌فای</string>
+    <string name="network_type_cellular">دادهٔ همراه</string>
+    <string name="network_type_ethernet">اترنت</string>
+    <string name="network_type_other">سایر</string>
     <string name="rule_protocol">پروتکل</string>
     <string name="routing_ruleset_menu">گزینه‌های مجموعه قوانین</string>
     <string name="routing_preset_iran">جایگزینی با: لیست سفید ایران</string>
@@ -334,6 +347,8 @@
     <string name="routing_export_ok">مجموعه قوانین در کلیپ‌بورد کپی شد</string>
     <string name="rule_locked">قفل‌شده</string>
     <string name="rule_locked_desc">هنگام جایگزینی مجموعه قوانین با پریست یا وارد کردن، این قانون حفظ می‌شود. قوانین قفل‌شده قابل ویرایش یا حذف نیستند.</string>
+    <string name="rule_unlock_title">قفل این قانون باز شود؟</string>
+    <string name="rule_unlock">باز کردن قفل</string>
     <string name="rule_outbound_missing">پروکسی (سرور مقصد موجود نیست)</string>
     <string name="rule_field_hint">مقادیر را با ویرگول جدا کنید. دامنهٔ ساده به‌صورت زیررشته تطبیق می‌خورد — example.com با notexample.community هم می‌خورد. برای دامنه و زیردامنه‌هایش از domain:example.com و برای تطابق دقیق از full:example.com استفاده کنید. geosite:، keyword: و regexp: هم پذیرفته می‌شوند. برای IP‌ها geoip: و CIDR. پروتکل: http، tls، bittorrent.</string>
     <string name="rule_move_up">بالا بردن</string>
@@ -416,7 +431,14 @@
     <string name="mode_socks">فقط SOCKS</string>
     <string name="mode_socks_body">فقط یک پروکسی SOCKS و HTTP محلی روی 127.0.0.1 باز می‌کند و چیز دیگری را تغییر نمی‌دهد. هر برنامه را خودتان روی آن تنظیم کنید.</string>
     <string name="mode_tun">TUN (VPN)</string>
-    <string name="mode_tun_body">همهٔ برنامه‌ها را از یک کارت شبکهٔ مجازی عبور می‌دهد، حتی برنامه‌هایی که پروکسی سیستم را نادیده می‌گیرند. هر بار که وصل می‌شوید دسترسی مدیر سیستم می‌خواهد. Tor و سایفون همچنان از پروکسی سیستم استفاده می‌کنند.</string>
+    <string name="mode_tun_body">همهٔ برنامه‌ها را از یک کارت شبکهٔ مجازی عبور می‌دهد، حتی برنامه‌هایی که پروکسی سیستم را نادیده می‌گیرند. در هر اجرای Rdx VPN فقط یک‌بار دسترسی مدیر سیستم می‌خواهد. Tor و سایفون، و زنجیره‌هایی که با آن‌ها شروع می‌شوند، همچنان از پروکسی سیستم استفاده می‌کنند.</string>
+    <string name="tray_server">سرور</string>
+    <string name="tray_all_servers">همهٔ %1$d سرور…</string>
+    <string name="tray_mode">حالت</string>
+    <string name="tray_copy_proxy">کپی آدرس پروکسی</string>
+    <string name="tray_show">نمایش پنجره</string>
+    <string name="tray_hide">پنهان کردن پنجره</string>
+    <string name="tray_quit">خروج از Rdx VPN</string>
     <string name="option_none">هیچ‌کدام</string>
 
     <string name="title_ui_settings">رابط کاربری</string>
@@ -484,6 +506,8 @@
     <string name="tun_engine_zeptun">zeptun (پیشنهادی)</string>
     <string name="tun_engine_hev">hev-socks5-tunnel</string>
     <string name="tun_engine_sub">چیزی که بسته‌های اندروید را به اتصال‌های پروکسی‌شده تبدیل می‌کند. zeptun اتصال‌های آماده نگه می‌دارد و مصرف حافظه‌اش کران‌دار است؛ موتور قدیمی برای وقتی است که دستگاهی با آن مشکل داشته باشد.</string>
+    <string name="tun_engine_hev_default">hev-socks5-tunnel (پیش‌فرض)</string>
+    <string name="tun_engine_sub_desktop">روی ویندوز hev پیش‌فرض است. zeptun با فایروال ویندوز جلوی DNSهایی را هم که بیرون از تونل می‌روند می‌گیرد؛ اگر hev روی این کامپیوتر کار نکرد، آن را انتخاب کنید.</string>
     <string name="title_pref_hev_tunnel_rw_timeout">مهلت خواندن/نوشتن Hev TUN</string>
     <string name="summary_pref_hev_tunnel_rw_timeout">ثانیه، به‌صورت tcp,udp</string>
     <string name="title_pref_sniffing_enabled">فعال‌سازی sniffing</string>
@@ -694,7 +718,7 @@
     <string name="ssh_cipher_auto">خودکار (سریع‌ترین)</string>
     <string name="ssh_cipher_legacy">AES-128-CTR (قدیمی)</string>
     <string name="kill_switch">کیل‌سوییچ</string>
-    <string name="kill_switch_sum">اگر VPN قطع شد به‌جای نشت، همهٔ ترافیک را مسدود کن.</string>
+    <string name="kill_switch_sum">اگر VPN قطع شد به‌جای نشت، همهٔ ترافیک را مسدود کن و خودکار دوباره وصل شو.</string>
     <string name="tor_bridges_title">پل‌ها</string>
     <string name="tor_bridges_browse_sum">مرور، پینگ و انتخاب پل‌ها</string>
     <string name="tor_bridges_hint">انتخاب کن کدام پل‌ها استفاده شوند، یا همه را انتخاب‌شده بگذار. پینگ دسترس‌پذیریِ اولین گامِ هر پل را نشان می‌دهد — رلهٔ مستقیم، یا endpointِ فرانتینگ/broker برای Snowflake و meek.</string>
@@ -725,7 +749,7 @@
     <string name="tor_fascist_firewall_sum">فقط به رله‌های پورت ۸۰ و ۴۴۳ وصل شو</string>
     <string name="dns_ssh_enable">SSH روی DNS</string>
     <string name="dns_ssh_forward">عبور DNS از SSH</string>
-    <string name="title_pref_accent">رنگ لهجه</string>
+    <string name="title_pref_accent">رنگ تأکیدی</string>
     <string name="title_pref_amoled">مشکی AMOLED</string>
     <string name="summary_pref_amoled">سطوح کاملاً مشکی در حالت تیره</string>
     <string name="master_dns_add_title">افزودن MasterDNS</string>
@@ -952,6 +976,8 @@
     <string name="speedtest_data_note">هر اجرا تا %1$d مگابایت مصرف می‌کند</string>
 
     <string name="add_group_import">افزودن</string>
+    <string name="add_free_badge">رایگان</string>
+    <string name="add_free_hint">سایفون و Tor رایگان هستند و سرور شخصی لازم ندارند. بقیهٔ روش‌ها به سرور یا اشتراک خودتان وصل می‌شوند.</string>
     <string name="add_group_tunnels">تونل‌ها</string>
     <string name="add_group_dns">تونل‌های DNS</string>
     <string name="add_group_vpn">پروتکل‌های VPN</string>
@@ -1092,6 +1118,9 @@
     <string name="action_share_qr">اشتراک با QR</string>
     <string name="action_close">بستن</string>
     <string name="copied">کپی شد</string>
+    <string name="home_local_proxy">پروکسی · %1$s</string>
+    <string name="mode_local_proxy_title">آدرس پروکسی محلی</string>
+    <string name="mode_local_proxy_body">SOCKS5 و HTTP روی %1$s. برای کپی بزنید.</string>
     <string name="qr_too_large">این کانفیگ برای کد QR بزرگ است. از اشتراک‌گذاری یا کپی استفاده کنید.</string>
     <string name="servers_add_scan_qr">اسکن کد QR</string>
     <string name="servers_add_scan_image">اسکن QR از روی تصویر</string>
@@ -1139,6 +1168,8 @@
     <string name="fault_transport">ترنسپورت ناجور است</string>
     <string name="fault_transport_hint">سرور پاسخ داد، ولی نه با ترنسپورتی که این کانفیگ انتظار دارد. احتمالاً path، هدر host یا نام سرویس اشتباه است.</string>
     <string name="fault_unknown">اتصال ناموفق بود</string>
+    <string name="fault_port_busy">پورت در حال استفاده است</string>
+    <string name="fault_port_busy_hint">برنامهٔ دیگری، یا نسخهٔ دیگری از Rdx VPN، همین حالا از پورت پروکسی محلی استفاده می‌کند. آن را قطع کنید و دوباره امتحان کنید.</string>
     <string name="lan_share_connect_title">دستگاه‌های دیگر را به این آدرس وصل کنید</string>
     <string name="lan_share_no_address">هنوز آدرس شبکهٔ محلی ندارید. به یک Wi-Fi وصل شوید یا هات‌اسپات را روشن کنید.</string>
     <string name="lan_share_user">نام کاربری: %1$s (رمز در پایین است)</string>
@@ -1146,6 +1177,9 @@
     <string name="title_pref_lan_username">نام کاربری اشتراک در شبکهٔ محلی</string>
     <string name="title_pref_lan_password">رمز اشتراک در شبکهٔ محلی</string>
     <string name="toast_lan_port_invalid">پورتی بین ۱۰۲۴ و ۶۵۵۳۴ انتخاب کنید که خود Rdx VPN از آن استفاده نمی‌کند</string>
+    <string name="title_pref_lan_auth">نیاز به نام کاربری و رمز</string>
+    <string name="summary_pref_lan_auth">اگر خاموش باشد، هر کسی در همین شبکه می‌تواند از پروکسی اشتراکی استفاده کند.</string>
+    <string name="lan_share_no_auth">بدون نام کاربری و رمز</string>
     <string name="toast_lan_credential_required">اشتراک در شبکهٔ محلی هم نام کاربری لازم دارد و هم رمز</string>
     <string name="dns_prevent_fallback_always">همیشه فعال است. همهٔ resolverهای تونل‌های مبتنی بر DNS از داخل تونل عبور می‌کنند، پس هیچ پرس‌وجویی به شبکهٔ عادی شما برنمی‌گردد.</string>
     <string name="settings_sub_interval_hour">هر ساعت</string>
@@ -1378,9 +1412,13 @@
     <string name="tour_settings_title">تنظیمات</string>
     <string name="tour_settings_body">بقیه‌ی همه‌چیز در این تب است. برویم یکی‌یکی ببینیم.</string>
     <string name="admin_password_title">رمز عبور مدیر سیستم</string>
-    <string name="admin_password_body">حالت TUN برای ساختن تونل به دسترسی روت نیاز دارد و پنجرهٔ رمز سیستم (polkit) در دسترس نیست. رمز عبوری را که برای sudo استفاده می‌کنید وارد کنید. این رمز فقط به sudo داده می‌شود و ذخیره نمی‌شود.</string>
+    <string name="admin_password_body">حالت TUN و OpenConnect به دسترسی مدیر سیستم نیاز دارند. رمزی را که برای sudo استفاده می‌کنید وارد کنید. در هر اجرای Rdx VPN فقط یک‌بار پرسیده می‌شود، فقط به sudo داده می‌شود و ذخیره نمی‌شود.</string>
     <string name="admin_password_label">رمز عبور</string>
     <string name="admin_password_wrong">رمز عبور اشتباه است. دوباره امتحان کنید.</string>
+    <string name="admin_password_remember">روی این کامپیوتر دیگر نپرس</string>
+    <string name="settings_admin_remember_title">به خاطر سپردن دسترسی مدیر</string>
+    <string name="settings_admin_remember_body">Rdx VPN در هر اجرا یک‌بار رمز را می‌پرسد. با روشن کردن این گزینه روی این کامپیوتر دیگر نمی‌پرسد. این دسترسی فقط به ابزار تونل Rdx VPN داده می‌شود و بعد از هر به‌روزرسانی یک‌بار دیگر پرسیده می‌شود.</string>
+    <string name="settings_admin_remember_failed">تغییر دسترسی مدیر انجام نشد</string>
     <string name="title_pref_rendering">رندر صفحه</string>
     <string name="rendering_auto">خودکار</string>
     <string name="rendering_gpu">کارت گرافیک</string>
@@ -1402,4 +1440,34 @@
     <string name="sstp_pass">رمز عبور</string>
     <string name="sstp_not_ready">کانفیگ SSTP ذخیره شد؛ موتور اتصالش توی نسخه بعد میاد.</string>
     <string name="sstp_timeout">SSTP به‌موقع جواب نداد؛ سرور دیگه‌ای رو امتحان کن.</string>
+    <string name="settings_hero_tagline">به سلیقهٔ خودت</string>
+    <string name="settings_group_personal">شخصی‌سازی</string>
+    <string name="settings_group_tools">ابزارها</string>
+    <string name="settings_group_colors">رنگ‌ها</string>
+    <string name="settings_group_display">زبان و نمایش</string>
+    <string name="settings_group_behaviour">فهرست‌ها و اعلان‌ها</string>
+    <string name="color_style_title">سبک رنگ</string>
+    <string name="color_style_sub">یک پالت کامل از رنگ تأکیدی شما ساخته می‌شود</string>
+    <string name="color_style_zedsecure">Rdx VPN</string>
+    <string name="color_style_tonal">ملایم</string>
+    <string name="color_style_vibrant">پرانرژی</string>
+    <string name="color_style_expressive">اکسپرسیو</string>
+    <string name="color_style_rainbow">رنگین‌کمان</string>
+    <string name="color_style_fruit_salad">سالاد میوه</string>
+    <string name="color_style_fidelity">وفادار</string>
+    <string name="color_style_neutral">خنثی</string>
+    <string name="color_style_monochrome">تک‌رنگ</string>
+    <string name="contrast_title">کنتراست</string>
+    <string name="contrast_standard">استاندارد</string>
+    <string name="contrast_medium">متوسط</string>
+    <string name="contrast_high">زیاد</string>
+    <string name="portal_hint">برای اتصال لمس کنید</string>
+    <string name="home_design_title">طراحی اپ</string>
+    <string name="home_design_sub">ظاهر کل اپ: صفحهٔ اصلی، فونت، شکل‌ها و حرکت‌ها. رنگ‌ها جدا تنظیم می‌شوند.</string>
+    <string name="home_design_portal">درگاه</string>
+    <string name="home_design_old">قدیمی</string>
+    <string name="home_design_old_note">سبک دکمه، کاشی‌ها و کارت‌ها مخصوص طراحی قدیمی است. برای تغییرشان «قدیمی» را انتخاب کن.</string>
+    <string name="home_design_pixel">پیکسل</string>
+    <string name="pixel_tap_cancel">برای لغو لمس کنید</string>
+    <string name="pixel_other_server">سرور دیگر</string>
 </resources>

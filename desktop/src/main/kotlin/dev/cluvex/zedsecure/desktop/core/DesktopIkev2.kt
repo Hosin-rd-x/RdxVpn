@@ -28,7 +28,10 @@ class DesktopIkev2(
     fun disconnect() {
         when (os) {
             Os.WINDOWS -> exec("rasdial", NAME, "/disconnect", timeoutSec = 20)
-            Os.LINUX -> exec("nmcli", "connection", "down", "id", NAME, timeoutSec = 20)
+            Os.LINUX -> {
+                exec("nmcli", "connection", "down", "id", NAME, timeoutSec = 20)
+                forgetLinuxProfile()
+            }
             Os.MACOS -> exec("scutil", "--nc", "stop", NAME, timeoutSec = 20)
             Os.OTHER -> Unit
         }
@@ -51,18 +54,12 @@ class DesktopIkev2(
         val marker = File(dir, "ikev2-ca.trusted")
         val thumbprint = ca?.let { sha1Hex(it.readBytes()) }
         if (ca != null && runCatching { marker.readText().trim() }.getOrNull() != thumbprint) {
-            val trusted = exec(
-                "powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command",
-                "Start-Process powershell -Verb RunAs -Wait -WindowStyle Hidden -ArgumentList " +
-                    "'-NoProfile','-Command','Import-Certificate -FilePath \"${ca.absolutePath}\" -CertStoreLocation Cert:\\LocalMachine\\Root'",
-                timeoutSec = 180,
-            )
-            if (trusted.first != 0) return fail("Windows did not add the server's CA certificate: ${trusted.second.trim()}")
+            if (!WindowsElevation.ensure(dir)) return fail("Administrator rights are needed to trust the server's CA certificate")
+            WindowsElevation.trustCa(ca).onFailure { return fail("Windows did not add the server's CA certificate: ${it.message}") }
             thumbprint?.let { marker.writeText(it) }
         }
-        val script = File(dir, "ikev2.ps1").apply { writeText(windowsScript()) }
         val result = execWithEnv(
-            listOf("powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", script.absolutePath),
+            listOf("powershell.exe", "-NoProfile", "-NonInteractive", "-Command", "-"),
             mapOf(
                 "ZS_NAME" to NAME,
                 "ZS_SERVER" to profile.server.trim(),
@@ -70,8 +67,8 @@ class DesktopIkev2(
                 "ZS_PASS" to profile.plainPassword(),
             ),
             timeoutSec = 120,
+            input = windowsScript(),
         )
-        script.delete()
         if (result.first == 0) return Result.success(Unit)
         return fail(windowsError(result.first, result.second))
     }
@@ -80,18 +77,20 @@ class DesktopIkev2(
         val ike = proposal(profile.ikeProposal)
         val esp = proposal(profile.espProposal.ifBlank { profile.ikeProposal })
         return """
-            |${'$'}ErrorActionPreference = 'Stop'
-            |${'$'}name = ${'$'}env:ZS_NAME
-            |if (Get-VpnConnection -Name ${'$'}name -ErrorAction SilentlyContinue) {
-            |  rasdial ${'$'}name /disconnect | Out-Null
-            |  Remove-VpnConnection -Name ${'$'}name -Force
+            |& {
+            |  ${'$'}ErrorActionPreference = 'Stop'
+            |  ${'$'}name = ${'$'}env:ZS_NAME
+            |  if (Get-VpnConnection -Name ${'$'}name -ErrorAction SilentlyContinue) {
+            |    rasdial ${'$'}name /disconnect | Out-Null
+            |    Remove-VpnConnection -Name ${'$'}name -Force
+            |  }
+            |  Add-VpnConnection -Name ${'$'}name -ServerAddress ${'$'}env:ZS_SERVER -TunnelType Ikev2 -EncryptionLevel Required -AuthenticationMethod Eap -RememberCredential -Force
+            |  Set-VpnConnectionIPsecConfiguration -ConnectionName ${'$'}name -AuthenticationTransformConstants ${esp.windowsAuth} -CipherTransformConstants ${esp.windowsEspCipher} -EncryptionMethod ${ike.windowsCipher} -IntegrityCheckMethod ${ike.windowsIntegrity} -DHGroup ${ike.windowsDh} -PfsGroup None -Force
+            |  ${'$'}ErrorActionPreference = 'Continue'
+            |  rasdial ${'$'}name ${'$'}env:ZS_USER ${'$'}env:ZS_PASS
+            |  exit ${'$'}LASTEXITCODE
             |}
-            |Add-VpnConnection -Name ${'$'}name -ServerAddress ${'$'}env:ZS_SERVER -TunnelType Ikev2 -EncryptionLevel Required -AuthenticationMethod Eap -RememberCredential -Force
-            |Set-VpnConnectionIPsecConfiguration -ConnectionName ${'$'}name -AuthenticationTransformConstants ${esp.windowsAuth} -CipherTransformConstants ${esp.windowsEspCipher} -EncryptionMethod ${ike.windowsCipher} -IntegrityCheckMethod ${ike.windowsIntegrity} -DHGroup ${ike.windowsDh} -PfsGroup None -Force
-            |${'$'}ErrorActionPreference = 'Continue'
-            |rasdial ${'$'}name ${'$'}env:ZS_USER ${'$'}env:ZS_PASS
-            |exit ${'$'}LASTEXITCODE
-            """.trimMargin() + "\n"
+            """.trimMargin() + "\n\n"
     }
 
     private fun windowsError(code: Int, output: String): String = when (code) {
@@ -110,21 +109,33 @@ class DesktopIkev2(
         }
         val store = File(System.getProperty("user.home"), ".local/share/zedsecure").apply { mkdirs() }
         val ca = caFile(store, "ikev2-ca.pem", der = false)
+        val secret = if (profile.effectiveAuth == Ikev2Auth.PSK) profile.plainPsk() else profile.plainPassword()
+        if (secret.any { it == '\n' || it == '\r' } || secret.lastOrNull()?.isWhitespace() == true) {
+            return fail("NetworkManager cannot take a password that ends with a space or has a line break")
+        }
         exec("nmcli", "connection", "delete", "id", NAME, timeoutSec = 20)
         val added = exec(*linuxAddCommand(ca).toTypedArray(), timeoutSec = 30)
         if (added.first != 0) return fail("NetworkManager refused the IKEv2 connection: ${added.second.trim()}")
-        val secret = if (profile.effectiveAuth == Ikev2Auth.PSK) profile.plainPsk() else profile.plainPassword()
-        val passwd = File.createTempFile("zs-ikev2", ".secret", workDir.also { it.mkdirs() }).apply {
-            setReadable(false, false); setReadable(true, true)
-            writeText("vpn.secrets.password:$secret\n")
+        val stored = execWithEnv(
+            listOf("nmcli", "connection", "edit", "id", NAME),
+            emptyMap(),
+            timeoutSec = 30,
+            input = "set vpn.secrets password=${nmcliEscape(secret)}\nsave persistent\nquit\n",
+        )
+        if (stored.first != 0) {
+            forgetLinuxProfile()
+            return fail("NetworkManager did not keep the IKEv2 password: ${stored.second.trim().lineSequence().lastOrNull().orEmpty()}")
         }
-        try {
-            val up = exec("nmcli", "connection", "up", "id", NAME, "passwd-file", passwd.absolutePath, timeoutSec = 90)
-            if (up.first != 0) return fail("IKEv2 did not connect: ${up.second.trim().lineSequence().lastOrNull().orEmpty()}")
-        } finally {
-            passwd.delete()
+        val up = exec("nmcli", "connection", "up", "id", NAME, timeoutSec = 90)
+        if (up.first != 0) {
+            forgetLinuxProfile()
+            return fail("IKEv2 did not connect: ${up.second.trim().lineSequence().firstOrNull { it.startsWith("Error") } ?: up.second.trim().lineSequence().lastOrNull().orEmpty()}")
         }
         return Result.success(Unit)
+    }
+
+    private fun forgetLinuxProfile() {
+        exec("nmcli", "connection", "delete", "id", NAME, timeoutSec = 20)
     }
 
     internal fun linuxAddCommand(ca: File?): List<String> {
@@ -136,7 +147,7 @@ class DesktopIkev2(
             add("virtual=yes")
             add("encap=no")
             add("ipcomp=no")
-            add("password-flags=2")
+            add("password-flags=0")
             ca?.let { add("certificate=${it.absolutePath}") }
             profile.remoteId.takeIf { it.isNotBlank() }?.let { add("remote-identity=${it.trim()}"); add("server-id=${it.trim()}") }
             profile.localId.takeIf { it.isNotBlank() }?.let { add("local-identity=${it.trim()}") }
@@ -147,9 +158,16 @@ class DesktopIkev2(
             }
         }.joinToString(", ")
         return listOf(
-            "nmcli", "connection", "add", "type", "vpn", "con-name", NAME, "ifname", "--",
+            "nmcli", "connection", "add", "type", "vpn", "con-name", NAME, "ifname", "*",
             "vpn-type", "strongswan", "vpn.data", data, "connection.autoconnect", "no",
         )
+    }
+
+    internal fun nmcliEscape(value: String): String = buildString {
+        for (c in value) {
+            if (c == '\\' || c == ',' || c.isWhitespace()) append('\\')
+            append(c)
+        }
     }
 
     private fun mac(): Result<Unit> {
@@ -309,8 +327,9 @@ class DesktopIkev2(
     private fun onPath(tool: String): Boolean =
         System.getenv("PATH").orEmpty().split(File.pathSeparator).any { File(it, tool).canExecute() }
 
-    private fun execWithEnv(cmd: List<String>, env: Map<String, String>, timeoutSec: Long): Pair<Int, String> = try {
+    private fun execWithEnv(cmd: List<String>, env: Map<String, String>, timeoutSec: Long, input: String? = null): Pair<Int, String> = try {
         val p = ProcessBuilder(cmd).redirectErrorStream(true).also { it.environment().putAll(env) }.start()
+        p.outputStream.use { stdin -> input?.let { stdin.write(it.toByteArray(Charsets.UTF_8)) } }
         val out = p.inputStream.bufferedReader().readText()
         if (!p.waitFor(timeoutSec, java.util.concurrent.TimeUnit.SECONDS)) {
             p.destroyForcibly()
