@@ -68,6 +68,7 @@ import dev.cluvex.zedsecure.shared.resources.ic_close
 import dev.cluvex.zedsecure.shared.resources.ic_fill_content_copy
 import dev.cluvex.zedsecure.shared.resources.ic_fill_location_on
 import dev.cluvex.zedsecure.shared.resources.ic_fill_public
+import dev.cluvex.zedsecure.shared.resources.ic_fill_radar
 import dev.cluvex.zedsecure.shared.resources.ic_fill_router
 import dev.cluvex.zedsecure.shared.resources.ic_fill_speed
 import dev.cluvex.zedsecure.shared.resources.ic_fill_sync
