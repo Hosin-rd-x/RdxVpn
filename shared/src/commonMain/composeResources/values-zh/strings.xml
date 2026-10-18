@@ -1460,4 +1460,11 @@
     <string name="home_design_pixel">Pixel</string>
     <string name="pixel_tap_cancel">轻触取消</string>
     <string name="pixel_other_server">换个服务器</string>
+
+    <string name="ip_health_title">IP 健康度</string>
+    <string name="ip_health_risk">风险 %1$s/100</string>
+    <string name="ip_health_timezone">时区</string>
+    <string name="ip_health_checking">正在检测出口 IP…</string>
+    <string name="ip_health_failed">无法检测 IP</string>
+    <string name="ip_health_unknown">点击检测 IP</string>
 </resources>

@@ -1144,40 +1144,6 @@ fun ServersScreen(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                Surface(
-                    shape = MaterialTheme.shapes.large,
-                    color = MaterialTheme.colorScheme.secondaryContainer,
-                    contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
-                    shadowElevation = 6.dp,
-                    onClick = {
-                        if (testing) {
-                            PingCoordinator.cancel()
-                        } else {
-                            PingCoordinator.start(
-                                profiles = shown,
-                                useRealDelay = true,
-                                concurrency = realPingConcurrency,
-                                delayUrl = delayTestUrl,
-                                chainConfig = repository::chainProbeConfig,
-
-                                clearPings = { repository.clearPings(it, persist = false) },
-                                onResult = { id, ms, cc -> repository.setPing(id, ms, cc, persist = false) },
-                                flush = { repository.flushProfiles() },
-
-                                onFinished = { if (autoSortAfterTest) repository.sortByTestResults() },
-                            )
-                        }
-                    },
-                    modifier = Modifier.size(48.dp).tourTarget(TourTargets.SERVERS_PING),
-                ) {
-                    Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
-                        Icon(
-                            painterResource(if (testing) Res.drawable.ic_close else Res.drawable.ic_speed),
-                            contentDescription = stringResource(Res.string.ping_test),
-                        )
-                    }
-                }
-
                 val rotation by androidx.compose.animation.core.animateFloatAsState(
                     if (fanOpen) 45f else 0f, label = "fabRotation",
                 )
@@ -1204,6 +1170,46 @@ fun ServersScreen(
                         )
                     }
                 }
+            }
+        }
+
+        // Ping button lives on the opposite edge (right in RTL) so it is within thumb
+        // reach and the bottom row reads as balanced against the add cluster.
+        Surface(
+            shape = MaterialTheme.shapes.large,
+            color = MaterialTheme.colorScheme.secondaryContainer,
+            contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+            shadowElevation = 6.dp,
+            onClick = {
+                if (testing) {
+                    PingCoordinator.cancel()
+                } else {
+                    PingCoordinator.start(
+                        profiles = shown,
+                        useRealDelay = true,
+                        concurrency = realPingConcurrency,
+                        delayUrl = delayTestUrl,
+                        chainConfig = repository::chainProbeConfig,
+
+                        clearPings = { repository.clearPings(it, persist = false) },
+                        onResult = { id, ms, cc -> repository.setPing(id, ms, cc, persist = false) },
+                        flush = { repository.flushProfiles() },
+
+                        onFinished = { if (autoSortAfterTest) repository.sortByTestResults() },
+                    )
+                }
+            },
+            modifier = Modifier
+                .align(Alignment.BottomStart)
+                .padding(start = 20.dp, bottom = contentPadding.calculateBottomPadding() + 14.dp)
+                .size(48.dp)
+                .tourTarget(TourTargets.SERVERS_PING),
+        ) {
+            Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
+                Icon(
+                    painterResource(if (testing) Res.drawable.ic_close else Res.drawable.ic_speed),
+                    contentDescription = stringResource(Res.string.ping_test),
+                )
             }
         }
     }

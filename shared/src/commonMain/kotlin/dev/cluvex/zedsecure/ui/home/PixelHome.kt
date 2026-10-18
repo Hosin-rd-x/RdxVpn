@@ -111,6 +111,7 @@ import androidx.compose.ui.unit.dp
 import androidx.graphics.shapes.Morph
 import androidx.graphics.shapes.RoundedPolygon
 import dev.cluvex.zedsecure.core.ConnectionFault
+import dev.cluvex.zedsecure.data.net.IpHealth
 import dev.cluvex.zedsecure.data.net.NetworkInfo
 import dev.cluvex.zedsecure.domain.model.ConnectionState
 import dev.cluvex.zedsecure.shared.resources.Res
@@ -143,6 +144,8 @@ internal fun PixelHome(
     onRefreshPing: () -> Unit,
     onRefreshPlace: () -> Unit,
     onRefreshInfo: () -> Unit,
+    ipHealth: IpHealth,
+    onRefreshIpHealth: () -> Unit,
     activeConfigName: String?,
     activeConfigDetail: String?,
     activeLocked: Boolean,
@@ -238,6 +241,8 @@ internal fun PixelHome(
                                     onRefreshPing = onRefreshPing,
                                     onRefreshPlace = onRefreshPlace,
                                     onRefreshAll = onRefreshInfo,
+                                    ipHealth = ipHealth,
+                                    onRefreshIpHealth = onRefreshIpHealth,
                                 )
                             }
                         }
@@ -332,6 +337,8 @@ private fun PixelHeroCard(
     onRefreshPing: () -> Unit,
     onRefreshPlace: () -> Unit,
     onRefreshAll: () -> Unit,
+    ipHealth: IpHealth,
+    onRefreshIpHealth: () -> Unit,
 ) {
     val cs = MaterialTheme.colorScheme
     val state = ui.state
@@ -418,10 +425,12 @@ private fun PixelHeroCard(
                                     Spacer(Modifier.height(8.dp))
                                     PixelDetailsPanel(
                                         info = info,
+                                        ipHealth = ipHealth,
                                         onClose = onCloseInfo,
                                         onRefreshPing = onRefreshPing,
                                         onRefreshPlace = onRefreshPlace,
                                         onRefreshAll = onRefreshAll,
+                                        onRefreshIpHealth = onRefreshIpHealth,
                                     )
                                 }
                             } else {

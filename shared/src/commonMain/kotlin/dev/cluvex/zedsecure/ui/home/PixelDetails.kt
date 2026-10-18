@@ -51,11 +51,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.graphics.shapes.RoundedPolygon
+import dev.cluvex.zedsecure.data.net.IpHealth
 import dev.cluvex.zedsecure.data.net.NetworkInfo
 import dev.cluvex.zedsecure.shared.resources.Res
 import dev.cluvex.zedsecure.shared.resources.action_close
@@ -80,6 +82,12 @@ import dev.cluvex.zedsecure.shared.resources.info_unknown_location
 import dev.cluvex.zedsecure.ui.components.FlagBadge
 import dev.cluvex.zedsecure.ui.format.ltrIsolate
 import dev.cluvex.zedsecure.ui.platform.LocalPlatform
+import dev.cluvex.zedsecure.shared.resources.ip_health_checking
+import dev.cluvex.zedsecure.shared.resources.ip_health_failed
+import dev.cluvex.zedsecure.shared.resources.ip_health_risk
+import dev.cluvex.zedsecure.shared.resources.ip_health_timezone
+import dev.cluvex.zedsecure.shared.resources.ip_health_title
+import dev.cluvex.zedsecure.shared.resources.ip_health_unknown
 import dev.cluvex.zedsecure.ui.theme.goodPingColor
 import org.jetbrains.compose.resources.DrawableResource
 import org.jetbrains.compose.resources.painterResource
@@ -97,10 +105,12 @@ private class TileCorners(val topStart: Boolean, val topEnd: Boolean, val bottom
 @Composable
 internal fun PixelDetailsPanel(
     info: NetworkInfo,
+    ipHealth: IpHealth,
     onClose: () -> Unit,
     onRefreshPing: () -> Unit,
     onRefreshPlace: () -> Unit,
     onRefreshAll: () -> Unit,
+    onRefreshIpHealth: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val cs = MaterialTheme.colorScheme
@@ -144,6 +154,8 @@ internal fun PixelDetailsPanel(
         }
         Spacer(Modifier.height(TileGap))
         AddressTile(info, refreshLabel, onRefreshPlace, Modifier.fillMaxWidth())
+        Spacer(Modifier.height(TileGap))
+        IpHealthTile(ipHealth, refreshLabel, onRefreshIpHealth, Modifier.fillMaxWidth())
     }
 }
 
@@ -313,6 +325,127 @@ private fun AddressTile(info: NetworkInfo, refreshLabel: String, onRefresh: () -
         }
     }
 }
+
+@Composable
+private fun IpHealthTile(
+    health: IpHealth,
+    refreshLabel: String,
+    onRefresh: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val cs = MaterialTheme.colorScheme
+    val tone = riskTone(health)
+    DetailTile(
+        corners = TileCorners(topStart = false, topEnd = false, bottomEnd = false, bottomStart = false),
+        loading = health.loading,
+        onClick = onRefresh,
+        onClickLabel = refreshLabel,
+        badgeShape = MaterialShapes.Cookie12Sided,
+        badgeColor = tone,
+        badge = {
+            val score = health.risk
+            if (score != null) {
+                Text(
+                    score.toString(),
+                    style = MaterialTheme.typography.titleMediumEmphasized,
+                    color = riskInk(tone),
+                )
+            } else {
+                BadgeIcon(Res.drawable.ic_fill_radar, riskInk(tone))
+            }
+        },
+        label = stringResource(Res.string.ip_health_title),
+        vertical = false,
+        modifier = modifier,
+    ) {
+        val score = health.risk
+        when {
+            health.loading && !health.hasData ->
+                Text(stringResource(Res.string.ip_health_checking), style = MaterialTheme.typography.titleMediumEmphasized, color = tileInk())
+
+            health.error != null && !health.hasData ->
+                Text(stringResource(Res.string.ip_health_failed), style = MaterialTheme.typography.titleMediumEmphasized, color = tileSubInk())
+
+            else -> {
+                Text(
+                    score?.let { stringResource(Res.string.ip_health_risk, it.toString()) } ?: stringResource(Res.string.ip_health_unknown),
+                    style = MaterialTheme.typography.titleMediumEmphasized,
+                    color = tileInk(),
+                    maxLines = 1,
+                )
+                val place = listOfNotNull(health.country, health.city).joinToString(" · ").takeIf { it.isNotBlank() }
+                place?.let {
+                    Text(it, style = MaterialTheme.typography.bodySmall, color = tileSubInk(), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+                health.timezone?.let { zone ->
+                    Text(
+                        "${stringResource(Res.string.ip_health_timezone)} · ${ltrIsolate(zone)}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = tileSubInk(),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                val asnLine = listOfNotNull(health.asn, health.asnName).joinToString(" · ").takeIf { it.isNotBlank() }
+                asnLine?.let {
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 2.dp)) {
+                        Icon(
+                            painterResource(Res.drawable.ic_fill_router),
+                            contentDescription = null,
+                            tint = tileSubInk(),
+                            modifier = Modifier.size(14.dp),
+                        )
+                        Spacer(Modifier.width(4.dp))
+                        Text(it, style = MaterialTheme.typography.bodySmall, color = tileSubInk(), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
+                }
+                flagsLine(health)?.let {
+                    Text(it, style = MaterialTheme.typography.bodySmall, color = tileSubInk(), maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 2.dp))
+                }
+            }
+        }
+    }
+}
+
+/** Everything the report flagged, in one readable line: type + signal tags. */
+@Composable
+private fun flagsLine(health: IpHealth): String? {
+    val parts = buildList {
+        health.ipType?.takeIf { it.isNotBlank() }?.let { add(it) }
+        addAll(health.signals)
+    }
+    if (parts.isEmpty()) return null
+    return parts.joinToString(" · ")
+}
+
+/**
+ * Colour for the score badge. ipok.io's own band (clean / caution / risky) drives
+ * it so the tint matches the number's meaning; a missing band falls back to the
+ * score thresholds.
+ */
+@Composable
+private fun riskTone(health: IpHealth): Color {
+    val cs = MaterialTheme.colorScheme
+    val good = goodPingColor(cs.primaryContainer)
+    return when {
+        health.error != null && !health.hasData -> cs.surfaceContainerHighest
+        health.bandTone == "green" -> good
+        health.bandTone == "amber" -> cs.tertiary
+        health.bandTone == "red" -> cs.error
+        (health.risk ?: 0) >= 70 -> cs.error
+        (health.risk ?: 0) >= 40 -> cs.tertiary
+        health.risk != null -> good
+        else -> cs.surfaceContainerHighest
+    }
+}
+
+/**
+ * Ink that stays readable on the badge: the pale band colours (amber tertiary,
+ * a light green) take dark ink, the deep ones (error red) take white.
+ */
+@Composable
+private fun riskInk(tone: Color): Color =
+    if (tone.luminance() > 0.5f) MaterialTheme.colorScheme.onPrimaryContainer else Color.White
 
 @Composable
 private fun tileColor(): Color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.1f)

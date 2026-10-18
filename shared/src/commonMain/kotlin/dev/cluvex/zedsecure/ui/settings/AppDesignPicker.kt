@@ -255,7 +255,12 @@ private fun OldPreview() {
                 .background(ZedGradients.idle),
             contentAlignment = Alignment.Center,
         ) {
-            Text("Z", color = Color.White, style = MaterialTheme.typography.titleLargeEmphasized)
+            Icon(
+                painterResource(Res.drawable.ic_rdx_mark),
+                contentDescription = null,
+                tint = Color.White,
+                modifier = Modifier.size(34.dp),
+            )
         }
         Spacer(Modifier.height(2.dp))
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(5.dp)) {

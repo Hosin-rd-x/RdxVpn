@@ -185,6 +185,7 @@ fun HomeScreen(
     val live = ui.state == ConnectionState.Connected
     val info by homeVm.info.collectAsStateWithLifecycle()
     val infoExpanded by homeVm.expanded.collectAsStateWithLifecycle()
+    val ipHealth by homeVm.ipHealth.collectAsStateWithLifecycle()
 
     LaunchedEffect(live, ui.sessionId, exitGeneration, showConnectionInfo, ipApiUrl, delayTestUrl) {
         homeVm.preferredIpApiUrl = ipApiUrl.ifBlank { null }
@@ -213,6 +214,8 @@ fun HomeScreen(
                     onRefreshPing = homeVm::refreshPing,
                     onRefreshPlace = homeVm::refreshPlace,
                     onRefreshInfo = { homeVm.refresh(force = true) },
+                    ipHealth = ipHealth,
+                    onRefreshIpHealth = homeVm::refreshIpHealth,
                     activeConfigName = activeConfigName,
                     activeConfigDetail = activeConfigDetail,
                     activeLocked = activeLocked,

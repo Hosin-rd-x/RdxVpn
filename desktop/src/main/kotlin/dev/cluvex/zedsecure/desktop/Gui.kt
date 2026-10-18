@@ -57,7 +57,7 @@ import dev.cluvex.zedsecure.shared.resources.tray_all_servers
 import dev.cluvex.zedsecure.shared.resources.ic_tray_connected
 import dev.cluvex.zedsecure.shared.resources.ic_tray_connecting
 import dev.cluvex.zedsecure.shared.resources.ic_tray_disconnected
-import dev.cluvex.zedsecure.shared.resources.ic_zed_mark
+import dev.cluvex.zedsecure.shared.resources.ic_rdx_mark
 import dev.cluvex.zedsecure.shared.resources.zsx_expired
 import dev.cluvex.zedsecure.shared.resources.zsx_invalid
 import dev.cluvex.zedsecure.shared.resources.zsx_legacy
@@ -361,7 +361,7 @@ fun main(args: Array<String>) {
             onCloseRequest = { if (trayAvailable) windowVisible = false else { DesktopVpn.shutdown(); exitApplication() } },
             visible = windowVisible,
             title = "ZedSecure",
-            icon = painterResource(Res.drawable.ic_zed_mark),
+            icon = painterResource(Res.drawable.ic_rdx_mark),
             resizable = false,
             state = windowState,
             onKeyEvent = { event ->

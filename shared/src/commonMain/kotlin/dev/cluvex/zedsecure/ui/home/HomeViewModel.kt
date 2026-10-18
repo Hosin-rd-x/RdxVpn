@@ -5,6 +5,8 @@ import androidx.lifecycle.viewModelScope
 import dev.cluvex.zedsecure.core.ConnectionFault
 import dev.cluvex.zedsecure.core.CoreProbe
 import dev.cluvex.zedsecure.data.net.GeoPreference
+import dev.cluvex.zedsecure.data.net.IpHealth
+import dev.cluvex.zedsecure.data.net.IpHealthRepository
 import dev.cluvex.zedsecure.data.net.NetworkInfo
 import dev.cluvex.zedsecure.data.net.NetworkInfoRepository
 import kotlinx.coroutines.Dispatchers
@@ -21,9 +23,16 @@ enum class InfoFocus { Ping, Place }
 
 class HomeViewModel(
     private val repository: NetworkInfoRepository = NetworkInfoRepository(),
+    private val ipHealthRepository: IpHealthRepository = IpHealthRepository(),
 ) : ViewModel() {
     private val _info = MutableStateFlow(NetworkInfo())
     val info = _info.asStateFlow()
+
+    private val _ipHealth = MutableStateFlow(IpHealth())
+    val ipHealth = _ipHealth.asStateFlow()
+
+    var ipHealthChecked = false
+        private set
 
     var preferredIpApiUrl: String? = null
 
@@ -35,10 +44,14 @@ class HomeViewModel(
     private var job: Job? = null
     private var pingJob: Job? = null
     private var placeJob: Job? = null
+    private var ipHealthJob: Job? = null
 
     fun toggleExpanded() {
         _expanded.value = !_expanded.value
-        if (_expanded.value) refresh()
+        if (_expanded.value) {
+            refresh()
+            checkIpHealthOnce()
+        }
     }
 
     fun openDetails(focus: InfoFocus) {
@@ -47,10 +60,31 @@ class HomeViewModel(
             InfoFocus.Ping -> refreshPing()
             InfoFocus.Place -> refreshPlace()
         }
+        checkIpHealthOnce()
     }
 
     fun closeDetails() {
         _expanded.value = false
+    }
+
+    /**
+     * One ipok.io lookup per session, fired the first time the details panel is
+     * opened — the free quota is a daily budget, so a timer or a per-open call
+     * would burn it. Reopening the panel keeps the previous answer.
+     */
+    private fun checkIpHealthOnce() {
+        if (ipHealthChecked) return
+        ipHealthChecked = true
+        refreshIpHealth()
+    }
+
+    fun refreshIpHealth() {
+        ipHealthJob?.cancel()
+        _ipHealth.update { it.copy(loading = true, error = null) }
+        ipHealthJob = viewModelScope.launch {
+            val fresh = withContext(Dispatchers.IO) { ipHealthRepository.fetch() }
+            _ipHealth.value = fresh.copy(loading = false)
+        }
     }
 
     fun refreshPing() {
@@ -119,7 +153,10 @@ class HomeViewModel(
         job?.cancel()
         pingJob?.cancel()
         placeJob?.cancel()
+        ipHealthJob?.cancel()
         _info.value = NetworkInfo()
+        _ipHealth.value = IpHealth()
+        ipHealthChecked = false
         _expanded.value = false
     }
 

@@ -1460,4 +1460,11 @@
     <string name="home_design_pixel">Pixel</string>
     <string name="pixel_tap_cancel">Нажмите, чтобы отменить</string>
     <string name="pixel_other_server">Другой сервер</string>
+
+    <string name="ip_health_title">Здоровье IP</string>
+    <string name="ip_health_risk">Риск %1$s/100</string>
+    <string name="ip_health_timezone">Часовой пояс</string>
+    <string name="ip_health_checking">Проверка выходного IP…</string>
+    <string name="ip_health_failed">Проверка IP недоступна</string>
+    <string name="ip_health_unknown">Нажмите, чтобы проверить IP</string>
 </resources>

@@ -166,7 +166,7 @@ private fun HeroMark(reduceMotion: Boolean) {
             endShape = HeroShapes[(index + 1) % HeroShapes.size],
         )
         Icon(
-            painterResource(Res.drawable.ic_zed_glyph),
+            painterResource(Res.drawable.ic_rdx_mark),
             contentDescription = null,
             tint = cs.onPrimary,
             modifier = Modifier.size(58.dp),

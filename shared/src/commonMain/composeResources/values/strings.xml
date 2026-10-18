@@ -1481,4 +1481,11 @@
     <string name="home_design_pixel">Pixel</string>
     <string name="pixel_tap_cancel">Tap to cancel</string>
     <string name="pixel_other_server">Other server</string>
+
+    <string name="ip_health_title">IP health</string>
+    <string name="ip_health_risk">Risk %1$s/100</string>
+    <string name="ip_health_timezone">Time zone</string>
+    <string name="ip_health_checking">Checking the exit IP…</string>
+    <string name="ip_health_failed">IP check unavailable</string>
+    <string name="ip_health_unknown">Tap to check the IP</string>
 </resources>

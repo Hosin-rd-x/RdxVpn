@@ -1474,4 +1474,11 @@
     <string name="home_design_pixel">پیکسل</string>
     <string name="pixel_tap_cancel">برای لغو لمس کنید</string>
     <string name="pixel_other_server">سرور دیگر</string>
+
+    <string name="ip_health_title">سلامت IP</string>
+    <string name="ip_health_risk">امتیاز خطر %1$s از ۱۰۰</string>
+    <string name="ip_health_timezone">منطقهٔ زمانی</string>
+    <string name="ip_health_checking">در حال بررسی IP خروجی…</string>
+    <string name="ip_health_failed">بررسی IP ممکن نشد</string>
+    <string name="ip_health_unknown">برای بررسی IP بزن</string>
 </resources>
