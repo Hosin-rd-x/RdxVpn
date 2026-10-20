@@ -30,6 +30,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.graphics.Color
+import dev.cluvex.zedsecure.ui.format.ltrIsolate
 import org.jetbrains.compose.resources.painterResource
 import org.jetbrains.compose.resources.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -37,6 +39,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.cluvex.zedsecure.shared.resources.Res
 import dev.cluvex.zedsecure.shared.resources.*
+import dev.cluvex.zedsecure.data.net.IpHealth
 import dev.cluvex.zedsecure.data.net.NetworkInfo
 import dev.cluvex.zedsecure.ui.components.FlagBadge
 import dev.cluvex.zedsecure.ui.theme.goodPingColor
@@ -48,6 +51,8 @@ fun ConnectionInfoPill(
     expanded: Boolean,
     onToggle: () -> Unit,
     onRefresh: () -> Unit,
+    ipHealth: IpHealth,
+    onRefreshIpHealth: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val chevronRotation by animateFloatAsState(
@@ -128,6 +133,10 @@ fun ConnectionInfoPill(
                         stringResource(Res.string.info_location),
                         listOfNotNull(info.city, info.country).joinToString(", ").ifBlank { null },
                     )
+
+                    Spacer(Modifier.size(6.dp))
+                    IpHealthRows(ipHealth, onRefreshIpHealth)
+
                     Spacer(Modifier.size(4.dp))
                     Row(
                         Modifier.fillMaxWidth(),
@@ -153,6 +162,100 @@ fun ConnectionInfoPill(
     }
 }
 
+/**
+ * The IP-health block for the pill themes (Portal and the old design), matching
+ * the way the rest of this panel reads: plain label/value rows.
+ */
+@Composable
+private fun IpHealthRows(health: IpHealth, onRefresh: () -> Unit) {
+    val cs = MaterialTheme.colorScheme
+    val tone = when {
+        health.error != null && !health.hasData -> cs.onSurfaceVariant
+        health.bandTone == "green" -> goodPingColor(cs.surfaceContainerHigh)
+        health.bandTone == "amber" -> cs.tertiary
+        health.bandTone == "red" -> cs.error
+        (health.risk ?: 0) >= 70 -> cs.error
+        (health.risk ?: 0) >= 40 -> cs.tertiary
+        health.risk != null -> goodPingColor(cs.surfaceContainerHigh)
+        else -> cs.onSurfaceVariant
+    }
+
+    HorizontalDivider()
+    Spacer(Modifier.size(8.dp))
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Text(
+            stringResource(Res.string.ip_health_title),
+            style = MaterialTheme.typography.labelMedium,
+            color = cs.onSurfaceVariant,
+            modifier = Modifier.weight(1f),
+        )
+        if (health.loading) {
+            CircularWavyProgressIndicator(Modifier.size(16.dp))
+        } else {
+            IconButton(onClick = onRefresh) {
+                Icon(
+                    painterResource(Res.drawable.ic_sync),
+                    contentDescription = stringResource(Res.string.info_refresh),
+                    modifier = Modifier.size(18.dp),
+                )
+            }
+        }
+    }
+    when {
+        health.loading && !health.hasData ->
+            DetailRowValue(stringResource(Res.string.ip_health_checking), null)
+
+        health.error != null && !health.hasData ->
+            DetailRowValue(stringResource(Res.string.ip_health_failed), null)
+
+        !health.hasData ->
+            DetailRowValue(stringResource(Res.string.ip_health_unknown), null)
+
+        else -> {
+            DetailRowValue(
+                stringResource(Res.string.ip_health_risk_plain),
+                health.risk?.toString(),
+                ink = tone,
+            )
+            DetailRowValue(stringResource(Res.string.ip_health_type), health.ipType)
+            if (health.signals.isNotEmpty()) {
+                DetailRowValue(stringResource(Res.string.ip_health_signals), health.signals.joinToString(" · "))
+            }
+            DetailRowValue(stringResource(Res.string.ip_health_timezone), health.timezone?.let { ltrIsolate(it) })
+            DetailRowValue(
+                stringResource(Res.string.ip_health_asn),
+                listOfNotNull(health.asn, health.asnName).joinToString(" · ").ifBlank { null },
+            )
+            DetailRowValue(stringResource(Res.string.ip_health_org), health.org)
+            val block = health.blocklistChecked?.takeIf { it > 0 }?.let { checked ->
+                if ((health.blocklisted ?: 0) == 0) "$checked/$checked" else "${health.blocklisted}/$checked"
+            }
+            DetailRowValue(stringResource(Res.string.ip_health_blocklist), block)
+        }
+    }
+}
+
+@Composable
+private fun DetailRowValue(label: String, value: String?, ink: Color = Color.Unspecified) {
+    Row(
+        Modifier.fillMaxWidth().padding(vertical = 3.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            label,
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.width(74.dp),
+        )
+        Text(
+            value ?: "—",
+            style = MaterialTheme.typography.bodySmall,
+            color = if (ink == Color.Unspecified) MaterialTheme.colorScheme.onSurface else ink,
+            maxLines = 2,
+        )
+    }
+}
+
 @Composable
 private fun DetailRow(label: String, value: String?) {
     Row(
@@ -170,6 +273,7 @@ private fun DetailRow(label: String, value: String?) {
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurface,
             maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
         )
     }
 }

@@ -10,6 +10,7 @@ import android.net.ipsec.ike.IkeFqdnIdentification
 import android.net.ipsec.ike.IkeIpv4AddrIdentification
 import android.net.ipsec.ike.IkeIpv6AddrIdentification
 import android.net.ipsec.ike.IkeRfc822AddrIdentification
+import android.net.eap.EapSessionConfig
 import android.net.ipsec.ike.IkeSessionParams
 import android.net.ipsec.ike.IkeTunnelConnectionParams
 import android.net.ipsec.ike.TunnelModeChildSessionParams
@@ -277,8 +278,8 @@ object Ikev2Controller {
     @RequiresApi(Build.VERSION_CODES.R)
     private fun buildAdvanced(profile: Ikev2Profile, m: Materials): Ikev2VpnProfile? {
         val wanted = Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-            m.auth != Ikev2Auth.EAP_MSCHAPV2 &&
-            (profile.remoteId.isNotBlank() || profile.ikeProposal.isNotBlank() ||
+            (m.auth == Ikev2Auth.EAP_MSCHAPV2 ||
+                profile.remoteId.isNotBlank() || profile.ikeProposal.isNotBlank() ||
                 profile.espProposal.isNotBlank())
         if (!wanted) return null
         return buildViaIkeParams(profile, m.auth, m.cert, m.serverCa)
@@ -320,7 +321,15 @@ object Ikev2Controller {
                 ike.setAuthDigitalSignature(serverCa, chainCert, key)
             }
 
-            Ikev2Auth.EAP_MSCHAPV2 -> return@runCatching null
+            Ikev2Auth.EAP_MSCHAPV2 -> {
+                val user = profile.username.trim()
+                val pass = profile.plainPassword()
+                if (user.isBlank() || pass.isBlank()) return@runCatching null
+                val eap = EapSessionConfig.Builder()
+                    .setEapMsChapV2Config(user, pass)
+                    .build()
+                ike.setAuthEap(serverCa, eap)
+            }
         }
 
         ike.addIkeSaProposal(Ikev2Proposals.parseIke(profile.ikeProposal) ?: Ikev2Proposals.defaultIke())

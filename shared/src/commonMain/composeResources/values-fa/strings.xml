@@ -1481,4 +1481,11 @@
     <string name="ip_health_checking">در حال بررسی IP خروجی…</string>
     <string name="ip_health_failed">بررسی IP ممکن نشد</string>
     <string name="ip_health_unknown">برای بررسی IP بزن</string>
+
+    <string name="ip_health_risk_plain">امتیاز خطر</string>
+    <string name="ip_health_type">نوع IP</string>
+    <string name="ip_health_signals">علامت‌خورده به</string>
+    <string name="ip_health_asn">ASN</string>
+    <string name="ip_health_org">ارائه‌دهنده</string>
+    <string name="ip_health_blocklist">بلاک‌لیست‌ها</string>
 </resources>

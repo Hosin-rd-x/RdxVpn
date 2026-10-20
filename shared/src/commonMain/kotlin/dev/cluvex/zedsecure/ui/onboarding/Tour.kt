@@ -148,6 +148,20 @@ object TourTargets {
  */
 object TourPins {
     var openAddSheet by mutableStateOf(false)
+
+    /** True while a tour is running; the servers screen keeps the add sheet shut
+     *  then, because a sheet is its own window and would cover the overlay. */
+    var active by mutableStateOf(false)
+
+    /** True only while the current step lives inside the add sheet. */
+    var sheetStepActive by mutableStateOf(false)
+
+    /** Handed over by the scaffold for sheet steps: the sheet composes this
+     *  itself, since an overlay drawn in the app window lands behind its window. */
+    var sheetOverlay by mutableStateOf<(@Composable () -> Unit)?>(null)
+
+    /** True while the sheet is actually hosting [sheetOverlay]. */
+    var sheetOverlayLive by mutableStateOf(false)
 }
 
 fun Modifier.tourTarget(key: String): Modifier = this then TourTargetElement(key)

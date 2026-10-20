@@ -100,6 +100,7 @@ import dev.cluvex.zedsecure.domain.config.ConfigParser
 import dev.cluvex.zedsecure.domain.config.VpnProfile
 import dev.cluvex.zedsecure.ui.onboarding.TourTargets
 import dev.cluvex.zedsecure.ui.onboarding.tourTarget
+import dev.cluvex.zedsecure.ui.onboarding.tourTargetInPage
 import dev.cluvex.zedsecure.ui.platform.LocalPlatform
 import dev.cluvex.zedsecure.ui.format.formatBytes
 import dev.cluvex.zedsecure.ui.components.MorphingBlob
@@ -370,6 +371,18 @@ fun ServersScreen(
         } else {
             showAddSheet = false
         }
+    }
+    // The tour overlay lives in the app window: a sheet opened while the tour is
+    // on some other step would cover it, so keep the sheet shut then. (For the
+    // two steps that live inside the sheet, the sheet hosts the overlay itself.)
+    val tourPins = dev.cluvex.zedsecure.ui.onboarding.TourPins
+    androidx.compose.runtime.LaunchedEffect(
+        tourWantsAddSheet,
+        showAddSheet,
+        tourPins.active,
+        tourPins.sheetStepActive,
+    ) {
+        if (showAddSheet && tourPins.active && !tourPins.sheetStepActive) showAddSheet = false
     }
     var showManual by remember { mutableStateOf(false) }
 
@@ -2190,71 +2203,86 @@ private fun AddServerSheet(
     onFirefox: () -> Unit,
 ) {
     ModalBottomSheet(onDismissRequest = onDismiss) {
-        Column(
-            Modifier
-                .fillMaxWidth()
-                .verticalScroll(rememberScrollState())
-                .padding(bottom = 26.dp),
-        ) {
-            Text(
-                stringResource(Res.string.servers_add),
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(horizontal = 22.dp, vertical = 8.dp),
-            )
-            Surface(
-                shape = RoundedCornerShape(16.dp),
-                color = MaterialTheme.colorScheme.tertiaryContainer,
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+        Box(Modifier.fillMaxWidth()) {
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
+                    .padding(bottom = 26.dp),
             ) {
-                Row(Modifier.padding(horizontal = 14.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-                    FreeBadge()
-                    Spacer(Modifier.width(10.dp))
-                    Text(
-                        stringResource(Res.string.add_free_hint),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onTertiaryContainer,
-                    )
+                Text(
+                    stringResource(Res.string.servers_add),
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(horizontal = 22.dp, vertical = 8.dp),
+                )
+                Surface(
+                    shape = RoundedCornerShape(16.dp),
+                    color = MaterialTheme.colorScheme.tertiaryContainer,
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+                ) {
+                    Row(Modifier.padding(horizontal = 14.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                        FreeBadge()
+                        Spacer(Modifier.width(10.dp))
+                        Text(
+                            stringResource(Res.string.add_free_hint),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onTertiaryContainer,
+                        )
+                    }
+                }
+
+                OptionGroup(Res.string.add_group_import)
+                Option(Res.drawable.ic_content_paste, Res.string.servers_add_clipboard, onPasteLink)
+                Option(Res.drawable.ic_description, Res.string.servers_add_file, onImportFile)
+
+                if (LocalPlatform.current.supportsQrScan) {
+                    Option(Res.drawable.ic_qr_code_2, Res.string.servers_add_scan_qr, onScanQr)
+                }
+                Option(Res.drawable.ic_add_link, Res.string.servers_add_scan_image, onScanQrImage)
+                Option(Res.drawable.ic_edit, Res.string.servers_add_manual, onManual)
+                Option(Res.drawable.ic_description, Res.string.servers_add_custom, onCustom)
+
+                OptionGroup(Res.string.add_group_rdx, Modifier.tourTargetInPage(dev.cluvex.zedsecure.ui.onboarding.TourTargets.SERVERS_RDX))
+                Option(Res.drawable.ic_public, Res.string.foxy_add_title, onFirefox, free = true)
+                Option(
+                    Res.drawable.ic_bolt,
+                    Res.string.preset_add,
+                    onPreset,
+                    free = true,
+                    modifier = Modifier.tourTargetInPage(dev.cluvex.zedsecure.ui.onboarding.TourTargets.SERVERS_RDX_CF),
+                )
+                Option(Res.drawable.ic_sync, Res.string.sstp_online_title, onSstpList, free = true)
+
+                OptionGroup(Res.string.add_group_tunnels)
+                Option(Res.drawable.ic_speed, Res.string.ssh_add_title, onSsh)
+                if (LocalPlatform.current.supportsSniSpoof) Option(Res.drawable.ic_bolt, Res.string.snispoof_add_title, onSniSpoof)
+
+                OptionGroup(Res.string.add_group_dns)
+                Option(Res.drawable.ic_public, Res.string.dns_tunnel_add_title, onDnsTunnel)
+                Option(Res.drawable.ic_public, Res.string.master_dns_add_title, onMasterDns)
+
+                OptionGroup(Res.string.add_group_vpn)
+                Option(Res.drawable.ic_lock, Res.string.openconnect_add_title, onOpenConnect)
+                Option(Res.drawable.ic_lock, Res.string.ikev2_add_title, onIkev2)
+                Option(Res.drawable.ic_lock, Res.string.sstp_option_title, onSstp)
+
+                OptionGroup(Res.string.add_group_subscription)
+                Option(Res.drawable.ic_add_link, Res.string.subs_add, onSubscription)
+            }
+            // A sheet owns its window, so the tour overlay must be drawn inside it:
+            // composed in the app window it would land behind the sheet, and its
+            // hole/caption would point at nothing.
+            val tourOverlay = dev.cluvex.zedsecure.ui.onboarding.TourPins.sheetOverlay
+            if (tourOverlay != null) {
+                Box(Modifier.matchParentSize()) {
+                    androidx.compose.runtime.DisposableEffect(Unit) {
+                        dev.cluvex.zedsecure.ui.onboarding.TourPins.sheetOverlayLive = true
+                        onDispose { dev.cluvex.zedsecure.ui.onboarding.TourPins.sheetOverlayLive = false }
+                    }
+                    tourOverlay()
                 }
             }
-
-            OptionGroup(Res.string.add_group_import)
-            Option(Res.drawable.ic_content_paste, Res.string.servers_add_clipboard, onPasteLink)
-            Option(Res.drawable.ic_description, Res.string.servers_add_file, onImportFile)
-
-            if (LocalPlatform.current.supportsQrScan) {
-                Option(Res.drawable.ic_qr_code_2, Res.string.servers_add_scan_qr, onScanQr)
-            }
-            Option(Res.drawable.ic_add_link, Res.string.servers_add_scan_image, onScanQrImage)
-            Option(Res.drawable.ic_edit, Res.string.servers_add_manual, onManual)
-            Option(Res.drawable.ic_description, Res.string.servers_add_custom, onCustom)
-
-            OptionGroup(Res.string.add_group_rdx, Modifier.tourTarget(dev.cluvex.zedsecure.ui.onboarding.TourTargets.SERVERS_RDX))
-            Option(Res.drawable.ic_public, Res.string.foxy_add_title, onFirefox, free = true)
-            Option(
-                Res.drawable.ic_bolt,
-                Res.string.preset_add,
-                onPreset,
-                free = true,
-                modifier = Modifier.tourTarget(dev.cluvex.zedsecure.ui.onboarding.TourTargets.SERVERS_RDX_CF),
-            )
-            Option(Res.drawable.ic_sync, Res.string.sstp_online_title, onSstpList, free = true)
-
-            OptionGroup(Res.string.add_group_tunnels)
-            Option(Res.drawable.ic_speed, Res.string.ssh_add_title, onSsh)
-            if (LocalPlatform.current.supportsSniSpoof) Option(Res.drawable.ic_bolt, Res.string.snispoof_add_title, onSniSpoof)
-
-            OptionGroup(Res.string.add_group_dns)
-            Option(Res.drawable.ic_public, Res.string.dns_tunnel_add_title, onDnsTunnel)
-            Option(Res.drawable.ic_public, Res.string.master_dns_add_title, onMasterDns)
-
-            OptionGroup(Res.string.add_group_vpn)
-            Option(Res.drawable.ic_lock, Res.string.openconnect_add_title, onOpenConnect)
-            Option(Res.drawable.ic_lock, Res.string.ikev2_add_title, onIkev2)
-            Option(Res.drawable.ic_lock, Res.string.sstp_option_title, onSstp)
-
-            OptionGroup(Res.string.add_group_subscription)
-            Option(Res.drawable.ic_add_link, Res.string.subs_add, onSubscription)
         }
     }
 }

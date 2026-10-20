@@ -101,6 +101,7 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.graphics.shapes.Morph
 import androidx.graphics.shapes.RoundedPolygon
+import dev.cluvex.zedsecure.data.net.IpHealth
 import dev.cluvex.zedsecure.data.net.NetworkInfo
 import dev.cluvex.zedsecure.domain.model.ConnectionState
 import dev.cluvex.zedsecure.shared.resources.Res
@@ -147,6 +148,8 @@ internal fun PortalHome(
     infoExpanded: Boolean,
     onToggleInfo: () -> Unit,
     onRefreshInfo: () -> Unit,
+    ipHealth: IpHealth,
+    onRefreshIpHealth: () -> Unit,
     activeConfigName: String?,
     activeConfigDetail: String?,
     activeLocked: Boolean,
@@ -238,6 +241,8 @@ internal fun PortalHome(
                                         expanded = infoExpanded,
                                         onToggle = onToggleInfo,
                                         onRefresh = onRefreshInfo,
+                                        ipHealth = ipHealth,
+                                        onRefreshIpHealth = onRefreshIpHealth,
                                     )
                                 }
                             }

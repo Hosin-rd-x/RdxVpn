@@ -250,6 +250,8 @@ fun HomeScreen(
                     infoExpanded = infoExpanded,
                     onToggleInfo = homeVm::toggleExpanded,
                     onRefreshInfo = { homeVm.refresh(force = true) },
+                    ipHealth = ipHealth,
+                    onRefreshIpHealth = homeVm::refreshIpHealth,
                     activeConfigName = activeConfigName,
                     activeConfigDetail = activeConfigDetail,
                     activeLocked = activeLocked,
@@ -351,6 +353,8 @@ fun HomeScreen(
                             expanded = infoExpanded,
                             onToggle = homeVm::toggleExpanded,
                             onRefresh = { homeVm.refresh(force = true) },
+                            ipHealth = ipHealth,
+                            onRefreshIpHealth = homeVm::refreshIpHealth,
                         )
                     }
                 }

@@ -1467,4 +1467,11 @@
     <string name="ip_health_checking">正在检测出口 IP…</string>
     <string name="ip_health_failed">无法检测 IP</string>
     <string name="ip_health_unknown">点击检测 IP</string>
+
+    <string name="ip_health_risk_plain">风险评分</string>
+    <string name="ip_health_type">IP 类型</string>
+    <string name="ip_health_signals">被标记为</string>
+    <string name="ip_health_asn">ASN</string>
+    <string name="ip_health_org">提供商</string>
+    <string name="ip_health_blocklist">黑名单</string>
 </resources>

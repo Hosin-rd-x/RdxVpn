@@ -354,23 +354,60 @@ fun MainScaffold(
             dev.cluvex.zedsecure.ui.onboarding.TourPins.openAddSheet = sheetStep
         }
         androidx.compose.runtime.DisposableEffect(Unit) {
-            onDispose { dev.cluvex.zedsecure.ui.onboarding.TourPins.openAddSheet = false }
+            onDispose {
+                val pins = dev.cluvex.zedsecure.ui.onboarding.TourPins
+                pins.openAddSheet = false
+                pins.active = false
+                pins.sheetStepActive = false
+                pins.sheetOverlay = null
+                pins.sheetOverlayLive = false
+            }
         }
-        dev.cluvex.zedsecure.ui.onboarding.TourOverlay(
-            step = step,
-            index = tourStep,
-            total = tourSteps.size,
-            nextLabel = if (tourStep == tourSteps.lastIndex) {
-                stringResource(Res.string.tour_done)
-            } else {
-                stringResource(Res.string.tour_next)
-            },
-            skipLabel = stringResource(Res.string.tour_skip),
-            onNext = advance,
-            onSkip = finish,
-
-            onTargetMissing = advance,
-        )
+        // One overlay instance. It renders here for normal steps; the two Rdx steps
+        // live inside the add-server sheet, which owns its own window, so the sheet
+        // composes this instance itself (otherwise it draws behind the sheet and
+        // its hole/caption point at nothing).
+        val overlay: @Composable () -> Unit = {
+            dev.cluvex.zedsecure.ui.onboarding.TourOverlay(
+                step = step,
+                index = tourStep,
+                total = tourSteps.size,
+                nextLabel = if (tourStep == tourSteps.lastIndex) {
+                    stringResource(Res.string.tour_done)
+                } else {
+                    stringResource(Res.string.tour_next)
+                },
+                skipLabel = stringResource(Res.string.tour_skip),
+                onNext = advance,
+                onSkip = finish,
+                onTargetMissing = advance,
+            )
+        }
+        androidx.compose.runtime.SideEffect {
+            val pins = dev.cluvex.zedsecure.ui.onboarding.TourPins
+            pins.active = true
+            pins.sheetStepActive = sheetStep
+            pins.sheetOverlay = if (sheetStep) overlay else null
+        }
+        if (sheetStep) {
+            // Nothing renders here while the step is hosted by the sheet, so keep the
+            // tour moving if the sheet never shows up or the user dismisses it.
+            // (Once hosted, the overlay's own missing-target watchdog takes over.)
+            androidx.compose.runtime.LaunchedEffect(step.target) {
+                var unhosted = 0L
+                while (unhosted < 3_000L) {
+                    kotlinx.coroutines.delay(200L)
+                    unhosted = if (dev.cluvex.zedsecure.ui.onboarding.TourPins.sheetOverlayLive) {
+                        0L
+                    } else {
+                        unhosted + 200L
+                    }
+                }
+                advance()
+            }
+        } else {
+            overlay()
+        }
     }
     }
 }

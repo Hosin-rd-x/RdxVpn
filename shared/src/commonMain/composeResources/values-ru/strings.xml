@@ -1467,4 +1467,11 @@
     <string name="ip_health_checking">Проверка выходного IP…</string>
     <string name="ip_health_failed">Проверка IP недоступна</string>
     <string name="ip_health_unknown">Нажмите, чтобы проверить IP</string>
+
+    <string name="ip_health_risk_plain">Оценка риска</string>
+    <string name="ip_health_type">Тип IP</string>
+    <string name="ip_health_signals">Отмечен как</string>
+    <string name="ip_health_asn">ASN</string>
+    <string name="ip_health_org">Провайдер</string>
+    <string name="ip_health_blocklist">Чёрные списки</string>
 </resources>

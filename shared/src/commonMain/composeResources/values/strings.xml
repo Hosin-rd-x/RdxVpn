@@ -1488,4 +1488,11 @@
     <string name="ip_health_checking">Checking the exit IP…</string>
     <string name="ip_health_failed">IP check unavailable</string>
     <string name="ip_health_unknown">Tap to check the IP</string>
+
+    <string name="ip_health_risk_plain">Risk score</string>
+    <string name="ip_health_type">IP type</string>
+    <string name="ip_health_signals">Flagged as</string>
+    <string name="ip_health_asn">ASN</string>
+    <string name="ip_health_org">Provider</string>
+    <string name="ip_health_blocklist">Blocklists</string>
 </resources>
