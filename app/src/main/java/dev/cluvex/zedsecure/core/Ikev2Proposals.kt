@@ -98,6 +98,51 @@ object Ikev2Proposals {
         .addIntegrityAlgorithm(SaProposal.INTEGRITY_ALGORITHM_HMAC_SHA2_256_128)
         .build()
 
+    /**
+     * IKE (phase 1) proposals.
+     *
+     * AOSP refuses an AEAD cipher when an integrity algorithm is present, so the
+     * phase 1 variants stay on CBC/CTR plus integrity. Servers that only speak
+     * AEAD are served by the child proposals below.
+     */
+    fun defaultIkeVariants(): List<IkeSaProposal> = listOf(
+        defaultIke(),
+        IkeSaProposal.Builder()
+            .addEncryptionAlgorithm(SaProposal.ENCRYPTION_ALGORITHM_AES_CTR, 256)
+            .addEncryptionAlgorithm(SaProposal.ENCRYPTION_ALGORITHM_AES_CTR, 128)
+            .addIntegrityAlgorithm(SaProposal.INTEGRITY_ALGORITHM_HMAC_SHA2_512_256)
+            .addIntegrityAlgorithm(SaProposal.INTEGRITY_ALGORITHM_HMAC_SHA2_256_128)
+            .addPseudorandomFunction(SaProposal.PSEUDORANDOM_FUNCTION_SHA2_512)
+            .addPseudorandomFunction(SaProposal.PSEUDORANDOM_FUNCTION_SHA2_256)
+            .addDhGroup(SaProposal.DH_GROUP_2048_BIT_MODP)
+            .addDhGroup(SaProposal.DH_GROUP_3072_BIT_MODP)
+            .addDhGroup(SaProposal.DH_GROUP_CURVE_25519)
+            .build(),
+    )
+
+    /**
+     * ESP (phase 2) proposals.
+     *
+     * AOSP rejects AEAD and non AEAD ciphers inside one proposal, so every
+     * variant carries a single cipher family. Servers that only accept
+     * AES-GCM or ChaCha20-Poly1305 are covered by the second and third entry.
+     */
+    fun defaultChildVariants(): List<ChildSaProposal> = listOf(
+        ChildSaProposal.Builder()
+            .addEncryptionAlgorithm(SaProposal.ENCRYPTION_ALGORITHM_AES_CBC, 256)
+            .addEncryptionAlgorithm(SaProposal.ENCRYPTION_ALGORITHM_AES_CBC, 128)
+            .addIntegrityAlgorithm(SaProposal.INTEGRITY_ALGORITHM_HMAC_SHA2_512_256)
+            .addIntegrityAlgorithm(SaProposal.INTEGRITY_ALGORITHM_HMAC_SHA2_256_128)
+            .build(),
+        ChildSaProposal.Builder()
+            .addEncryptionAlgorithm(SaProposal.ENCRYPTION_ALGORITHM_AES_GCM_16, 256)
+            .addEncryptionAlgorithm(SaProposal.ENCRYPTION_ALGORITHM_AES_GCM_16, 128)
+            .build(),
+        ChildSaProposal.Builder()
+            .addEncryptionAlgorithm(SaProposal.ENCRYPTION_ALGORITHM_CHACHA20_POLY1305, 256)
+            .build(),
+    )
+
     fun parseIke(spec: String): IkeSaProposal? {
         if (spec.isBlank()) return null
         val toks = tokens(spec)
@@ -121,8 +166,15 @@ object Ikev2Proposals {
         }
 
         if (prf == null) {
-            val derived = integrity?.let { PRF_FOR_INTEGRITY[it] } ?: return null
-            b.addPseudorandomFunction(derived)
+            // AOSP needs a PRF for every integrity algorithm; fall back to the
+            // pairings it accepts instead of dropping the whole proposal.
+            val derived = integrity?.let { PRF_FOR_INTEGRITY[it] }
+            if (derived == null) {
+                b.addPseudorandomFunction(SaProposal.PSEUDORANDOM_FUNCTION_SHA2_256)
+                b.addPseudorandomFunction(SaProposal.PSEUDORANDOM_FUNCTION_SHA2_512)
+            } else {
+                b.addPseudorandomFunction(derived)
+            }
         }
         if (!enc || !dh) return null
         return runCatching { b.build() }.getOrNull()

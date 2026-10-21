@@ -277,8 +277,13 @@ object Ikev2Controller {
 
     @RequiresApi(Build.VERSION_CODES.R)
     private fun buildAdvanced(profile: Ikev2Profile, m: Materials): Ikev2VpnProfile? {
+        // The advanced path is the only one that can carry the full proposal
+        // set, so every authentication method goes through it. PSK and
+        // certificate profiles used to be pushed to the simple builder, which
+        // silently dropped every custom proposal.
         val wanted = Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-            (m.auth == Ikev2Auth.EAP_MSCHAPV2 ||
+            (m.auth == Ikev2Auth.EAP_MSCHAPV2 || m.auth == Ikev2Auth.PSK ||
+                m.auth == Ikev2Auth.CERTIFICATE ||
                 profile.remoteId.isNotBlank() || profile.ikeProposal.isNotBlank() ||
                 profile.espProposal.isNotBlank())
         if (!wanted) return null
@@ -307,17 +312,41 @@ object Ikev2Controller {
         cert: Pair<X509Certificate, PrivateKey>?,
         serverCa: X509Certificate?,
     ): Ikev2VpnProfile? = runCatching {
+        val server = profile.server.trim()
         val ike = IkeSessionParams.Builder()
-            .setServerHostname(profile.server)
-            .setLocalIdentification(ikeIdentification(localIdentity(profile, cert?.first)))
-            .setRemoteIdentification(ikeIdentification(profile.effectiveRemoteId))
-
-            .addIkeOption(IkeSessionParams.IKE_OPTION_MOBIKE)
-        if (profile.remoteId.isBlank()) ike.addIkeOption(IkeSessionParams.IKE_OPTION_ACCEPT_ANY_REMOTE_ID)
+        // A literal address can not be used as a hostname: the platform would
+        // look for a DNS name and the server certificate would never match.
+        if (server.isNotEmpty() && InetAddresses.isNumericAddress(server)) {
+            ike.setServerAddress(InetAddresses.parseNumericAddress(server))
+        } else {
+            ike.setServerHostname(server)
+        }
+        ike.setLocalIdentification(ikeIdentification(localIdentity(profile, cert?.first)))
+        ike.addIkeOption(IkeSessionParams.IKE_OPTION_MOBIKE)
+        val remoteId = profile.remoteId.trim()
+        // A remote identification and ACCEPT_ANY_REMOTE_ID contradict each
+        // other, and the platform refuses to build params that carry both.
+        // That failure used to drop every custom proposal on the floor.
+        val remoteIdent = when {
+            remoteId.isNotEmpty() -> remoteId
+            // Pre-shared keys need a concrete peer identity, the server address
+            // is the only sensible default.
+            auth == Ikev2Auth.PSK -> profile.server.trim()
+            else -> null
+        }
+        if (!remoteIdent.isNullOrBlank()) {
+            ike.setRemoteIdentification(ikeIdentification(remoteIdent))
+        } else {
+            ike.addIkeOption(IkeSessionParams.IKE_OPTION_ACCEPT_ANY_REMOTE_ID)
+        }
         when (auth) {
             Ikev2Auth.PSK -> ike.setAuthPsk(profile.plainPsk().toByteArray())
             Ikev2Auth.CERTIFICATE, Ikev2Auth.EAP_TLS -> {
                 val (chainCert, key) = cert ?: return@runCatching null
+                if (serverCa == null) {
+                    Log.w(TAG, "certificate authentication needs a CA certificate")
+                    return@runCatching null
+                }
                 ike.setAuthDigitalSignature(serverCa, chainCert, key)
             }
 
@@ -332,12 +361,14 @@ object Ikev2Controller {
             }
         }
 
-        ike.addIkeSaProposal(Ikev2Proposals.parseIke(profile.ikeProposal) ?: Ikev2Proposals.defaultIke())
+        val ikeProposals = Ikev2Proposals.parseIke(profile.ikeProposal)?.let { listOf(it) }
+            ?: Ikev2Proposals.defaultIkeVariants()
+        ikeProposals.forEach { ike.addIkeSaProposal(it) }
 
         val child = TunnelModeChildSessionParams.Builder()
-        child.addChildSaProposal(
-            Ikev2Proposals.parseChild(profile.espProposal) ?: Ikev2Proposals.defaultChild(),
-        )
+        val childProposals = Ikev2Proposals.parseChild(profile.espProposal)?.let { listOf(it) }
+            ?: Ikev2Proposals.defaultChildVariants()
+        childProposals.forEach { child.addChildSaProposal(it) }
         child.addInternalAddressRequest(android.system.OsConstants.AF_INET)
             .addInternalAddressRequest(android.system.OsConstants.AF_INET6)
             .addInternalDnsServerRequest(android.system.OsConstants.AF_INET)
@@ -455,11 +486,24 @@ object Ikev2Controller {
 
     private fun parseCa(pem: String): X509Certificate? {
         if (pem.isBlank()) return null
-        return runCatching {
-            CertificateFactory.getInstance("X.509")
-                .generateCertificate(ByteArrayInputStream(pem.toByteArray())) as X509Certificate
-        }.getOrElse { throw Ikev2Exception(R.string.ikev2_ca_invalid, it) }
+        // A bundle may carry more than one certificate; the first one that
+        // parses is used as the trust anchor.
+        val blocks = PEM_BLOCK.findAll(pem).map { it.value }.toList()
+        val candidates = if (blocks.isEmpty()) listOf(pem) else blocks
+        var failure: Throwable? = null
+        for (block in candidates) {
+            val attempt = runCatching {
+                CertificateFactory.getInstance("X.509")
+                    .generateCertificate(ByteArrayInputStream(block.toByteArray())) as X509Certificate
+            }
+            if (attempt.isSuccess) return attempt.getOrThrow()
+            failure = attempt.exceptionOrNull()
+        }
+        throw Ikev2Exception(R.string.ikev2_ca_invalid, failure)
     }
+
+    private val PEM_BLOCK =
+        Regex("-----BEGIN CERTIFICATE-----[\\s\\S]*?-----END CERTIFICATE-----")
 }
 
 class Ikev2Exception(

@@ -98,6 +98,7 @@ import dev.cluvex.zedsecure.domain.config.AutoSelectIds
 import dev.cluvex.zedsecure.domain.config.ConfigParseException
 import dev.cluvex.zedsecure.domain.config.ConfigParser
 import dev.cluvex.zedsecure.domain.config.VpnProfile
+import dev.cluvex.zedsecure.ui.onboarding.TourPins
 import dev.cluvex.zedsecure.ui.onboarding.TourTargets
 import dev.cluvex.zedsecure.ui.onboarding.tourTarget
 import dev.cluvex.zedsecure.ui.onboarding.tourTargetInPage
@@ -1030,6 +1031,15 @@ fun ServersScreen(
                 val gridState = rememberLazyGridState()
                 var order by remember { mutableStateOf(shown) }
                 LaunchedEffect(shown) { order = shown }
+                // The tour points at the first server card. A lazy grid does not
+                // compose items that are off screen, so the card has to be
+                // brought back before the tour can measure it.
+                val tourCard = TourPins.currentTarget == TourTargets.SERVER_CARD
+                LaunchedEffect(tourCard) {
+                    if (tourCard && order.isNotEmpty()) {
+                        runCatching { gridState.scrollToItem(0) }
+                    }
+                }
                 val reorderState = rememberReorderableLazyGridState(gridState) { from, to ->
 
                     val fromIndex = order.indexOfFirst { it.id == from.key }

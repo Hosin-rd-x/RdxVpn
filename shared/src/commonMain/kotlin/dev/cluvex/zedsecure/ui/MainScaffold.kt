@@ -387,6 +387,7 @@ fun MainScaffold(
             val pins = dev.cluvex.zedsecure.ui.onboarding.TourPins
             pins.active = true
             pins.sheetStepActive = sheetStep
+            pins.currentTarget = step.target
             pins.sheetOverlay = if (sheetStep) overlay else null
         }
         if (sheetStep) {

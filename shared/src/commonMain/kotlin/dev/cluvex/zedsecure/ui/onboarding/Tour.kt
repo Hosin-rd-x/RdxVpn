@@ -47,7 +47,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -78,9 +77,7 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
-import kotlinx.coroutines.flow.filterNotNull
-import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.coroutines.delay
 import kotlin.math.max
 import kotlin.math.roundToInt
 
@@ -156,6 +153,9 @@ object TourPins {
     /** True only while the current step lives inside the add sheet. */
     var sheetStepActive by mutableStateOf(false)
 
+    /** The target of the step that is currently on screen. */
+    var currentTarget by mutableStateOf<String?>(null)
+
     /** Handed over by the scaffold for sheet steps: the sheet composes this
      *  itself, since an overlay drawn in the app window lands behind its window. */
     var sheetOverlay by mutableStateOf<(@Composable () -> Unit)?>(null)
@@ -164,7 +164,24 @@ object TourPins {
     var sheetOverlayLive by mutableStateOf(false)
 }
 
-fun Modifier.tourTarget(key: String): Modifier = this then TourTargetElement(key)
+/**
+ * Marks this element as a tour target.
+ *
+ * The element also carries a [BringIntoViewRequester] so the running tour can
+ * scroll it into view before it highlights it. Without that request the hole is
+ * cut around something that is still off screen, which reads as a half drawn
+ * step.
+ */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+fun Modifier.tourTarget(key: String): Modifier {
+    val requester = remember(key) { BringIntoViewRequester() }
+    DisposableEffect(key, requester) {
+        TourTargets.putScroller(key, requester)
+        onDispose { TourTargets.removeScroller(key, requester) }
+    }
+    return this.bringIntoViewRequester(requester).then(TourTargetElement(key))
+}
 
 private data class TourTargetElement(val key: String) : ModifierNodeElement<TourTargetNode>() {
     override fun create() = TourTargetNode(key)
@@ -197,16 +214,10 @@ private class TourTargetNode(private var key: String) :
     }
 }
 
+/** Kept for call sites that mark a target that lives inside a scrollable page. */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun Modifier.tourTargetInPage(key: String): Modifier {
-    val requester = remember(key) { BringIntoViewRequester() }
-    DisposableEffect(key, requester) {
-        TourTargets.putScroller(key, requester)
-        onDispose { TourTargets.removeScroller(key, requester) }
-    }
-    return this.bringIntoViewRequester(requester).tourTarget(key)
-}
+fun Modifier.tourTargetInPage(key: String): Modifier = tourTarget(key)
 
 data class TourStep(
     val target: String,
@@ -218,9 +229,17 @@ data class TourStep(
 
 enum class TourDestination { Home, Servers, Settings }
 
-private const val TARGET_WAIT_MS = 1_600L
+/** How long a step waits for its target to show up and settle on screen. */
+private const val TARGET_WAIT_MS = 6_000L
 
-private const val SETTLE_MS = 450L
+/** Polling interval while a step waits for its target. */
+private const val TOUR_POLL_MS = 120L
+
+/** Minimum gap between two bring-into-view requests for the same target. */
+private const val SCROLL_RETRY_MS = 500L
+
+/** Time the layout gets to finish a bring-into-view before the target is measured again. */
+private const val SCROLL_SETTLE_MS = 350L
 
 @Composable
 fun TourOverlay(
@@ -272,23 +291,46 @@ fun TourOverlay(
     }
 
     val missing by rememberUpdatedState(onTargetMissing)
-    LaunchedEffect(step.target) {
-        suspend fun await(ms: Long) = withTimeoutOrNull(ms) {
-            snapshotFlow { TourTargets[step.target] }
-                .first { it != null && it.width > 1f && it.height > 1f }
+    LaunchedEffect(step.target, step.destination) {
+        suspend fun rectNow(): Rect? =
+            TourTargets[step.target]?.takeIf { it.width > 1f && it.height > 1f }
+
+        fun onScreen(rect: Rect?): Boolean {
+            if (rect == null) return false
+            // Until the overlay itself is measured there is nothing to compare
+            // against, so keep waiting instead of cutting a hole in the wrong
+            // place.
+            if (overlaySize.width <= 0 || overlaySize.height <= 0) return false
+            val rel = rect.translate(-origin)
+            return rel.top >= -2f && rel.bottom <= overlaySize.height + 2f &&
+                rel.left >= -2f && rel.right <= overlaySize.width + 2f
         }
 
-        val scroller = withTimeoutOrNull(SETTLE_MS) {
-            snapshotFlow { TourTargets.scroller(step.target) }.filterNotNull().first()
+        var elapsed = 0L
+        var lastScroll = -(SCROLL_RETRY_MS)
+        var scroller = TourTargets.scroller(step.target)
+        var rect = rectNow()
+        while (elapsed < TARGET_WAIT_MS) {
+            if (scroller == null) scroller = TourTargets.scroller(step.target)
+            rect = rectNow()
+            if (onScreen(rect)) break
+            if (scroller != null && elapsed - lastScroll >= SCROLL_RETRY_MS) {
+                @OptIn(ExperimentalFoundationApi::class)
+                runCatching { scroller.bringIntoView() }
+                lastScroll = elapsed
+                // Give the scroller time to move, then measure the target
+                // again: the hole is cut around the new position.
+                delay(SCROLL_SETTLE_MS)
+                elapsed += SCROLL_SETTLE_MS
+            }
+            delay(TOUR_POLL_MS)
+            elapsed += TOUR_POLL_MS
         }
-        if (scroller != null) {
-            @OptIn(ExperimentalFoundationApi::class)
-            runCatching { scroller.bringIntoView() }
-        }
-
-        if (await(SETTLE_MS) == null) {
+        if (rect == null) {
+            // The target never showed up (a lazy item that was never composed,
+            // for example). Move on instead of freezing the tour.
             anchor = null
-            if (await(TARGET_WAIT_MS - SETTLE_MS) == null) missing()
+            missing()
         }
     }
 
