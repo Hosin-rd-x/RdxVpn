@@ -314,31 +314,24 @@ object Ikev2Controller {
     ): Ikev2VpnProfile? = runCatching {
         val server = profile.server.trim()
         val ike = IkeSessionParams.Builder()
-        // A literal address can not be used as a hostname: the platform would
-        // look for a DNS name and the server certificate would never match.
-        if (server.isNotEmpty() && InetAddresses.isNumericAddress(server)) {
-            ike.setServerAddress(InetAddresses.parseNumericAddress(server))
-        } else {
-            ike.setServerHostname(server)
-        }
+        // The platform only exposes a hostname setter, there is no address
+        // variant. A numeric literal is handed over as is: the resolver
+        // understands it without a DNS round trip.
+        ike.setServerHostname(server)
         ike.setLocalIdentification(ikeIdentification(localIdentity(profile, cert?.first)))
         ike.addIkeOption(IkeSessionParams.IKE_OPTION_MOBIKE)
         val remoteId = profile.remoteId.trim()
-        // A remote identification and ACCEPT_ANY_REMOTE_ID contradict each
-        // other, and the platform refuses to build params that carry both.
-        // That failure used to drop every custom proposal on the floor.
-        val remoteIdent = when {
-            remoteId.isNotEmpty() -> remoteId
-            // Pre-shared keys need a concrete peer identity, the server address
-            // is the only sensible default.
-            auth == Ikev2Auth.PSK -> profile.server.trim()
-            else -> null
-        }
-        if (!remoteIdent.isNullOrBlank()) {
+        // The platform refuses to build session params without a remote
+        // identification, so the server address is used when the profile does
+        // not carry one.
+        val remoteIdent = remoteId.ifEmpty { server }
+        if (remoteIdent.isNotBlank()) {
             ike.setRemoteIdentification(ikeIdentification(remoteIdent))
-        } else {
-            ike.addIkeOption(IkeSessionParams.IKE_OPTION_ACCEPT_ANY_REMOTE_ID)
         }
+        // The server usually announces a name while the profile only knows an
+        // address, so the peer identity has to be accepted as is. Without this
+        // the handshake fails on an identity mismatch.
+        ike.addIkeOption(IkeSessionParams.IKE_OPTION_ACCEPT_ANY_REMOTE_ID)
         when (auth) {
             Ikev2Auth.PSK -> ike.setAuthPsk(profile.plainPsk().toByteArray())
             Ikev2Auth.CERTIFICATE, Ikev2Auth.EAP_TLS -> {
@@ -361,13 +354,13 @@ object Ikev2Controller {
             }
         }
 
-        val ikeProposals = Ikev2Proposals.parseIke(profile.ikeProposal)?.let { listOf(it) }
-            ?: Ikev2Proposals.defaultIkeVariants()
+        val ikeProposals = Ikev2Proposals.parseIke(profile.ikeProposal)
+            .ifEmpty { Ikev2Proposals.defaultIkeVariants() }
         ikeProposals.forEach { ike.addIkeSaProposal(it) }
 
         val child = TunnelModeChildSessionParams.Builder()
-        val childProposals = Ikev2Proposals.parseChild(profile.espProposal)?.let { listOf(it) }
-            ?: Ikev2Proposals.defaultChildVariants()
+        val childProposals = Ikev2Proposals.parseChild(profile.espProposal)
+            .ifEmpty { Ikev2Proposals.defaultChildVariants() }
         childProposals.forEach { child.addChildSaProposal(it) }
         child.addInternalAddressRequest(android.system.OsConstants.AF_INET)
             .addInternalAddressRequest(android.system.OsConstants.AF_INET6)
