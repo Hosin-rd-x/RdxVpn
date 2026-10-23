@@ -43,9 +43,6 @@ fun rememberTourSteps(): List<TourStep> = listOf(
         body = stringResource(Res.string.tour_add_body),
         destination = TourDestination.Servers,
     ),
-    TourStep(
-        target = TourTargets.SERVERS_RDX,
-        title = stringResource(Res.string.tour_rdx_title),
         body = stringResource(Res.string.tour_rdx_body),
         destination = TourDestination.Servers,
     ),

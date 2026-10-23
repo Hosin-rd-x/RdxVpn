@@ -607,7 +607,7 @@ fun ServersScreen(
 
                 if (openSubscription != null) {
                     if (updatingSubId == openSubscription.id) {
-                        Box(Modifier.size(48.dp), contentAlignment = Alignment.Center) {
+                        Box(Modifier.size(56.dp), contentAlignment = Alignment.Center) {
                             CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
                         }
                     } else {
@@ -1225,7 +1225,7 @@ fun ServersScreen(
             modifier = Modifier
                 .align(Alignment.BottomStart)
                 .padding(start = 20.dp, bottom = contentPadding.calculateBottomPadding() + 14.dp)
-                .size(48.dp)
+                .size(56.dp)
                 .tourTarget(TourTargets.SERVERS_PING),
         ) {
             Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
@@ -2253,8 +2253,8 @@ private fun AddServerSheet(
                 Option(Res.drawable.ic_edit, Res.string.servers_add_manual, onManual)
                 Option(Res.drawable.ic_description, Res.string.servers_add_custom, onCustom)
 
-                OptionGroup(Res.string.add_group_rdx, Modifier.tourTargetInPage(dev.cluvex.zedsecure.ui.onboarding.TourTargets.SERVERS_RDX))
-                Option(Res.drawable.ic_public, Res.string.foxy_add_title, onFirefox, free = true)
+                
+                OptionGroup(Res.string.add_group_rdx)
                 Option(
                     Res.drawable.ic_bolt,
                     Res.string.preset_add,
@@ -2262,7 +2262,7 @@ private fun AddServerSheet(
                     free = true,
                     modifier = Modifier.tourTargetInPage(dev.cluvex.zedsecure.ui.onboarding.TourTargets.SERVERS_RDX_CF),
                 )
-                Option(Res.drawable.ic_sync, Res.string.sstp_online_title, onSstpList, free = true)
+
 
                 OptionGroup(Res.string.add_group_tunnels)
                 Option(Res.drawable.ic_speed, Res.string.ssh_add_title, onSsh)
