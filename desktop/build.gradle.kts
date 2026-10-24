@@ -80,7 +80,9 @@ compose.desktop {
         nativeDistributions {
             targetFormats(TargetFormat.Deb, TargetFormat.Rpm, TargetFormat.AppImage, TargetFormat.Msi, TargetFormat.Dmg)
             packageName = "ZedSecure"
-            packageVersion = zedVersion
+            // Desktop package formats reject dashes (e.g. "3.8.3-beta1");
+            // the Android versionName keeps the suffix, desktops use the core.
+            packageVersion = zedVersion.substringBefore('-')
             description = "ZedSecure VPN client"
             vendor = "Cluvex Studio"
             linux {
