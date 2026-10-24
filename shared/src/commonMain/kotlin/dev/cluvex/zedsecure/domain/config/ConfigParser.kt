@@ -2,7 +2,7 @@ package dev.cluvex.zedsecure.domain.config
 
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.JsonPrimitive
 import kotlin.io.encoding.Base64
 import kotlin.io.encoding.ExperimentalEncodingApi
 
@@ -76,7 +76,7 @@ object ConfigParser {
             json.parseToJsonElement(decodeBase64Utf8(payload.substringBefore('#'))) as JsonObject
         }.getOrElse { throw ConfigParseException("Invalid vmess payload") }
 
-        fun str(key: String): String? = obj[key]?.jsonPrimitive?.contentOrNull()
+        fun str(key: String): String? = (obj[key] as? JsonPrimitive)?.contentOrNull()
         val net = str("net") ?: "tcp"
         val type = str("type")
         val host = str("host")
@@ -90,7 +90,7 @@ object ConfigParser {
             protocol = Protocol.VMESS,
             remark = str("ps")?.takeIf { it.isNotBlank() } ?: decodeRemark(fragment),
             address = str("add").orEmpty(),
-            port = str("port")?.toIntOrNull() ?: 443,
+            port = parsePort(str("port")) ?: 443,
             userId = str("id").orEmpty(),
             alterId = str("aid")?.toIntOrNull() ?: 0,
             encryption = "",
@@ -179,7 +179,8 @@ object ConfigParser {
                 password = decoded.substringAfter(':')
             }
         } else {
-            val decoded = decodeBase64Utf8(body.substringBefore('?'))
+            val decoded = runCatching { decodeBase64Utf8(body.substringBefore('?')) }
+                .getOrElse { throw ConfigParseException("Invalid shadowsocks link") }
             p = parseLink(decoded + body.substringAfter('?', "").let { if (it.isEmpty()) "" else "?$it" })
 
             val creds = decoded.substringBeforeLast('@')
@@ -399,7 +400,7 @@ object ConfigParser {
             protocol = if (awg.isEmpty) Protocol.WIREGUARD else Protocol.AMNEZIAWG,
             remark = remark.ifBlank { wireguardConfName(text) }.ifBlank { host },
             address = host,
-            port = portText.toIntOrNull() ?: 51820,
+            port = parsePort(portText) ?: 51820,
             secretKey = iface["privatekey"].orEmpty(),
             peerPublicKey = peer["publickey"].orEmpty(),
             preSharedKey = peer["presharedkey"]?.takeIf { it.isNotBlank() },
@@ -486,6 +487,14 @@ object ConfigParser {
         val fragment: String,
     )
 
+    /** A present port must be a number in 1..65535; an absent one stays null so callers apply their default. */
+    private fun parsePort(raw: String?): Int? {
+        if (raw.isNullOrEmpty()) return null
+        val value = raw.toIntOrNull() ?: throw ConfigParseException("Invalid port: $raw")
+        if (value !in 1..65535) throw ConfigParseException("Port out of range: $value")
+        return value
+    }
+
     private fun hasPath(body: String): Boolean =
         body.substringBefore('#').substringBefore('?').substringAfterLast('@').substringAfter('/', "").isNotEmpty()
 
@@ -513,10 +522,10 @@ object ConfigParser {
         val port: Int?
         if (hostPort.startsWith("[")) {
             host = hostPort.substringAfter('[').substringBefore(']')
-            port = hostPort.substringAfter("]:", "").toIntOrNull()
+            port = parsePort(hostPort.substringAfter("]:", ""))
         } else if (hostPort.contains(':')) {
             host = hostPort.substringBeforeLast(':')
-            port = hostPort.substringAfterLast(':').toIntOrNull()
+            port = parsePort(hostPort.substringAfterLast(':'))
         } else {
             host = hostPort
             port = null

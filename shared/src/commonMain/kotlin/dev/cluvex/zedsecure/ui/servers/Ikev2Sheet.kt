@@ -23,6 +23,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -51,26 +52,26 @@ fun Ikev2Sheet(
     val scope = rememberCoroutineScope()
     val platform = LocalPlatform.current
 
-    var name by remember { mutableStateOf(initialName) }
-    var server by remember { mutableStateOf(initial?.server ?: "") }
-    var remoteId by remember { mutableStateOf(initial?.remoteId ?: "") }
-    var localId by remember { mutableStateOf(initial?.localId ?: "") }
+    var name by rememberSaveable { mutableStateOf(initialName) }
+    var server by rememberSaveable { mutableStateOf(initial?.server ?: "") }
+    var remoteId by rememberSaveable { mutableStateOf(initial?.remoteId ?: "") }
+    var localId by rememberSaveable { mutableStateOf(initial?.localId ?: "") }
 
-    var authType by remember { mutableStateOf(initial?.effectiveAuth ?: Ikev2Auth.EAP_MSCHAPV2) }
-    var username by remember { mutableStateOf(initial?.username ?: "") }
+    var authType by rememberSaveable { mutableStateOf(initial?.effectiveAuth ?: Ikev2Auth.EAP_MSCHAPV2) }
+    var username by rememberSaveable { mutableStateOf(initial?.username ?: "") }
 
     var password by remember { mutableStateOf("") }
     var psk by remember { mutableStateOf("") }
-    var caCertPem by remember { mutableStateOf(initial?.caCertPem ?: "") }
-    var userCertAlias by remember { mutableStateOf(initial?.userCertAlias ?: "") }
+    var caCertPem by rememberSaveable { mutableStateOf(initial?.caCertPem ?: "") }
+    var userCertAlias by rememberSaveable { mutableStateOf(initial?.userCertAlias ?: "") }
 
     var caCertLabel by remember { mutableStateOf("") }
     var certError by remember { mutableStateOf<String?>(null) }
     var caError by remember { mutableStateOf<String?>(null) }
-    var ikeProposal by remember { mutableStateOf(initial?.ikeProposal ?: "") }
-    var espProposal by remember { mutableStateOf(initial?.espProposal ?: "") }
-    var mtu by remember { mutableStateOf((initial?.mtu ?: 1400).toString()) }
-    var advancedOpen by remember { mutableStateOf(false) }
+    var ikeProposal by rememberSaveable { mutableStateOf(initial?.ikeProposal ?: "") }
+    var espProposal by rememberSaveable { mutableStateOf(initial?.espProposal ?: "") }
+    var mtu by rememberSaveable { mutableStateOf((initial?.mtu ?: 1400).toString()) }
+    var advancedOpen by rememberSaveable { mutableStateOf(false) }
 
     val needsUser = authType == Ikev2Auth.EAP_MSCHAPV2
     val needsCert = authType == Ikev2Auth.CERTIFICATE

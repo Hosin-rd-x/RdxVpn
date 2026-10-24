@@ -34,10 +34,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
-import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -116,8 +115,15 @@ internal class SstpVpnService : VpnService() {
             }
 
             else -> {
-                // ensure that reconnection has been completely canceled or done
-                runBlocking { jobReconnect?.cancelAndJoin() }
+                // Cancel any in-flight reconnection without blocking:
+                // waiting for the job here ran on the main thread and
+                // stalled the looper until it unwound (ANR risk). The
+                // job only delays and then reconnects, so cancelling it
+                // (plus the isActive check after its delay) preserves the
+                // old guarantee that no reconnection happens after a
+                // disconnect, and teardown below proceeds at once.
+                jobReconnect?.cancel()
+                jobReconnect = null
 
                 controller?.disconnect()
                 controller = null
@@ -179,6 +185,10 @@ internal class SstpVpnService : VpnService() {
                 }
 
                 delay(getIntPrefValue(OscPrefKey.RECONNECTION_INTERVAL, prefs) * 1000L)
+
+                // A disconnect may have cancelled this job just after the
+                // delay returned; never reconnect in that case.
+                if (!isActive) return@launch
 
                 initializeClient()
             } catch (_: CancellationException) { }

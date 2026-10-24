@@ -361,7 +361,7 @@ fun ServersScreen(
         }
     }
 
-    var showAddSheet by remember { mutableStateOf(false) }
+    var showAddSheet by rememberSaveable { mutableStateOf(false) }
 
     // A tour step that lives inside the add sheet: open it for the step, close it after.
     val tourWantsAddSheet = dev.cluvex.zedsecure.ui.onboarding.TourPins.openAddSheet
@@ -385,10 +385,10 @@ fun ServersScreen(
     ) {
         if (showAddSheet && tourPins.active && !tourPins.sheetStepActive) showAddSheet = false
     }
-    var showManual by remember { mutableStateOf(false) }
+    var showManual by rememberSaveable { mutableStateOf(false) }
 
-    var fanOpen by remember { mutableStateOf(false) }
-    var showSubs by remember { mutableStateOf(false) }
+    var fanOpen by rememberSaveable { mutableStateOf(false) }
+    var showSubs by rememberSaveable { mutableStateOf(false) }
     var editSubscription by remember { mutableStateOf<dev.cluvex.zedsecure.domain.config.Subscription?>(null) }
     var renameTarget by remember { mutableStateOf<VpnProfile?>(null) }
     var deleteTarget by remember { mutableStateOf<VpnProfile?>(null) }
@@ -397,7 +397,7 @@ fun ServersScreen(
     val pingProgress by PingCoordinator.progress.collectAsStateWithLifecycle()
     val testing = pingProgress != null
 
-    var showRealDelayNote by remember { mutableStateOf(false) }
+    var showRealDelayNote by rememberSaveable { mutableStateOf(false) }
     var overflowOpen by remember { mutableStateOf(false) }
     var confirmDeleteAll by remember { mutableStateOf(false) }
 
@@ -407,14 +407,16 @@ fun ServersScreen(
     var moveTarget by remember { mutableStateOf<VpnProfile?>(null) }
 
     var qrTarget by remember { mutableStateOf<Pair<String, String>?>(null) }
-    var showCustomJson by remember { mutableStateOf(false) }
-    var showDnsTunnel by remember { mutableStateOf(false) }
-    var showMasterDns by remember { mutableStateOf(false) }
-    var showOpenConnect by remember { mutableStateOf(false) }
-    var showIkev2 by remember { mutableStateOf(false) }
-    var showSstp by remember { mutableStateOf(false) }
-    var showSsh by remember { mutableStateOf(false) }
-    var showSniSpoof by remember { mutableStateOf(false) }
+    var showCustomJson by rememberSaveable { mutableStateOf(false) }
+    var showDnsTunnel by rememberSaveable { mutableStateOf(false) }
+    var showMasterDns by rememberSaveable { mutableStateOf(false) }
+    var showOpenConnect by rememberSaveable { mutableStateOf(false) }
+    var showIkev2 by rememberSaveable { mutableStateOf(false) }
+    var showSstp by rememberSaveable { mutableStateOf(false) }
+    var showSsh by rememberSaveable { mutableStateOf(false) }
+    var showSniSpoof by rememberSaveable { mutableStateOf(false) }
+    var showProxyChain by rememberSaveable { mutableStateOf(false) }
+    var showCrossChain by rememberSaveable { mutableStateOf(false) }
 
     val servers = profiles.filterNot { it.isLocked }
 
@@ -546,7 +548,7 @@ fun ServersScreen(
     androidx.compose.runtime.LaunchedEffect(shownIds) {
         if (selecting) selected = selected.intersect(shownIds.toSet())
     }
-    var showAutoSheet by remember { mutableStateOf(false) }
+    var showAutoSheet by rememberSaveable { mutableStateOf(false) }
     if (showAutoSheet) {
         AutoSelectSheet(
             groupLabel = autoLabel,
@@ -607,7 +609,7 @@ fun ServersScreen(
 
                 if (openSubscription != null) {
                     if (updatingSubId == openSubscription.id) {
-                        Box(Modifier.size(56.dp), contentAlignment = Alignment.Center) {
+                        Box(Modifier.size(48.dp), contentAlignment = Alignment.Center) {
                             CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
                         }
                     } else {
@@ -1348,6 +1350,14 @@ fun ServersScreen(
                 showAddSheet = false
                 showSniSpoof = true
             },
+            onProxyChain = {
+                showAddSheet = false
+                showProxyChain = true
+            },
+            onCrossChain = {
+                showAddSheet = false
+                showCrossChain = true
+            },
             onSubscription = {
                 showAddSheet = false
                 showSubs = true
@@ -1448,6 +1458,32 @@ fun ServersScreen(
             onSave = { name, settings ->
                 showSniSpoof = false
                 repository.addSniSpoof(settings, name)
+                onServerActivated()
+            },
+        )
+    }
+
+    if (showProxyChain) {
+        ProxyChainSheet(
+            candidates = chainCandidates,
+            onDismiss = { showProxyChain = false },
+            onSave = { name, memberIds ->
+                showProxyChain = false
+                repository.addProxyChain(memberIds, name)
+                onServerActivated()
+            },
+        )
+    }
+
+    if (showCrossChain) {
+        CrossChainSheet(
+            exits = crossExits,
+            carriers = crossCarriers,
+            pairError = crossPairError,
+            onDismiss = { showCrossChain = false },
+            onSave = { name, innerId, outerId ->
+                showCrossChain = false
+                repository.addCrossChain(innerId = innerId, outerId = outerId, name = name)
                 onServerActivated()
             },
         )
@@ -2208,6 +2244,8 @@ private fun AddServerSheet(
     onSstpList: () -> Unit,
     onSsh: () -> Unit,
     onSniSpoof: () -> Unit,
+    onProxyChain: () -> Unit,
+    onCrossChain: () -> Unit,
     onSubscription: () -> Unit,
     onPreset: () -> Unit,
     onFirefox: () -> Unit,
@@ -2257,6 +2295,7 @@ private fun AddServerSheet(
 
                 
                 OptionGroup(Res.string.add_group_rdx)
+                Option(Res.drawable.ic_public, Res.string.foxy_add_title, onFirefox, free = true)
                 Option(
                     Res.drawable.ic_bolt,
                     Res.string.preset_add,
@@ -2264,7 +2303,11 @@ private fun AddServerSheet(
                     free = true,
                     modifier = Modifier.tourTargetInPage(dev.cluvex.zedsecure.ui.onboarding.TourTargets.SERVERS_RDX_CF),
                 )
+                Option(Res.drawable.ic_sync, Res.string.sstp_online_title, onSstpList, free = true)
 
+                OptionGroup(Res.string.add_group_chains)
+                Option(Res.drawable.ic_add_link, Res.string.proxychain_add_title, onProxyChain)
+                Option(Res.drawable.ic_add_link, Res.string.crosschain_add_title, onCrossChain)
 
                 OptionGroup(Res.string.add_group_tunnels)
                 Option(Res.drawable.ic_speed, Res.string.ssh_add_title, onSsh)

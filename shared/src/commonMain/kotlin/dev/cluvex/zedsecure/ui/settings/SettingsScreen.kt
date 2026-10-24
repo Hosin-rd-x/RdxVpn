@@ -937,8 +937,6 @@ private fun UiPage(
                     AppLanguage.System to stringResource(Res.string.settings_language_system),
                     AppLanguage.English to "English",
                     AppLanguage.Persian to "فارسی",
-                    AppLanguage.Chinese to "中文",
-                    AppLanguage.Russian to "Русский",
                 ),
                 selected = s.language,
                 onSelected = onLanguage,

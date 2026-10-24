@@ -23,14 +23,15 @@ object SshLink {
         if (userInfo.isBlank() || endpoint.isBlank()) return null
 
         val host: String
-        val port: Int
+        val rawPort: String
         if (endpoint.startsWith("[")) {
             host = endpoint.substringAfter('[').substringBefore(']')
-            port = endpoint.substringAfterLast(':', "").toIntOrNull() ?: 22
+            rawPort = endpoint.substringAfter("]:", "")
         } else {
             host = endpoint.substringBeforeLast(':', endpoint)
-            port = endpoint.substringAfterLast(':', "").toIntOrNull() ?: 22
+            rawPort = if (endpoint.contains(':')) endpoint.substringAfterLast(':') else ""
         }
+        val port = parsePort(rawPort, 22) ?: return null
         if (host.isBlank()) return null
 
         val fields = splitFields(userInfo)
@@ -62,13 +63,13 @@ object SshLink {
         val key = profile.privateKey.takeIf { it.isNotBlank() }
             ?.let { Base64.encode(it.encodeToByteArray()) }
             .orEmpty()
-        val userInfo = listOf(profile.username, profile.password, key).joinToString(",")
+        val userInfo = listOf(encode(profile.username), encode(profile.password), key).joinToString(",")
         val host = if (profile.host.contains(':') && !profile.host.startsWith("[")) {
             "[${profile.host}]"
         } else {
             profile.host
         }
-        val fragment = if (name.isBlank()) "" else "#" + encodeFragment(name)
+        val fragment = if (name.isBlank()) "" else "#" + encode(name)
         return "$PREFIX$userInfo@$host:${profile.port}$fragment"
     }
 
@@ -84,9 +85,16 @@ object SshLink {
         )
     }
 
+    /** The port the link carries, [default] when it carries none, or null when it carries a bad one. */
+    private fun parsePort(raw: String, default: Int): Int? {
+        if (raw.isEmpty()) return default
+        val value = raw.toIntOrNull() ?: return null
+        return value.takeIf { it in 1..65535 }
+    }
+
     private const val HEX = "0123456789ABCDEF"
 
-    private fun encodeFragment(value: String): String = buildString {
+    private fun encode(value: String): String = buildString {
         value.encodeToByteArray().forEach { byte ->
             val b = byte.toInt() and 0xFF
             val c = b.toChar()

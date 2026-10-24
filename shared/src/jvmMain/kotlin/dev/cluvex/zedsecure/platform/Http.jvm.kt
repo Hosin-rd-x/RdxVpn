@@ -1,7 +1,23 @@
 package dev.cluvex.zedsecure.platform
 
+import java.io.Reader
 import java.net.HttpURLConnection
 import java.net.URL
+
+private const val MAX_RESPONSE_CHARS = 8 * 1024 * 1024
+
+/** Reads a response body, refusing bodies past the cap instead of loading them whole into memory. */
+private fun Reader.readTextBounded(): String {
+    val out = StringBuilder()
+    val buffer = CharArray(16 * 1024)
+    while (true) {
+        val read = read(buffer)
+        if (read < 0) break
+        if (out.length + read > MAX_RESPONSE_CHARS) throw IllegalStateException("Response body too large")
+        out.append(buffer, 0, read)
+    }
+    return out.toString()
+}
 
 internal actual fun httpGetText(
     url: String,
@@ -19,7 +35,7 @@ internal actual fun httpGetText(
         if (connection.responseCode !in 200..299) {
             throw IllegalStateException("HTTP ${connection.responseCode}")
         }
-        return connection.inputStream.bufferedReader().use { it.readText() }
+        return connection.inputStream.bufferedReader().use { it.readTextBounded() }
     } catch (e: NullPointerException) {
         throw platformHttpFailure(e)
     } finally {
@@ -61,7 +77,7 @@ internal actual fun httpGetResponse(
                 key to value
             }
             .toMap()
-        val body = connection.inputStream.bufferedReader().use { it.readText() }
+        val body = connection.inputStream.bufferedReader().use { it.readTextBounded() }
         return HttpTextResponse(code, body, headers)
     } catch (e: NullPointerException) {
         throw platformHttpFailure(e)
@@ -104,7 +120,7 @@ internal actual suspend fun httpJson(
         val code = connection.responseCode
 
         val stream = if (code in 200..299) connection.inputStream else connection.errorStream
-        val text = stream?.bufferedReader()?.use { it.readText() }.orEmpty()
+        val text = stream?.bufferedReader()?.use { it.readTextBounded() }.orEmpty()
         val responseHeaders = connection.headerFields.orEmpty().entries
             .mapNotNull { (name, values) ->
                 val key = name?.trim()?.lowercase()?.takeIf { it.isNotEmpty() } ?: return@mapNotNull null

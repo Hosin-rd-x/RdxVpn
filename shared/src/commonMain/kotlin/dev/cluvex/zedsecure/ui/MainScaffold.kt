@@ -359,6 +359,7 @@ fun MainScaffold(
                 pins.openAddSheet = false
                 pins.active = false
                 pins.sheetStepActive = false
+                pins.currentTarget = null
                 pins.sheetOverlay = null
                 pins.sheetOverlayLive = false
             }
@@ -415,8 +416,6 @@ fun MainScaffold(
 
 private fun languageEnglishName(language: AppLanguage): String = when (language) {
     AppLanguage.Persian -> "Persian"
-    AppLanguage.Chinese -> "Chinese"
-    AppLanguage.Russian -> "Russian"
     AppLanguage.English -> "English"
 
     AppLanguage.System -> "the language the user writes in"
@@ -424,8 +423,6 @@ private fun languageEnglishName(language: AppLanguage): String = when (language)
 
 private fun languageNativeName(language: AppLanguage): String = when (language) {
     AppLanguage.Persian -> "فارسی"
-    AppLanguage.Chinese -> "中文"
-    AppLanguage.Russian -> "Русский"
     AppLanguage.English -> "English"
     AppLanguage.System -> ""
 }

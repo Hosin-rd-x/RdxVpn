@@ -845,7 +845,10 @@ class ConfigRepository(private val store: KeyValueStore) {
                         ?: throw IllegalArgumentException("chain member did not import")
                 }
                 if (src is ProfileSource.ProxyChain) addProxyChain(ids, name)
-                else addCrossChain(ids[0], ids[1], name)
+                else {
+                    if (ids.size < 2) throw IllegalArgumentException("cross-chain link needs two members")
+                    addCrossChain(ids[0], ids[1], name)
+                }
                 1
             }
             else -> throw IllegalArgumentException("unsupported zedsecure:// payload")

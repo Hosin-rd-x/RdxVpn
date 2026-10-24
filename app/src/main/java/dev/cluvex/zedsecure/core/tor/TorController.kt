@@ -88,16 +88,40 @@ class TorController(
 
     fun stop() {
         active.set(false)
-        runCatching { process?.destroy() }
+        val p = process
         process = null
         reader = null
+        if (p != null) {
+            runCatching { p.destroy() }
+            // Wait briefly for the process to actually exit before
+            // returning: start() may immediately spawn a replacement,
+            // and a still-dying tor would race it for the SOCKS port
+            // and the data-directory lock. destroy() normally ends tor
+            // at once; the timeout only bounds the pathological case.
+            // (waitFor-with-timeout/destroyForcibly need API 26; older
+            // devices keep the previous destroy-only behavior.)
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                val exited = runCatching {
+                    p.waitFor(2, java.util.concurrent.TimeUnit.SECONDS)
+                }.getOrDefault(false)
+                if (!exited) runCatching { p.destroyForcibly() }
+            }
+        }
     }
 
     private fun extractAsset(name: String, destDir: File) {
         val dest = File(destDir, name)
         if (dest.exists() && dest.length() > 0) return
+        // Copy to a temp file and rename it over the destination, so an
+        // interrupted copy never leaves a truncated file behind that
+        // the length check above would then accept forever.
+        val tmp = File(destDir, "$name.tmp")
         context.assets.open("tor/$name").use { input ->
-            dest.outputStream().use { input.copyTo(it) }
+            tmp.outputStream().use { input.copyTo(it) }
+        }
+        if (!tmp.renameTo(dest)) {
+            tmp.copyTo(dest, overwrite = true)
+            tmp.delete()
         }
     }
 

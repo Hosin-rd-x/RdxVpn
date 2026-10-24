@@ -30,14 +30,15 @@ object SstpLink {
         if (userInfo.isBlank() || endpoint.isBlank()) return null
 
         val host: String
-        val port: Int
+        val rawPort: String
         if (endpoint.startsWith("[")) {
             host = endpoint.substringAfter('[').substringBefore(']')
-            port = endpoint.substringAfterLast(':', "").toIntOrNull() ?: 443
+            rawPort = endpoint.substringAfter("]:", "")
         } else {
             host = endpoint.substringBeforeLast(':', endpoint)
-            port = endpoint.substringAfterLast(':', "").toIntOrNull() ?: 443
+            rawPort = if (endpoint.contains(':')) endpoint.substringAfterLast(':') else ""
         }
+        val port = parsePort(rawPort, 443) ?: return null
         if (host.isBlank()) return null
 
         val username = ConfigParser.percentDecode(userInfo.substringBefore(':', userInfo))
@@ -75,6 +76,13 @@ object SstpLink {
         }
         append(':').append(settings.port)
         if (settings.sni.isNotBlank()) append("?sni=").append(encode(settings.sni))
+    }
+
+    /** The port the link carries, [default] when it carries none, or null when it carries a bad one. */
+    private fun parsePort(raw: String, default: Int): Int? {
+        if (raw.isEmpty()) return default
+        val value = raw.toIntOrNull() ?: return null
+        return value.takeIf { it in 1..65535 }
     }
 
     private fun encode(value: String): String = buildString {

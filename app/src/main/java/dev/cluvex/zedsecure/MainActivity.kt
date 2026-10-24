@@ -55,7 +55,29 @@ class MainActivity : ComponentActivity() {
 
     private var pendingSstpRemark: String? = null
 
+    private companion object {
+        /** Picked/shared files larger than this are refused instead of being loaded whole into memory. */
+        const val MAX_INCOMING_FILE_BYTES = 16 * 1024 * 1024
+    }
+
     private val planner by lazy { StartPlanner(this) }
+
+    /** Bounded read of a picked/shared file; null when it is unreadable or over the size cap. */
+    private fun readIncomingBytes(uri: Uri): ByteArray? = runCatching {
+        contentResolver.openInputStream(uri)?.use { stream ->
+            val out = java.io.ByteArrayOutputStream()
+            val buffer = ByteArray(64 * 1024)
+            var total = 0
+            while (true) {
+                val read = stream.read(buffer)
+                if (read < 0) break
+                total += read
+                if (total > MAX_INCOMING_FILE_BYTES) return@use null
+                out.write(buffer, 0, read)
+            }
+            out.toByteArray()
+        }
+    }.getOrNull()
 
     private var planning = false
 
@@ -115,9 +137,7 @@ class MainActivity : ComponentActivity() {
             val pending = filePickPending
             filePickPending = null
             if (uri == null) { pending?.complete(null); return@registerForActivityResult }
-            val bytes = runCatching {
-                contentResolver.openInputStream(uri)?.use { it.readBytes() }
-            }.getOrNull()
+            val bytes = readIncomingBytes(uri)
             val name = uri.lastPathSegment?.substringAfterLast('/') ?: "file"
             pending?.complete(if (bytes != null) FilePick(name, bytes) else null)
         }
@@ -139,10 +159,7 @@ class MainActivity : ComponentActivity() {
             val pending = imagePickPending
             imagePickPending = null
             pending?.complete(
-                uri?.let {
-                    runCatching { contentResolver.openInputStream(it)?.use { s -> s.readBytes() } }
-                        .getOrNull()
-                },
+                uri?.let { readIncomingBytes(it) },
             )
         }
 
@@ -296,9 +313,7 @@ class MainActivity : ComponentActivity() {
             else -> null
         } ?: return
 
-        val bytes = runCatching {
-            contentResolver.openInputStream(uri)?.use { it.readBytes() }
-        }.getOrNull()
+        val bytes = readIncomingBytes(uri)
         if (bytes == null) {
             toast(getString(R.string.file_open_unreadable))
             return
@@ -315,9 +330,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun offerLockedConfig(uri: Uri) {
-        val bytes = runCatching {
-            contentResolver.openInputStream(uri)?.use { it.readBytes() }
-        }.getOrNull()
+        val bytes = readIncomingBytes(uri)
         if (bytes == null) {
             toast(getString(R.string.zsx_invalid))
             return

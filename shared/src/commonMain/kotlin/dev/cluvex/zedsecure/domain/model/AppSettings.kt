@@ -30,8 +30,6 @@ enum class AppLanguage(val tag: String?) {
     System(null),
     English("en"),
     Persian("fa"),
-    Chinese("zh"),
-    Russian("ru"),
 }
 
 enum class RoutingMode { Global, BypassLan, BypassIran, BypassLanAndIran }

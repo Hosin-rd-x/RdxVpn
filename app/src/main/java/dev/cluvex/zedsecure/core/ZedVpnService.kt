@@ -1318,6 +1318,26 @@ class ZedVpnService : VpnService() {
     }
 
     private fun resetSessionState() {
+        // A fresh start replaces any previous session. If one is still up
+        // (e.g. a duplicate CMD_START raced the running session), tear it
+        // down first with the same helpers the stop path uses: otherwise
+        // startTunnel overwrites the controller/tun fields and the old
+        // engines keep their ports with nothing left able to stop them,
+        // and the old tun leaks (startTunnel only closes the held tun on
+        // the reconnect path). On a genuinely fresh service this is a
+        // no-op: no tun was ever established and every stop() is null-safe.
+        val oldTun = tun
+        tun = null
+        val hadSession = oldTun != null || connected ||
+            psiphon != null || dnsTunnel != null || masterDns != null || tor != null ||
+            ssh != null || sniSpoof != null || openConnect != null || singBox != null ||
+            socksShim != null || outerPsiphon != null || outerTor != null ||
+            outerSsh != null || outerDnsTunnel != null ||
+            engineAlive(kind, outer = false)
+        if (hadSession) {
+            runCatching { stopEngines() }
+            runCatching { oldTun?.close() }
+        }
         statsJob?.cancel()
         statsJob = null
         connected = false
@@ -1521,6 +1541,14 @@ class ZedVpnService : VpnService() {
 
     override fun onDestroy() {
         XrayController.onCoreShutdown = null
+        // Run the same teardown as the normal stop path so the engines are
+        // stopped and the tun is closed even when the system destroys the
+        // service without a CMD_STOP/onRevoke first (kill/restart). Setting
+        // userStop keeps the kill-switch hold from intercepting the
+        // teardown, and stopEverything() itself guards against running
+        // twice when a stop is already in flight.
+        userStop = true
+        runCatching { stopEverything() }
         scope.cancel()
         super.onDestroy()
     }

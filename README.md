@@ -49,7 +49,7 @@ Android has all of them. Linux, Windows and macOS carry Xray, sing-box, the DNS 
 - Per-app routing, a geoip/geosite rule editor, and SNI spoofing on rooted devices
 - Vault: share a config as a `.zsx` file that connects without showing it, with an optional password and expiry date
 - Speed test, MTU finder, DNS resolver scanner and a live log
-- Material 3 Expressive, light and dark, in English, Persian, Russian and Chinese
+- Material 3 Expressive, light and dark, in English and Persian
 
 ## Download
 

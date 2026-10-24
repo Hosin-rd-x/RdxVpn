@@ -326,9 +326,11 @@ fun TourOverlay(
             delay(TOUR_POLL_MS)
             elapsed += TOUR_POLL_MS
         }
-        if (rect == null) {
+        if (!onScreen(rect)) {
             // The target never showed up (a lazy item that was never composed,
-            // for example). Move on instead of freezing the tour.
+            // for example), or it exists but scrolling could not bring it on
+            // screen. Move on instead of freezing the tour on an off-screen
+            // hole.
             anchor = null
             missing()
         }

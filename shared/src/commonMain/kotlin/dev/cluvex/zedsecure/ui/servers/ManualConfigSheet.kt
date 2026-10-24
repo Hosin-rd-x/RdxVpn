@@ -25,6 +25,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -91,70 +92,70 @@ fun ManualConfigSheet(
     onDismiss: () -> Unit,
     onSave: (link: String) -> Unit,
 ) {
-    var protocol by remember { mutableStateOf(initial?.protocol ?: Protocol.VLESS) }
-    var remark by remember { mutableStateOf(initial?.remark ?: "") }
-    var address by remember { mutableStateOf(initial?.address ?: "") }
-    var port by remember { mutableStateOf(initial?.port?.toString() ?: "443") }
-    var userId by remember { mutableStateOf(initial?.userId ?: "") }
-    var ssMethod by remember { mutableStateOf(initial?.shadowsocksMethod ?: "aes-256-gcm") }
-    var vmessSecurity by remember { mutableStateOf(initial?.vmessSecurity ?: "auto") }
-    var alterId by remember { mutableStateOf((initial?.alterId ?: 0).toString()) }
+    var protocol by rememberSaveable { mutableStateOf(initial?.protocol ?: Protocol.VLESS) }
+    var remark by rememberSaveable { mutableStateOf(initial?.remark ?: "") }
+    var address by rememberSaveable { mutableStateOf(initial?.address ?: "") }
+    var port by rememberSaveable { mutableStateOf(initial?.port?.toString() ?: "443") }
+    var userId by rememberSaveable { mutableStateOf(initial?.userId ?: "") }
+    var ssMethod by rememberSaveable { mutableStateOf(initial?.shadowsocksMethod ?: "aes-256-gcm") }
+    var vmessSecurity by rememberSaveable { mutableStateOf(initial?.vmessSecurity ?: "auto") }
+    var alterId by rememberSaveable { mutableStateOf((initial?.alterId ?: 0).toString()) }
 
-    var encryption by remember { mutableStateOf(initial?.encryption ?: "none") }
+    var encryption by rememberSaveable { mutableStateOf(initial?.encryption ?: "none") }
 
-    var network by remember { mutableStateOf(initial?.transport?.network ?: "tcp") }
-    var host by remember { mutableStateOf(initial?.transport?.host ?: "") }
-    var path by remember { mutableStateOf(initial?.transport?.path ?: "") }
-    var serviceName by remember { mutableStateOf(initial?.transport?.serviceName ?: "") }
+    var network by rememberSaveable { mutableStateOf(initial?.transport?.network ?: "tcp") }
+    var host by rememberSaveable { mutableStateOf(initial?.transport?.host ?: "") }
+    var path by rememberSaveable { mutableStateOf(initial?.transport?.path ?: "") }
+    var serviceName by rememberSaveable { mutableStateOf(initial?.transport?.serviceName ?: "") }
 
-    var username by remember { mutableStateOf(initial?.username ?: "") }
-    var secretKey by remember { mutableStateOf(initial?.secretKey ?: "") }
-    var peerPublicKey by remember { mutableStateOf(initial?.peerPublicKey ?: "") }
+    var username by rememberSaveable { mutableStateOf(initial?.username ?: "") }
+    var secretKey by rememberSaveable { mutableStateOf(initial?.secretKey ?: "") }
+    var peerPublicKey by rememberSaveable { mutableStateOf(initial?.peerPublicKey ?: "") }
 
-    var headerType by remember { mutableStateOf(initial?.transport?.headerType ?: "none") }
-    var streamMode by remember { mutableStateOf(initial?.transport?.mode ?: "") }
-    var seed by remember { mutableStateOf(initial?.transport?.seed ?: "") }
-    var authority by remember { mutableStateOf(initial?.transport?.authority ?: "") }
+    var headerType by rememberSaveable { mutableStateOf(initial?.transport?.headerType ?: "none") }
+    var streamMode by rememberSaveable { mutableStateOf(initial?.transport?.mode ?: "") }
+    var seed by rememberSaveable { mutableStateOf(initial?.transport?.seed ?: "") }
+    var authority by rememberSaveable { mutableStateOf(initial?.transport?.authority ?: "") }
 
-    var xhttpExtra by remember { mutableStateOf(initial?.transport?.xhttpExtra ?: "") }
-    var kcpMtu by remember { mutableStateOf(initial?.transport?.kcpMtu?.toString() ?: "") }
-    var kcpTti by remember { mutableStateOf(initial?.transport?.kcpTti?.toString() ?: "") }
+    var xhttpExtra by rememberSaveable { mutableStateOf(initial?.transport?.xhttpExtra ?: "") }
+    var kcpMtu by rememberSaveable { mutableStateOf(initial?.transport?.kcpMtu?.toString() ?: "") }
+    var kcpTti by rememberSaveable { mutableStateOf(initial?.transport?.kcpTti?.toString() ?: "") }
 
-    var obfsPassword by remember { mutableStateOf(initial?.obfsPassword ?: "") }
-    var portHopping by remember { mutableStateOf(initial?.portHopping ?: "") }
-    var pinnedCert by remember { mutableStateOf(initial?.pinnedCertSha256 ?: "") }
-    var reserved by remember { mutableStateOf(initial?.reserved ?: "") }
-    var wgMtu by remember { mutableStateOf(initial?.wireguardMtu?.toString() ?: "") }
+    var obfsPassword by rememberSaveable { mutableStateOf(initial?.obfsPassword ?: "") }
+    var portHopping by rememberSaveable { mutableStateOf(initial?.portHopping ?: "") }
+    var pinnedCert by rememberSaveable { mutableStateOf(initial?.pinnedCertSha256 ?: "") }
+    var reserved by rememberSaveable { mutableStateOf(initial?.reserved ?: "") }
+    var wgMtu by rememberSaveable { mutableStateOf(initial?.wireguardMtu?.toString() ?: "") }
 
-    var wgPsk by remember { mutableStateOf(initial?.preSharedKey ?: "") }
-    var wgKeepalive by remember { mutableStateOf(initial?.wireguardKeepalive?.toString() ?: "") }
-    var wgAllowedIps by remember { mutableStateOf(initial?.allowedIps?.joinToString(", ") ?: "") }
+    var wgPsk by rememberSaveable { mutableStateOf(initial?.preSharedKey ?: "") }
+    var wgKeepalive by rememberSaveable { mutableStateOf(initial?.wireguardKeepalive?.toString() ?: "") }
+    var wgAllowedIps by rememberSaveable { mutableStateOf(initial?.allowedIps?.joinToString(", ") ?: "") }
 
-    var wgDns by remember { mutableStateOf(initial?.dnsServers?.joinToString(", ") ?: "") }
+    var wgDns by rememberSaveable { mutableStateOf(initial?.dnsServers?.joinToString(", ") ?: "") }
 
     var awg by remember { mutableStateOf(initial?.awg ?: AwgConfig()) }
     var awgAdvanced by remember { mutableStateOf(initial?.awg?.let { c -> AwgConfig.KEYS.any { it !in AwgConfig.CLASSIC_KEYS && c[it].isNotBlank() } } ?: false) }
-    var localAddress by remember {
+    var localAddress by rememberSaveable {
         mutableStateOf(initial?.localAddresses?.joinToString(",") ?: "172.16.0.2/32")
     }
 
-    var security by remember { mutableStateOf(initial?.tls?.security ?: "") }
-    var sni by remember { mutableStateOf(initial?.tls?.sni ?: "") }
-    var alpn by remember { mutableStateOf(initial?.tls?.alpn ?: "") }
-    var fingerprint by remember { mutableStateOf(initial?.tls?.fingerprint ?: "chrome") }
-    var publicKey by remember { mutableStateOf(initial?.tls?.publicKey ?: "") }
-    var shortId by remember { mutableStateOf(initial?.tls?.shortId ?: "") }
-    var spiderX by remember { mutableStateOf(initial?.tls?.spiderX ?: "") }
-    var echConfigList by remember { mutableStateOf(initial?.tls?.echConfigList ?: "") }
-    var cipherSuites by remember { mutableStateOf(initial?.tls?.cipherSuites ?: "") }
+    var security by rememberSaveable { mutableStateOf(initial?.tls?.security ?: "") }
+    var sni by rememberSaveable { mutableStateOf(initial?.tls?.sni ?: "") }
+    var alpn by rememberSaveable { mutableStateOf(initial?.tls?.alpn ?: "") }
+    var fingerprint by rememberSaveable { mutableStateOf(initial?.tls?.fingerprint ?: "chrome") }
+    var publicKey by rememberSaveable { mutableStateOf(initial?.tls?.publicKey ?: "") }
+    var shortId by rememberSaveable { mutableStateOf(initial?.tls?.shortId ?: "") }
+    var spiderX by rememberSaveable { mutableStateOf(initial?.tls?.spiderX ?: "") }
+    var echConfigList by rememberSaveable { mutableStateOf(initial?.tls?.echConfigList ?: "") }
+    var cipherSuites by rememberSaveable { mutableStateOf(initial?.tls?.cipherSuites ?: "") }
 
-    var finalMask by remember { mutableStateOf(initial?.transport?.finalMask ?: "") }
-    var allowInsecure by remember { mutableStateOf(initial?.tls?.allowInsecure ?: false) }
-    var verifyCertName by remember { mutableStateOf(initial?.tls?.verifyPeerCertByName ?: "") }
-    var mldsa65Verify by remember { mutableStateOf(initial?.tls?.mldsa65Verify ?: "") }
-    var flow by remember { mutableStateOf(initial?.flow ?: "") }
-    var bandwidthUp by remember { mutableStateOf(initial?.bandwidthUp ?: "") }
-    var bandwidthDown by remember { mutableStateOf(initial?.bandwidthDown ?: "") }
+    var finalMask by rememberSaveable { mutableStateOf(initial?.transport?.finalMask ?: "") }
+    var allowInsecure by rememberSaveable { mutableStateOf(initial?.tls?.allowInsecure ?: false) }
+    var verifyCertName by rememberSaveable { mutableStateOf(initial?.tls?.verifyPeerCertByName ?: "") }
+    var mldsa65Verify by rememberSaveable { mutableStateOf(initial?.tls?.mldsa65Verify ?: "") }
+    var flow by rememberSaveable { mutableStateOf(initial?.flow ?: "") }
+    var bandwidthUp by rememberSaveable { mutableStateOf(initial?.bandwidthUp ?: "") }
+    var bandwidthDown by rememberSaveable { mutableStateOf(initial?.bandwidthDown ?: "") }
 
     androidx.compose.runtime.LaunchedEffect(protocol) {
         if (initial == null) {
