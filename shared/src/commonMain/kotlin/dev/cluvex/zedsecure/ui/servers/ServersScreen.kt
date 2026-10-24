@@ -35,6 +35,7 @@ import sh.calvin.reorderable.rememberReorderableLazyGridState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
@@ -2250,12 +2251,31 @@ private fun AddServerSheet(
     onPreset: () -> Unit,
     onFirefox: () -> Unit,
 ) {
+    val sheetScroll = rememberScrollState()
+    var rdxGroupY by remember { mutableStateOf(0f) }
+    val sheetDensity = LocalDensity.current
+    // The tour's RDX step points at the free rows further down this sheet.
+    // The tour's own bring-into-view only nudges them to the very bottom edge
+    // of the screen, where its caption covers them and they read as cut off,
+    // so when that step becomes current the sheet scrolls the whole RDX group
+    // into view itself, header first.
+    LaunchedEffect(dev.cluvex.zedsecure.ui.onboarding.TourPins.currentTarget) {
+        if (dev.cluvex.zedsecure.ui.onboarding.TourPins.currentTarget ==
+            dev.cluvex.zedsecure.ui.onboarding.TourTargets.SERVERS_RDX_CF
+        ) {
+            kotlinx.coroutines.delay(500)
+            if (rdxGroupY > 0f) {
+                val target = (rdxGroupY - with(sheetDensity) { 6.dp.toPx() }).toInt().coerceAtLeast(0)
+                runCatching { sheetScroll.animateScrollTo(target) }
+            }
+        }
+    }
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Box(Modifier.fillMaxWidth()) {
             Column(
                 Modifier
                     .fillMaxWidth()
-                    .verticalScroll(rememberScrollState())
+                    .verticalScroll(sheetScroll)
                     .padding(bottom = 26.dp),
             ) {
                 Text(
@@ -2294,7 +2314,10 @@ private fun AddServerSheet(
                 
 
                 
-                OptionGroup(Res.string.add_group_rdx)
+                OptionGroup(
+                    Res.string.add_group_rdx,
+                    modifier = Modifier.onGloballyPositioned { rdxGroupY = it.positionInParent().y },
+                )
                 Option(Res.drawable.ic_public, Res.string.foxy_add_title, onFirefox, free = true)
                 Option(
                     Res.drawable.ic_bolt,
