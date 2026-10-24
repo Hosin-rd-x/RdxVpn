@@ -2253,6 +2253,7 @@ private fun AddServerSheet(
 ) {
     val sheetScroll = rememberScrollState()
     var rdxGroupY by remember { mutableStateOf(0f) }
+    var sheetColumnRootY by remember { mutableStateOf(0f) }
     val sheetDensity = LocalDensity.current
     // The tour's RDX step points at the free rows further down this sheet.
     // The tour's own bring-into-view only nudges them to the very bottom edge
@@ -2275,6 +2276,7 @@ private fun AddServerSheet(
             Column(
                 Modifier
                     .fillMaxWidth()
+                    .onGloballyPositioned { sheetColumnRootY = it.positionInRoot().y }
                     .verticalScroll(sheetScroll)
                     .padding(bottom = 26.dp),
             ) {
@@ -2316,7 +2318,9 @@ private fun AddServerSheet(
                 
                 OptionGroup(
                     Res.string.add_group_rdx,
-                    modifier = Modifier.onGloballyPositioned { rdxGroupY = it.positionInParent().y },
+                    modifier = Modifier.onGloballyPositioned {
+                        rdxGroupY = it.positionInRoot().y - sheetColumnRootY + sheetScroll.value
+                    },
                 )
                 Option(Res.drawable.ic_public, Res.string.foxy_add_title, onFirefox, free = true)
                 Option(
