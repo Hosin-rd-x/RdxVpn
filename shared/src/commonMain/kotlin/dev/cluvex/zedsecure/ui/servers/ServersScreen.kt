@@ -2379,6 +2379,9 @@ private fun AddServerSheet(
                     modifier = Modifier.tourTargetInPage(dev.cluvex.zedsecure.ui.onboarding.TourTargets.SERVERS_RDX_CF),
                 )
                 Option(Res.drawable.ic_sync, Res.string.sstp_online_title, onSstpList, free = true)
+                if (onAether != null) {
+                    Option(Res.drawable.ic_bolt, Res.string.aether_add_title, onAether, free = true)
+                }
 
                 OptionGroup(Res.string.add_group_chains)
                 Option(Res.drawable.ic_add_link, Res.string.proxychain_add_title, onProxyChain)
@@ -2396,9 +2399,6 @@ private fun AddServerSheet(
                 Option(Res.drawable.ic_lock, Res.string.openconnect_add_title, onOpenConnect)
                 Option(Res.drawable.ic_lock, Res.string.ikev2_add_title, onIkev2)
                 Option(Res.drawable.ic_lock, Res.string.sstp_option_title, onSstp)
-                if (onAether != null) {
-                    Option(Res.drawable.ic_bolt, Res.string.aether_add_title, onAether)
-                }
 
                 OptionGroup(Res.string.add_group_subscription)
                 Option(Res.drawable.ic_add_link, Res.string.subs_add, onSubscription)
