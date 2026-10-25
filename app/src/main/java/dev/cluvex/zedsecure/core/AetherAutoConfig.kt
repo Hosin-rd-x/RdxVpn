@@ -87,6 +87,8 @@ object AetherAutoConfig {
         val success: Boolean,
         val reason: String,
         val logTail: String = "",
+        /** Gateway the probe's log announced as selected ("" if none). */
+        val pinnedPeer: String = "",
     )
 
     suspend fun runAuto(context: Context, onProgress: (String) -> Unit): Result<AetherProfile> {
@@ -225,13 +227,13 @@ object AetherAutoConfig {
             // CancellationException, which this catch deliberately does not
             // swallow, so it still propagates to the caller.
             val failures = mutableListOf<Pair<Candidate, ProbeOutcome>>()
-            val found: Candidate? = try {
+            val found: Pair<Candidate, ProbeOutcome>? = try {
                 withTimeout(OVERALL_TIMEOUT_MS) {
                     for (candidate in candidates) {
                         progress(candidate.progressRes)
                         val outcome = probeCandidate(context, candidate, workDir)
                         if (outcome.success) {
-                            return@withTimeout candidate
+                            return@withTimeout candidate to outcome
                         }
                         failures += candidate to outcome
                         if (!currentCoroutineContext().isActive) break
@@ -243,18 +245,20 @@ object AetherAutoConfig {
             }
 
             if (found != null) {
+                val (candidate, outcome) = found
                 Result.success(
                     AetherProfile(
-                        method = found.method,
-                        args = found.args,
-                        displayName = found.displayName,
-                        address = found.address,
-                        ipVersion = found.ipVersion,
-                        fingerprint = found.fingerprint,
-                        cipherSuites = found.cipherSuites,
-                        finalMask = found.finalMask,
-                        echConfigList = found.echConfigList,
-                        alpn = found.alpn,
+                        method = candidate.method,
+                        args = candidate.args,
+                        displayName = candidate.displayName,
+                        address = candidate.address,
+                        ipVersion = candidate.ipVersion,
+                        fingerprint = candidate.fingerprint,
+                        cipherSuites = candidate.cipherSuites,
+                        finalMask = candidate.finalMask,
+                        echConfigList = candidate.echConfigList,
+                        alpn = candidate.alpn,
+                        pinnedPeer = outcome.pinnedPeer,
                     ),
                 )
             } else {
@@ -282,6 +286,25 @@ object AetherAutoConfig {
     /** Last few lines of the binary's own log (stdout+stderr go there). */
     private fun readLogTail(workDir: java.io.File): String =
         AetherBinary.logTail(workDir)
+
+    /**
+     * Gateway the binary picked, read from its own log lines. Only the
+     * "selected ..." announcement counts — the "candidate ok ..." lines
+     * are gateways merely tried, not the one chosen, and must never be
+     * pinned. Returns "" when the binary announces no pick.
+     */
+    private fun parseSelectedGateway(logText: String): String {
+        val patterns = listOf(
+            Regex("""selected MASQUE gateway (\S+)"""),
+            Regex("""selected WireGuard endpoint (\S+)"""),
+            Regex("""using cloudflare edge (\S+)(?! \(outer\))"""),
+        )
+        for (pattern in patterns) {
+            val match = pattern.find(logText) ?: continue
+            return match.groupValues[1].trimEnd(',', ';')
+        }
+        return ""
+    }
 
     /**
      * Runs one candidate's probe tunnel and verifies it end to end, and
@@ -361,7 +384,18 @@ object AetherAutoConfig {
             process = null
         }
         val tail = readLogTail(workDir)
-        return outcome?.copy(logTail = tail) ?: ProbeOutcome(false, "نامشخص")
+        // Pin the gateway this probe verified, but ONLY on success: a
+        // failed probe's log must never pin anything. The binary
+        // announces its pick with a "selected ..." line (the same lines
+        // PattNG's scanner reads); when it announces none, pinnedPeer
+        // stays empty and the service falls back to --quick-reconnect.
+        val pinned = if (outcome?.success == true) {
+            parseSelectedGateway(AetherBinary.logTail(workDir, 2000))
+        } else {
+            ""
+        }
+        return outcome?.copy(logTail = tail, pinnedPeer = pinned)
+            ?: ProbeOutcome(false, "نامشخص")
     }
 
     /** Network availability only — no operator, carrier or SIM info. */

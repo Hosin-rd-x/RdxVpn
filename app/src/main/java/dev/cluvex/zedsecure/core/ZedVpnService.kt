@@ -835,22 +835,48 @@ class ZedVpnService : VpnService() {
             }
             if (userStop) return@launch
             val dir = AetherBinary.configDir(this@ZedVpnService)
-            // The service now matches the probe exactly. The probe
-            // (candidate.args + --no-quick-reconnect + --bind) is the
-            // proven path: it runs in this same work dir, so identities
-            // resolve there without explicit config flags. The service
-            // used to add --config/--wg-config/--masque-config on top —
-            // the only difference from the probe, and the prime suspect
-            // for dying right after connect (stale or mismatched config
-            // state). profile.args deliberately carries neither --bind
-            // nor any config-path flag (the AetherProfile contract); the
-            // engine adds only --bind here.
+            // The service must NOT re-scan. The probe already verified a
+            // gateway, and a fresh scan here can land on a different,
+            // unverified gateway that hangs (port accepts, SOCKS never
+            // answers) — the connect-then-drop the user sees, and the
+            // exact difference from PattNG: it scans once, pins the
+            // found gateway with --peer, and connects with
+            // --quick-reconnect, never re-scanning at connect time.
+            // So this builds connect args from the profile: strip --scan
+            // (+ its value), drop any --no-quick-reconnect, pin the
+            // probe's verified gateway with --peer when one was
+            // captured (a fixed --peer the profile already carried,
+            // cdn_worker_ff's, is kept when nothing was pinned), and
+            // always --quick-reconnect to reuse that gateway. The
+            // probe itself still scans fresh — its path is untouched —
+            // and it runs in this same work dir, so identities resolve
+            // there without explicit config flags (profile.args carries
+            // neither --bind nor any config-path flag).
             // socksPort is the planner-supplied port (LocalPorts
             // .AETHER_SOCKS); the bind and the bridge below use
             // AetherBinary.SOCKS_PORT, the same 1819, so a stale intent
             // cannot split the bind from the bridge.
-            val fullArgs = profile.args + listOf(
-                "--no-quick-reconnect",
+            val connectArgs = buildList {
+                var i = 0
+                while (i < profile.args.size) {
+                    when (profile.args[i]) {
+                        "--scan" -> i += 2 // skip --scan + its value
+                        "--no-quick-reconnect", "--quick-reconnect" -> i += 1
+                        "--peer" -> i += 2 // re-added below, pinned or fixed
+                        else -> { add(profile.args[i]); i += 1 }
+                    }
+                }
+                if (profile.pinnedPeer.isNotBlank()) {
+                    add("--peer"); add(profile.pinnedPeer)
+                } else {
+                    val peerIdx = profile.args.indexOf("--peer")
+                    if (peerIdx >= 0 && peerIdx + 1 < profile.args.size) {
+                        add("--peer"); add(profile.args[peerIdx + 1])
+                    }
+                }
+                add("--quick-reconnect")
+            }
+            val fullArgs = connectArgs + listOf(
                 "--bind", "127.0.0.1:${AetherBinary.SOCKS_PORT}",
             )
             val process = try {
