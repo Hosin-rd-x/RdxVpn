@@ -58,7 +58,10 @@ case "$TARGET" in
     cp "$(fetch zedcore zedcore.aar)" "$ROOT/app/libs/zedcore.aar"
     for abi in arm64-v8a armeabi-v7a x86_64; do
       mkdir -p "$jni/$abi"
-      for core in tor snispoof hev; do
+      # Tor was removed (2026-10-25): its binaries and geoip data are
+      # gone from the app on purpose, so it is not fetched here anymore.
+      # Desktop targets below still fetch Tor; only Android drops it.
+      for core in snispoof hev; do
         unzip -q -o "$(fetch "$core" "$core-android-$abi.zip")" -d "$jni/$abi"
       done
     done
