@@ -56,6 +56,11 @@ class ZedVpnService : VpnService() {
     private var sniSpoofEdge: String? = null
     private var openConnect: OpenConnectController? = null
     private var singBox: SingBoxEngine? = null
+    private var aetherProcess: Process? = null
+    private var aetherMonitorJob: Job? = null
+    private var aetherGeneration = 0
+    private var aetherArgs: List<String> = emptyList()
+    private var aetherWorkDir: java.io.File? = null
 
     private var singBoxLastUp = 0L
     private var singBoxLastDown = 0L
@@ -304,6 +309,7 @@ class ZedVpnService : VpnService() {
             VpnManager.KIND_TOR -> startTor(settings, descriptor, tunMtu)
             VpnManager.KIND_SSH -> startSsh(configJson, descriptor, tunMtu, settings)
             VpnManager.KIND_SNISPOOF -> startSniSpoof(configJson, socksPort, descriptor, tunMtu)
+            VpnManager.KIND_AETHER -> startAether(configJson, socksPort, descriptor, tunMtu)
             VpnManager.KIND_CROSS_CHAIN -> startCrossChain(configJson, descriptor, tunMtu, settings)
             else -> startXray(configJson, socksPort, descriptor, tunMtu)
         }
@@ -802,6 +808,171 @@ class ZedVpnService : VpnService() {
         if (!controller.start()) stopEverything()
     }
 
+    private fun startAether(
+        configJson: String,
+        socksPort: Int,
+        descriptor: ParcelFileDescriptor,
+        tunMtu: Int,
+    ) {
+        // Double-start guard: a previous Aether process must never survive
+        // a fresh start with nothing left able to stop it.
+        stopAether()
+        scope.launch {
+            val profile = try {
+                kotlinx.serialization.json.Json.decodeFromString(
+                    dev.cluvex.zedsecure.domain.config.AetherProfile.serializer(), configJson,
+                )
+            } catch (e: Exception) {
+                Log.e(TAG, "bad Aether config", e)
+                VpnManager.onError(getString(R.string.config_invalid))
+                stopEverything(); return@launch
+            }
+            val installed = AetherBinary.ensureInstalled(this@ZedVpnService)
+            if (installed.isFailure) {
+                Log.w(TAG, "Aether binary missing: ${installed.exceptionOrNull()?.message}")
+                VpnManager.onError(getString(R.string.engine_failed_tunnel))
+                stopEverything(); return@launch
+            }
+            if (userStop) return@launch
+            val dir = AetherBinary.configDir(this@ZedVpnService)
+            // Config-path flags verified in aether/src/cli.rs: --config is
+            // the base identity path; WireGuard reuses it and MASQUE
+            // derives <base>-masque.toml from it (lib.rs warp_config_path /
+            // masque_config_path). All three are passed explicitly into
+            // filesDir/aether so identities persist there and never fall
+            // back to the process working directory. profile.args
+            // deliberately carries neither --bind nor any config-path flag
+            // (the AetherProfile contract); the engine adds them here.
+            // socksPort is the planner-supplied port (LocalPorts
+            // .AETHER_SOCKS); the bind and the bridge below use
+            // AetherBinary.SOCKS_PORT, the same 1819, so a stale intent
+            // cannot split the bind from the bridge.
+            val fullArgs = profile.args + listOf(
+                "--bind", "127.0.0.1:${AetherBinary.SOCKS_PORT}",
+                "--config", java.io.File(dir, "aether.toml").absolutePath,
+                "--wg-config", java.io.File(dir, "aether.toml").absolutePath,
+                "--masque-config", java.io.File(dir, "aether-masque.toml").absolutePath,
+            )
+            val process = try {
+                AetherBinary.start(this@ZedVpnService, fullArgs, dir)
+            } catch (e: Exception) {
+                Log.e(TAG, "Aether failed to start", e)
+                VpnManager.onError(getString(R.string.engine_failed_tunnel))
+                stopEverything(); return@launch
+            }
+            if (userStop) {
+                runCatching { AetherBinary.stop(process) }
+                return@launch
+            }
+            aetherProcess = process
+            aetherArgs = fullArgs
+            aetherWorkDir = dir
+            // Aether's first scan can be slow: poll with the same full
+            // check other engines use (TunnelReadiness.verify does a
+            // SOCKS5 CONNECT + HTTP HEAD through the tunnel) for up to
+            // 120s, aborting early if the process dies or the user stops.
+            if (!waitForAetherReady(AETHER_READY_TIMEOUT_MS)) {
+                if (userStop) return@launch
+                Log.w(TAG, "Aether SOCKS on 127.0.0.1:${AetherBinary.SOCKS_PORT} never became ready")
+                VpnManager.onError(getString(R.string.engine_failed_tunnel))
+                stopEverything(); return@launch
+            }
+            if (userStop) return@launch
+            if (!bridge(descriptor, AetherBinary.SOCKS_PORT, tunMtu)) return@launch
+            if (aetherProcess?.isAlive != true) {
+                VpnManager.onError(getString(R.string.engine_failed_tunnel))
+                stopEverything(); return@launch
+            }
+            VpnManager.activeSocksPort = AetherBinary.SOCKS_PORT
+            finishConnected()
+            startAetherMonitor()
+        }
+    }
+
+    private suspend fun waitForAetherReady(timeoutMs: Long): Boolean {
+        val deadline = System.currentTimeMillis() + timeoutMs
+        while (System.currentTimeMillis() < deadline) {
+            if (userStop || !scope.isActive) return false
+            val proc = aetherProcess ?: return false
+            if (!proc.isAlive) return false
+            if (TunnelReadiness.verify(AetherBinary.SOCKS_PORT, timeoutMs = 10_000, attempts = 1)) return true
+            delay(2_000)
+        }
+        return false
+    }
+
+    private suspend fun waitForAetherPortUp(timeoutMs: Long): Boolean {
+        val deadline = System.currentTimeMillis() + timeoutMs
+        while (System.currentTimeMillis() < deadline) {
+            if (userStop || !scope.isActive) return false
+            val up = runCatching {
+                java.net.Socket().use { socket ->
+                    socket.connect(
+                        java.net.InetSocketAddress("127.0.0.1", AetherBinary.SOCKS_PORT),
+                        2_000,
+                    )
+                    true
+                }
+            }.getOrDefault(false)
+            if (up) return true
+            delay(1_000)
+        }
+        return false
+    }
+
+    private fun startAetherMonitor() {
+        aetherMonitorJob?.cancel()
+        val generation = aetherGeneration
+        aetherMonitorJob = scope.launch(Dispatchers.IO) {
+            var restarts = 0
+            while (isActive && generation == aetherGeneration && !userStop) {
+                val proc = aetherProcess ?: return@launch
+                runCatching { proc.waitFor() }
+                if (!isActive || generation != aetherGeneration || userStop) return@launch
+                if (aetherProcess !== proc) return@launch
+                // Tunnel already torn down (the stop path raced us):
+                // nothing to restart.
+                if (!connected) return@launch
+                if (restarts >= AETHER_MAX_RESTARTS) {
+                    Log.w(TAG, "Aether exited unexpectedly; $AETHER_MAX_RESTARTS restarts exhausted")
+                    VpnManager.onError(getString(R.string.engine_failed_tunnel))
+                    stopEverything(); return@launch
+                }
+                restarts++
+                Log.w(TAG, "Aether exited unexpectedly; restart $restarts/$AETHER_MAX_RESTARTS")
+                delay(1_000)
+                if (!isActive || generation != aetherGeneration || userStop) return@launch
+                val dir = aetherWorkDir
+                val relaunched = if (dir != null) {
+                    runCatching { AetherBinary.start(this@ZedVpnService, aetherArgs, dir) }.getOrNull()
+                } else null
+                if (relaunched == null) {
+                    Log.w(TAG, "Aether restart $restarts failed to launch")
+                    // aetherProcess still points at the dead process, so
+                    // the next pass exits waitFor at once and consumes the
+                    // next restart; bounded by AETHER_MAX_RESTARTS above.
+                    continue
+                }
+                aetherProcess = relaunched
+                // The TUN bridge is bound to the port, not the process,
+                // so no re-bridge is needed; just wait for the listener
+                // to come back before watching the new process.
+                waitForAetherPortUp(AETHER_RESTART_READY_TIMEOUT_MS)
+            }
+        }
+    }
+
+    private fun stopAether() {
+        aetherGeneration++
+        aetherMonitorJob?.cancel()
+        aetherMonitorJob = null
+        val proc = aetherProcess
+        aetherProcess = null
+        aetherArgs = emptyList()
+        aetherWorkDir = null
+        if (proc != null) runCatching { AetherBinary.stop(proc) }
+    }
+
     private fun bridge(
         descriptor: ParcelFileDescriptor,
         socksPort: Int,
@@ -902,6 +1073,7 @@ class ZedVpnService : VpnService() {
         VpnManager.KIND_SINGBOX -> "sing-box"
         VpnManager.KIND_IKEV2 -> "IKEv2"
         VpnManager.KIND_SNISPOOF -> "Xray · SNI"
+        VpnManager.KIND_AETHER -> "Aether"
 
         VpnManager.KIND_CROSS_CHAIN ->
             "${engineLabel(crossInnerKind)} → ${engineLabel(crossOuterKind)}"
@@ -1307,6 +1479,7 @@ class ZedVpnService : VpnService() {
         sniSpoof?.stop(); sniSpoof = null
         openConnect?.stop(); openConnect = null
         singBox?.stop(); singBox = null
+        stopAether()
         socksShim?.stop(); socksShim = null
         outerPsiphon?.stop(); outerPsiphon = null
         outerTor?.stop(); outerTor = null
@@ -1549,6 +1722,10 @@ class ZedVpnService : VpnService() {
         // twice when a stop is already in flight.
         userStop = true
         runCatching { stopEverything() }
+        // stopEverything() already reaches stopAether() via stopEngines(),
+        // but it may hand teardown to a background thread; stop the Aether
+        // process directly here too so a service destroy never leaks it.
+        runCatching { stopAether() }
         scope.cancel()
         super.onDestroy()
     }
@@ -1854,6 +2031,12 @@ class ZedVpnService : VpnService() {
         private const val MASTERDNS_MAX_WAIT_MS = 300_000L
 
         private const val TOR_BOOTSTRAP_TIMEOUT_MS = 120_000L
+
+        private const val AETHER_READY_TIMEOUT_MS = 120_000L
+
+        private const val AETHER_RESTART_READY_TIMEOUT_MS = 60_000L
+
+        private const val AETHER_MAX_RESTARTS = 3
 
         private const val SNISPOOF_PORT = LocalPorts.SNI_SPOOF
         private const val MTU = 1500

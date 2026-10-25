@@ -1488,4 +1488,11 @@
     <string name="ip_health_asn">ASN</string>
     <string name="ip_health_org">ارائه‌دهنده</string>
     <string name="ip_health_blocklist">بلاک‌لیست‌ها</string>
+
+    <string name="aether_add_title">اتصال خودکار Aether</string>
+    <string name="aether_sheet_title">اتصال خودکار Aether</string>
+    <string name="aether_sheet_hint">با یک لمس، بهترین تنظیم Aether برای همین اینترنت پیدا می‌شود. چیزی لازم نیست بنویسی یا انتخاب کنی.</string>
+    <string name="aether_connect_button">اتصال خودکار</string>
+    <string name="aether_unavailable">اتصال خودکار Aether روی این دستگاه ممکن نیست.</string>
+    <string name="aether_error_fallback">اتصال خودکار نشد. یک بار دیگر امتحان کن.</string>
 </resources>

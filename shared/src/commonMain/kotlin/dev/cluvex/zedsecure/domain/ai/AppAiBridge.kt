@@ -301,6 +301,7 @@ class AppAiBridge(
         is ProfileSource.SniSpoof -> "snispoof"
         is ProfileSource.AutoSelect -> "autoselect"
         is ProfileSource.SingBox, is ProfileSource.SingBoxConfig -> "singbox"
+        is ProfileSource.Aether -> "aether"
         else -> "xray"
     }
 

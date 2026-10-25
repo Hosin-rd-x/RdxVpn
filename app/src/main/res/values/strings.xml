@@ -694,4 +694,16 @@
     <string name="auto_group_manual_short">Manual</string>
     <string name="sstp_not_ready">This SSTP profile is saved; the connection engine ships with the next release.</string>
     <string name="sstp_timeout">SSTP did not answer in time; try another server.</string>
+
+    <string name="aether_requires_android_10">Aether needs Android 10 or newer.</string>
+    <string name="aether_progress_masque">Trying MASQUE…</string>
+    <string name="aether_progress_warp">Trying WARP…</string>
+    <string name="aether_progress_cdn">Trying CDN…</string>
+    <string name="aether_err_no_network">No internet connection. Connect first, then try again.</string>
+    <string name="aether_err_binary_missing">The Aether engine is missing from the app. Reinstall the app and try again.</string>
+    <string name="aether_err_permission">The app could not run the Aether engine (permission denied).</string>
+    <string name="aether_err_timeout">Automatic setup took too long. Try again when the network is better.</string>
+    <string name="aether_err_all_failed">None of the methods worked on this network right now. Try again later, or when you are on another network.</string>
+    <string name="aether_err_port_busy">Another tunnel is already using the test connection. Disconnect it first, then try again.</string>
+    <string name="aether_chain_unsupported">Aether cannot be used inside a proxy chain.</string>
 </resources>

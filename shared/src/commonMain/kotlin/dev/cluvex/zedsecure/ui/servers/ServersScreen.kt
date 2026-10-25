@@ -97,6 +97,7 @@ import dev.cluvex.zedsecure.data.net.PingService
 import dev.cluvex.zedsecure.core.AutoSelect
 import dev.cluvex.zedsecure.core.FoxyImportBridge
 import dev.cluvex.zedsecure.domain.config.AutoSelectIds
+import dev.cluvex.zedsecure.domain.config.AetherProfile
 import dev.cluvex.zedsecure.domain.config.ConfigParseException
 import dev.cluvex.zedsecure.domain.config.ConfigParser
 import dev.cluvex.zedsecure.domain.config.VpnProfile
@@ -141,6 +142,19 @@ fun ServersScreen(
 
     personalization: Personalization = Personalization.Default,
     reduceMotion: Boolean = false,
+    // Aether needs Android 10 (API 29)+: the app layer passes
+    // Build.VERSION.SDK_INT >= 29. False hides the Aether entry entirely
+    // (desktop and older phones); the engine refuses Aether below API 29
+    // as well, so this gate is UX, not security.
+    aetherSupported: Boolean = false,
+    // App-layer auto-config runner (AetherAutoConfig). Null when unwired
+    // (e.g. desktop): the sheet then shows its unavailable note.
+    onAetherAuto: (suspend (onProgress: (String) -> Unit) -> Result<AetherProfile>)? = null,
+    // App-layer one-tap start: with no tunnel running, onServerActivated
+    // alone would only arm Aether for the Home connect button, so the app
+    // layer supplies a start-when-idle hook that makes the sheet's single
+    // button a real one-tap connect. Null on unwired platforms.
+    onAetherConnect: (() -> Unit)? = null,
 ) {
     val platform = LocalPlatform.current
     val scope = rememberCoroutineScope()
@@ -419,6 +433,7 @@ fun ServersScreen(
     var showSniSpoof by rememberSaveable { mutableStateOf(false) }
     var showProxyChain by rememberSaveable { mutableStateOf(false) }
     var showCrossChain by rememberSaveable { mutableStateOf(false) }
+    var showAether by rememberSaveable { mutableStateOf(false) }
 
     val servers = profiles.filterNot { it.isLocked }
 
@@ -1360,6 +1375,14 @@ fun ServersScreen(
                 showAddSheet = false
                 showCrossChain = true
             },
+            // Null hides the entry; non-null shows it. The gate lives
+            // here, not in AddServerSheet, so the sheet stays dumb.
+            onAether = if (aetherSupported) {
+                {
+                    showAddSheet = false
+                    showAether = true
+                }
+            } else null,
             onSubscription = {
                 showAddSheet = false
                 showSubs = true
@@ -1449,6 +1472,28 @@ fun ServersScreen(
                 showSsh = false
                 repository.addSsh(settings, name)
                 onServerActivated()
+            },
+        )
+    }
+
+    if (showAether) {
+        AetherSheet(
+            onDismiss = { showAether = false },
+            onAutoConnect = onAetherAuto,
+            onSave = { name, settings ->
+                showAether = false
+                // Mirrors the other sheets' save flow (addX + activate),
+                // then goes one step further like a server-card tap
+                // (setActive + onServerActivated): with a tunnel already
+                // running this restarts onto the new Aether profile.
+                // With none running, onServerActivated alone would only
+                // arm Aether for the Home connect button, so the
+                // start-when-idle hook below starts the tunnel right
+                // away — that is what makes this one tap.
+                val saved = repository.addAether(settings, name)
+                repository.setActive(saved.id)
+                onServerActivated()
+                onAetherConnect?.invoke()
             },
         )
     }
@@ -2248,6 +2293,8 @@ private fun AddServerSheet(
     onSniSpoof: () -> Unit,
     onProxyChain: () -> Unit,
     onCrossChain: () -> Unit,
+    // Null hides the Aether entry (unsupported device / unwired platform).
+    onAether: (() -> Unit)? = null,
     onSubscription: () -> Unit,
     onPreset: () -> Unit,
     onFirefox: () -> Unit,
@@ -2349,6 +2396,9 @@ private fun AddServerSheet(
                 Option(Res.drawable.ic_lock, Res.string.openconnect_add_title, onOpenConnect)
                 Option(Res.drawable.ic_lock, Res.string.ikev2_add_title, onIkev2)
                 Option(Res.drawable.ic_lock, Res.string.sstp_option_title, onSstp)
+                if (onAether != null) {
+                    Option(Res.drawable.ic_bolt, Res.string.aether_add_title, onAether)
+                }
 
                 OptionGroup(Res.string.add_group_subscription)
                 Option(Res.drawable.ic_add_link, Res.string.subs_add, onSubscription)

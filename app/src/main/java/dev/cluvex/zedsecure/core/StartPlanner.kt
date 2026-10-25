@@ -65,6 +65,18 @@ class StartPlanner(context: Context) {
             if (foxyTarget != null) return Plan.Foxy(foxyTarget.name)
         }
         val kind = engineKindOf(profile)
+        if (kind == VpnManager.KIND_AETHER && android.os.Build.VERSION.SDK_INT < 29) {
+            return Plan.Failure(appContext.getString(R.string.aether_requires_android_10))
+        }
+        if (kind == VpnManager.KIND_CROSS_CHAIN) {
+            val hasAetherMember = runCatching {
+                val (inner, outer) = configRepository.crossChainMembers(profile)
+                inner.aetherSettings() != null || outer.aetherSettings() != null
+            }.getOrDefault(false)
+            if (hasAetherMember) {
+                return Plan.Failure(appContext.getString(R.string.aether_chain_unsupported))
+            }
+        }
         val configJson = try {
             if (kind == VpnManager.KIND_CROSS_CHAIN) buildCrossChainWrapper(profile)
             else engineConfigOf(profile, resolveServers = kind == VpnManager.KIND_XRAY)
@@ -78,7 +90,7 @@ class StartPlanner(context: Context) {
             configJson = configJson,
             remark = if (profile.isAutoSelect) autoSelectRemark(profile) else profile.name,
             kind = kind,
-            socksPort = LocalProxy.SOCKS_PORT,
+            socksPort = if (kind == VpnManager.KIND_AETHER) LocalPorts.AETHER_SOCKS else LocalProxy.SOCKS_PORT,
             proxyOnly = proxyOnly,
         )
     }
@@ -135,6 +147,7 @@ class StartPlanner(context: Context) {
         profile.sshSettings() != null -> VpnManager.KIND_SSH
         profile.sniSpoofSettings() != null -> VpnManager.KIND_SNISPOOF
         profile.isSingBoxConfig -> VpnManager.KIND_SINGBOX
+        profile.aetherSettings() != null -> VpnManager.KIND_AETHER
         else -> VpnManager.KIND_XRAY
     }
 
@@ -193,6 +206,11 @@ class StartPlanner(context: Context) {
         profile.ikev2Settings()?.let {
             return kotlinx.serialization.json.Json.encodeToString(
                 dev.cluvex.zedsecure.domain.config.Ikev2Profile.serializer(), it,
+            )
+        }
+        profile.aetherSettings()?.let {
+            return kotlinx.serialization.json.Json.encodeToString(
+                dev.cluvex.zedsecure.domain.config.AetherProfile.serializer(), it,
             )
         }
         profile.dnsTunnelSettings()?.let { dnsTunnel ->

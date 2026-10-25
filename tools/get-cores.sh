@@ -15,8 +15,14 @@ fetch() {
   dir="$CACHE/$repo/$tag"
   base="https://github.com/$repo/releases/download/$tag"
   mkdir -p "$dir"
-  [ -s "$dir/SHA256SUMS" ] || curl -fsSL --retry 3 -o "$dir/SHA256SUMS" "$base/SHA256SUMS"
-  want=$(awk -v a="$asset" '$2 == a || $2 == "*" a { print $1 }' "$dir/SHA256SUMS")
+  # Most cores publish SHA256SUMS; Aether publishes SHA256SUMS.txt instead.
+  if [ ! -s "$dir/SHA256SUMS" ] && [ ! -s "$dir/SHA256SUMS.txt" ]; then
+    curl -fsSL --retry 3 -o "$dir/SHA256SUMS" "$base/SHA256SUMS" 2>/dev/null ||
+      { rm -f "$dir/SHA256SUMS"; curl -fsSL --retry 3 -o "$dir/SHA256SUMS.txt" "$base/SHA256SUMS.txt"; }
+  fi
+  sums="$dir/SHA256SUMS"
+  [ -s "$sums" ] || sums="$dir/SHA256SUMS.txt"
+  want=$(awk -v a="$asset" '$2 == a || $2 == "*" a { print $1 }' "$sums")
   [ -n "$want" ] || { echo "$asset is not in $repo $tag" >&2; exit 1; }
   if [ ! -s "$dir/$asset" ] || [ "$(digest "$dir/$asset")" != "$want" ]; then
     curl -fsSL --retry 3 -o "$dir/$asset" "$base/$asset"
@@ -59,6 +65,23 @@ case "$TARGET" in
     unpack "$(fetch zeptun zeptun-android-jniLibs.zip)" "$CACHE/zeptun-android"
     cp -r "$CACHE/zeptun-android/jniLibs/." "$jni/"
     find "$jni" -name '*.so' -exec chmod +x {} +
+    # Aether ships a standalone executable per ABI (a .tar.gz holding one
+    # `aether` binary), not a .so, so it lives in assets, not jniLibs.
+    # It is fetched at build time like every other core and never committed.
+    aether_assets="$ROOT/app/src/main/assets/aether"
+    for abi in arm64-v8a armeabi-v7a x86_64; do
+      case "$abi" in
+        arm64-v8a) asset="aether-android-arm64.tar.gz" ;;
+        armeabi-v7a) asset="aether-android-armv7.tar.gz" ;;
+        x86_64) asset="aether-android-x86_64.tar.gz" ;;
+      esac
+      mkdir -p "$aether_assets/$abi"
+      rm -rf "$CACHE/aether-$abi"
+      mkdir -p "$CACHE/aether-$abi"
+      tar -xzf "$(fetch aether "$asset")" -C "$CACHE/aether-$abi" aether
+      cp "$CACHE/aether-$abi/aether" "$aether_assets/$abi/aether"
+      chmod +x "$aether_assets/$abi/aether"
+    done
     ;;
   linux)
     bin="$ROOT/desktop/src/main/resources/bin/linux"
