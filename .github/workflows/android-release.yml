@@ -123,7 +123,7 @@ jobs:
               --repo "$GITHUB_REPOSITORY" --clobber
           else
             gh release create "$TAG" dist/RdxVpn-"$V"-*.apk dist/SHA256SUMS-android.txt \
-              --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+              --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --prerelease \
               --title "RdxVpn ${V}" \
               --notes "Automated build ${GITHUB_SHA:0:7} (run ${GITHUB_RUN_ID}) - one file per ABI, no zip to download."
           fi
