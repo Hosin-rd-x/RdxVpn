@@ -6,60 +6,45 @@ import java.io.File
 import java.util.concurrent.TimeUnit
 
 /**
- * Locates, installs and runs the Aether engine binary.
+ * Locates and runs the Aether engine binary.
  *
  * The binary is not part of the source tree: tools/get-cores.sh fetches it
- * at build time into app/src/main/assets/aether/<abi>/aether, and this
- * object copies it out of the APK assets into private app storage on first
- * use. See AETHER-NOTICE.md for the licensing consequence of bundling it.
+ * at build time into app/src/main/jniLibs/<abi>/libaether.so, and Android
+ * extracts the device's ABI copy into the app's native library folder at
+ * install time.
+ *
+ * It must live there, not in the app's private files folder: Android
+ * refuses to execute a file the app itself copies into private storage
+ * (error=13, Permission denied, seen on device 2026-10-25), while a file
+ * shipped as a native library may be executed from the lib folder. The
+ * binary is never loaded as a JNI library, only started as a subprocess.
+ * See AETHER-NOTICE.md for the licensing consequence of bundling it.
  */
 object AetherBinary {
 
     const val SOCKS_PORT = 1819
 
-    private val SUPPORTED_ABIS = listOf("arm64-v8a", "armeabi-v7a", "x86_64")
-
-    /** Path of the installed binary. Call [ensureInstalled] first. */
+    /** Path of the binary in the app's native library folder. */
     fun binaryFile(context: Context): File =
-        File(File(context.filesDir, "aether-bin"), "aether")
+        File(context.applicationInfo.nativeLibraryDir, "libaether.so")
 
     /**
-     * Copies assets/aether/<abi>/aether to filesDir/aether-bin/aether.
-     * <abi> is the first of Build.SUPPORTED_ABIS that we ship a binary for.
-     * The installed copy is only replaced when it is missing or its size
-     * differs from the asset, so a reinstall does not needlessly rewrite it.
-     * Never throws: failures come back as Result.failure with a message.
+     * Returns the Aether binary from the app's native library folder.
+     * No copy is needed: the system extracts the right ABI's libaether.so
+     * there at install time. Never throws: failures come back as
+     * Result.failure with a message.
      */
     fun ensureInstalled(context: Context): Result<File> = synchronized(this) { runCatching {
-        val abi = Build.SUPPORTED_ABIS.firstOrNull { it in SUPPORTED_ABIS }
-            ?: throw IllegalStateException(
-                "No Aether binary for this device (ABIs: ${Build.SUPPORTED_ABIS.joinToString()})",
+        val lib = binaryFile(context)
+        if (!lib.exists()) {
+            throw IllegalStateException(
+                "Aether binary (libaether.so) is missing from the app's native libraries",
             )
-        val dir = File(context.filesDir, "aether-bin").apply { mkdirs() }
-        val dest = File(dir, "aether")
-        // Copy to a temp file first, so an interrupted copy never leaves a
-        // truncated binary behind that the size check would then accept.
-        val tmp = File(dir, "aether.tmp")
-        try {
-            context.assets.open("aether/$abi/aether").use { input ->
-                tmp.outputStream().use { input.copyTo(it) }
-            }
-        } catch (e: Exception) {
-            tmp.delete()
-            throw IllegalStateException("Aether binary for $abi is missing from the app assets", e)
         }
-        if (!dest.exists() || dest.length() != tmp.length()) {
-            if (!tmp.renameTo(dest)) {
-                tmp.copyTo(dest, overwrite = true)
-                tmp.delete()
-            }
-        } else {
-            tmp.delete()
+        if (!lib.canExecute()) {
+            throw IllegalStateException("Aether binary is present but cannot be executed")
         }
-        if (!dest.setExecutable(true, false) && !dest.setExecutable(true)) {
-            throw IllegalStateException("Could not make the Aether binary executable")
-        }
-        dest
+        lib
     } }
 
     /**
