@@ -835,28 +835,23 @@ class ZedVpnService : VpnService() {
             }
             if (userStop) return@launch
             val dir = AetherBinary.configDir(this@ZedVpnService)
-            // Config-path flags verified in aether/src/cli.rs: --config is
-            // the base identity path; WireGuard reuses it and MASQUE
-            // derives <base>-masque.toml from it (lib.rs warp_config_path /
-            // masque_config_path). All three are passed explicitly into
-            // filesDir/aether so identities persist there and never fall
-            // back to the process working directory. profile.args
-            // deliberately carries neither --bind nor any config-path flag
-            // (the AetherProfile contract); the engine adds them here.
+            // The service now matches the probe exactly. The probe
+            // (candidate.args + --no-quick-reconnect + --bind) is the
+            // proven path: it runs in this same work dir, so identities
+            // resolve there without explicit config flags. The service
+            // used to add --config/--wg-config/--masque-config on top —
+            // the only difference from the probe, and the prime suspect
+            // for dying right after connect (stale or mismatched config
+            // state). profile.args deliberately carries neither --bind
+            // nor any config-path flag (the AetherProfile contract); the
+            // engine adds only --bind here.
             // socksPort is the planner-supplied port (LocalPorts
             // .AETHER_SOCKS); the bind and the bridge below use
             // AetherBinary.SOCKS_PORT, the same 1819, so a stale intent
             // cannot split the bind from the bridge.
-            // Match the probe: the probe always scans fresh
-            // (--no-quick-reconnect) and that path is proven to work, while
-            // the service used to quick-reconnect to the last-connection
-            // gateway — the prime suspect for dying right after connect.
             val fullArgs = profile.args + listOf(
                 "--no-quick-reconnect",
                 "--bind", "127.0.0.1:${AetherBinary.SOCKS_PORT}",
-                "--config", java.io.File(dir, "aether.toml").absolutePath,
-                "--wg-config", java.io.File(dir, "aether.toml").absolutePath,
-                "--masque-config", java.io.File(dir, "aether-masque.toml").absolutePath,
             )
             val process = try {
                 AetherBinary.start(this@ZedVpnService, fullArgs, dir)
