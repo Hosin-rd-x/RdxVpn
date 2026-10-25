@@ -82,6 +82,13 @@ object AetherAutoConfig {
         val progressRes: Int,
     )
 
+    /** Result of one candidate probe: success, or the exact failure reason. */
+    private data class ProbeOutcome(
+        val success: Boolean,
+        val reason: String,
+        val logTail: String = "",
+    )
+
     suspend fun runAuto(context: Context, onProgress: (String) -> Unit): Result<AetherProfile> {
         // The callback touches Compose state in the sheet, so it always runs
         // on Main even though the probing itself runs on IO.
@@ -217,13 +224,16 @@ object AetherAutoConfig {
             // A cancellation from outside (sheet dismissed) is a plain
             // CancellationException, which this catch deliberately does not
             // swallow, so it still propagates to the caller.
+            val failures = mutableListOf<Pair<Candidate, ProbeOutcome>>()
             val found: Candidate? = try {
                 withTimeout(OVERALL_TIMEOUT_MS) {
                     for (candidate in candidates) {
                         progress(candidate.progressRes)
-                        if (probeCandidate(context, candidate, workDir)) {
+                        val outcome = probeCandidate(context, candidate, workDir)
+                        if (outcome.success) {
                             return@withTimeout candidate
                         }
+                        failures += candidate to outcome
                         if (!currentCoroutineContext().isActive) break
                     }
                     null
@@ -248,13 +258,41 @@ object AetherAutoConfig {
                     ),
                 )
             } else {
-                fail(R.string.aether_err_all_failed)
+                // Detailed failure: the sheet shows this message, so the
+                // user can screenshot the exact reason per method instead
+                // of a generic sentence.
+                val detail = buildString {
+                    append("هیچ‌کدام از روش‌ها روی این اینترنت الان جواب نداد.")
+                    for ((candidate, outcome) in failures) {
+                        append("\n\n• ")
+                        append(candidate.displayName)
+                        append(": ")
+                        append(outcome.reason)
+                        if (outcome.logTail.isNotBlank()) {
+                            append("\n")
+                            append(outcome.logTail)
+                        }
+                    }
+                }
+                Result.failure(Exception(detail))
             }
         }
     }
 
+    /** Last few lines of the binary's own log (stdout+stderr go there). */
+    private fun readLogTail(workDir: java.io.File): String {
+        val lines = runCatching {
+            java.io.File(workDir, "aether.log").readLines()
+        }.getOrDefault(emptyList())
+        val ansi = Regex("\u001B\\[[0-9;]*m")
+        return lines.filter { it.isNotBlank() }.takeLast(6)
+            .joinToString("\n") { ansi.replace(it, "").take(120) }
+    }
+
     /**
-     * Runs one candidate's probe tunnel and verifies it end to end.
+     * Runs one candidate's probe tunnel and verifies it end to end, and
+     * reports the exact failure reason (not just pass/fail) so the sheet
+     * can show why each method failed.
      * The probe process is always killed before returning — success,
      * failure, timeout or cancellation — so a probe can never leak.
      * Probe args add only what a probe needs on top of the candidate's
@@ -264,42 +302,62 @@ object AetherAutoConfig {
      * process runs in the shared config dir, so identities registered
      * by a probe are reused by the real engine instead of registering
      * a second device (upstream rate-limits re-registration).
+     * The log is truncated on every probe start, so this candidate's
+     * tail is read here, before the next candidate overwrites it.
      */
     private suspend fun probeCandidate(
         context: Context,
         candidate: Candidate,
         workDir: java.io.File,
-    ): Boolean {
+    ): ProbeOutcome {
         var process: Process? = null
+        var outcome: ProbeOutcome? = null
         try {
-            if (tcpOpen("127.0.0.1", PROBE_PORT, TCP_TIMEOUT_MS)) return false
-            val probeArgs = candidate.args + listOf(
-                "--no-quick-reconnect",
-                "--bind", "127.0.0.1:$PROBE_PORT",
-            )
-            val started = try {
-                AetherBinary.start(context, probeArgs, workDir)
-            } catch (e: Exception) {
-                return false
+            if (tcpOpen("127.0.0.1", PROBE_PORT, TCP_TIMEOUT_MS)) {
+                outcome = ProbeOutcome(false, "پورت ۱۸۱۹ اشغال بود")
+            } else {
+                val probeArgs = candidate.args + listOf(
+                    "--no-quick-reconnect",
+                    "--bind", "127.0.0.1:$PROBE_PORT",
+                )
+                val started = try {
+                    AetherBinary.start(context, probeArgs, workDir)
+                } catch (e: Exception) {
+                    // No process ran, so the log still holds a previous
+                    // candidate's output and would mislead: return now.
+                    return ProbeOutcome(
+                        false,
+                        "اجرا نشد: ${e.message ?: e.javaClass.simpleName}",
+                    )
+                }
+                process = started
+                outcome = withTimeoutOrNull(CANDIDATE_TIMEOUT_MS) {
+                    // Wait until the probe's SOCKS port answers.
+                    while (currentCoroutineContext().isActive) {
+                        if (tcpOpen("127.0.0.1", PROBE_PORT, TCP_TIMEOUT_MS)) break
+                        if (!started.isAlive) {
+                            val code = runCatching { started.exitValue() }.getOrNull()
+                            return@withTimeoutOrNull ProbeOutcome(
+                                false,
+                                "برنامه همان اول بسته شد" +
+                                    (code?.let { " (کد $it)" } ?: ""),
+                            )
+                        }
+                        delay(POLL_DELAY_MS)
+                    }
+                    if (!currentCoroutineContext().isActive) {
+                        return@withTimeoutOrNull ProbeOutcome(false, "لغو شد")
+                    }
+                    // SOCKS answering is not enough: the tunnel must carry a
+                    // real HTTPS request. Retry briefly — the tunnel can be
+                    // up a moment before it carries traffic.
+                    repeat(TRACE_ATTEMPTS) { attempt ->
+                        if (traceOk()) return@withTimeoutOrNull ProbeOutcome(true, "")
+                        if (attempt + 1 < TRACE_ATTEMPTS) delay(TRACE_RETRY_DELAY_MS)
+                    }
+                    ProbeOutcome(false, "تونل بالا آمد ولی اینترنت ازش رد نشد")
+                } ?: ProbeOutcome(false, "پورت جواب نداد (۷۵ ثانیه)")
             }
-            process = started
-            return withTimeoutOrNull(CANDIDATE_TIMEOUT_MS) {
-                // Wait until the probe's SOCKS port answers.
-                while (currentCoroutineContext().isActive) {
-                    if (tcpOpen("127.0.0.1", PROBE_PORT, TCP_TIMEOUT_MS)) break
-                    if (!started.isAlive) return@withTimeoutOrNull false
-                    delay(POLL_DELAY_MS)
-                }
-                if (!currentCoroutineContext().isActive) return@withTimeoutOrNull false
-                // SOCKS answering is not enough: the tunnel must carry a
-                // real HTTPS request. Retry briefly — the tunnel can be
-                // up a moment before it carries traffic.
-                repeat(TRACE_ATTEMPTS) { attempt ->
-                    if (traceOk()) return@withTimeoutOrNull true
-                    if (attempt + 1 < TRACE_ATTEMPTS) delay(TRACE_RETRY_DELAY_MS)
-                }
-                false
-            } ?: false
         } finally {
             // Runs on success, failure, timeout and cancellation alike.
             // Note: on cancellation, the blocking socket calls above are
@@ -308,6 +366,8 @@ object AetherAutoConfig {
             AetherBinary.stop(process)
             process = null
         }
+        val tail = readLogTail(workDir)
+        return outcome?.copy(logTail = tail) ?: ProbeOutcome(false, "نامشخص")
     }
 
     /** Network availability only — no operator, carrier or SIM info. */
