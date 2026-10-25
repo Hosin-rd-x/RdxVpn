@@ -280,14 +280,8 @@ object AetherAutoConfig {
     }
 
     /** Last few lines of the binary's own log (stdout+stderr go there). */
-    private fun readLogTail(workDir: java.io.File): String {
-        val lines = runCatching {
-            java.io.File(workDir, "aether.log").readLines()
-        }.getOrDefault(emptyList())
-        val ansi = Regex("\u001B\\[[0-9;]*m")
-        return lines.filter { it.isNotBlank() }.takeLast(6)
-            .joinToString("\n") { ansi.replace(it, "").take(120) }
-    }
+    private fun readLogTail(workDir: java.io.File): String =
+        AetherBinary.logTail(workDir)
 
     /**
      * Runs one candidate's probe tunnel and verifies it end to end, and

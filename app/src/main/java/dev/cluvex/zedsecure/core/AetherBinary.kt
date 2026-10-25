@@ -56,6 +56,20 @@ object AetherBinary {
         File(context.filesDir, "aether").apply { mkdirs() }
 
     /**
+     * Last few lines of the binary's own log (stdout+stderr go there),
+     * cleaned for display: blank lines dropped, ANSI colors stripped,
+     * lines capped so a log tail stays readable in an error report.
+     */
+    fun logTail(workDir: File, maxLines: Int = 6): String {
+        val lines = runCatching {
+            java.io.File(workDir, "aether.log").readLines()
+        }.getOrDefault(emptyList())
+        val ansi = Regex("\u001B\\[[0-9;]*m")
+        return lines.filter { it.isNotBlank() }.takeLast(maxLines)
+            .joinToString("\n") { ansi.replace(it, "").take(120) }
+    }
+
+    /**
      * Starts the installed binary with [args] in [workDir]. Stdout and
      * stderr both go to workDir/aether.log, truncated on every start.
      * Call [ensureInstalled] first; this throws if the binary is missing.

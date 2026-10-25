@@ -847,7 +847,12 @@ class ZedVpnService : VpnService() {
             // .AETHER_SOCKS); the bind and the bridge below use
             // AetherBinary.SOCKS_PORT, the same 1819, so a stale intent
             // cannot split the bind from the bridge.
+            // Match the probe: the probe always scans fresh
+            // (--no-quick-reconnect) and that path is proven to work, while
+            // the service used to quick-reconnect to the last-connection
+            // gateway — the prime suspect for dying right after connect.
             val fullArgs = profile.args + listOf(
+                "--no-quick-reconnect",
                 "--bind", "127.0.0.1:${AetherBinary.SOCKS_PORT}",
                 "--config", java.io.File(dir, "aether.toml").absolutePath,
                 "--wg-config", java.io.File(dir, "aether.toml").absolutePath,
@@ -873,7 +878,8 @@ class ZedVpnService : VpnService() {
             // 120s, aborting early if the process dies or the user stops.
             if (!waitForAetherReady(AETHER_READY_TIMEOUT_MS)) {
                 if (userStop) return@launch
-                Log.w(TAG, "Aether SOCKS on 127.0.0.1:${AetherBinary.SOCKS_PORT} never became ready")
+                val exit = runCatching { process.exitValue() }.getOrNull()
+                Log.w(TAG, "Aether SOCKS on 127.0.0.1:${AetherBinary.SOCKS_PORT} never became ready; alive=${process.isAlive} exit=$exit; log tail:\n${AetherBinary.logTail(dir)}")
                 VpnManager.onError(getString(R.string.engine_failed_tunnel))
                 stopEverything(); return@launch
             }
@@ -934,7 +940,9 @@ class ZedVpnService : VpnService() {
                 // nothing to restart.
                 if (!connected) return@launch
                 if (restarts >= AETHER_MAX_RESTARTS) {
-                    Log.w(TAG, "Aether exited unexpectedly; $AETHER_MAX_RESTARTS restarts exhausted")
+                    val exit = runCatching { proc.exitValue() }.getOrNull()
+                    val tail = aetherWorkDir?.let { AetherBinary.logTail(it) }.orEmpty()
+                    Log.w(TAG, "Aether exited unexpectedly; $AETHER_MAX_RESTARTS restarts exhausted; last exit=$exit; log tail:\n$tail")
                     VpnManager.onError(getString(R.string.engine_failed_tunnel))
                     stopEverything(); return@launch
                 }
