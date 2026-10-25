@@ -96,11 +96,12 @@ class ConfigRepository(private val store: KeyValueStore) {
     }
 
     /**
-     * Ships one known-good relay so the SSTP engine works before the user has
-     * typed anything: the VPN Gate mirror with the demo credentials every
-     * VPN Gate client ships with. Added exactly once per install, so removing
-     * it stays removed. Called by the app container, never by the
-     * constructor: tests build a repo and expect it empty.
+     * Seeds one known-good relay when the user taps the preset button: the
+     * VPN Gate mirror with the demo credentials every VPN Gate client ships
+     * with. Added exactly once per install, so removing it stays removed.
+     * Called only by [importPresetSubscriptions], never automatically at
+     * startup and never by the constructor: tests build a repo and expect
+     * it empty.
      */
     fun ensureBundledSstp() {
         if (store.getBoolean(KEY_SSTP_SEEDED, false)) return
@@ -1302,8 +1303,13 @@ class ConfigRepository(private val store: KeyValueStore) {
      * One-tap import of [PresetSubscriptions.URLS]. Re-running refreshes the
      * entries instead of duplicating them, so the button stays safe to tap.
      * Returns how many servers now sit behind those subscriptions.
+     *
+     * This is also the only place the bundled SSTP relay is seeded
+     * ([ensureBundledSstp]): nothing is added automatically at startup any
+     * more — SSTP servers appear only when the user taps this button.
      */
     suspend fun importPresetSubscriptions(names: List<String>): Result<Int> = runCatching {
+        ensureBundledSstp()
         var total = 0
         var failures = 0
         PresetSubscriptions.URLS.forEachIndexed { index, url ->
