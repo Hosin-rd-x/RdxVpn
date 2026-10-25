@@ -1024,6 +1024,10 @@
     <string name="logs_copy">Copy logs</string>
     <string name="logs_share">Share logs</string>
     <string name="logs_clear">Clear logs</string>
+    <string name="logs_upload">Upload logs</string>
+    <string name="logs_upload_failed">Log upload failed</string>
+    <string name="logs_upload_hint">Log uploaded! Send this code to Jasim:</string>
+    <string name="logs_copy_code">Copy code</string>
     <string name="openconnect_edit_title">Edit OpenConnect</string>
     <string name="openconnect_scope_note">Routing rules, geo blocking, policy groups, proxy chains and LAN bypass do not apply to OpenConnect — the gateway controls the routes.</string>
     <string name="openconnect_sni">TLS SNI (optional)</string>

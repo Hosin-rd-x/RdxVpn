@@ -1017,6 +1017,10 @@
     <string name="logs_copy">کپی لاگ‌ها</string>
     <string name="logs_share">اشتراک لاگ‌ها</string>
     <string name="logs_clear">پاک کردن لاگ‌ها</string>
+    <string name="logs_upload">آپلود لاگ‌ها</string>
+    <string name="logs_upload_failed">آپلود لاگ ناموفق بود</string>
+    <string name="logs_upload_hint">لاگ آپلود شد! این کد رو به جاسم بده:</string>
+    <string name="logs_copy_code">کپی کد</string>
     <string name="openconnect_edit_title">ویرایش OpenConnect</string>
     <string name="openconnect_scope_note">قوانین مسیریابی، مسدودسازی جغرافیایی، گروه‌های سیاست، زنجیره پروکسی و عبور از شبکه محلی روی OpenConnect اثر ندارند — مسیرها را خودِ گیت‌وی تعیین می‌کند.</string>
     <string name="openconnect_sni">SNI مربوط به TLS (اختیاری)</string>

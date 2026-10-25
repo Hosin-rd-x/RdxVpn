@@ -63,7 +63,9 @@ private enum class LogCategory(val tags: Set<String>) {
         "HevTunCore", "SocksShim", "SpeedTest",
     )),
     Xray(setOf("GoLog", "Go", "XrayController", "Libv2ray", "v2ray", "LibXray", "CoreProbe")),
-    Tor(setOf("Tor", "TorController", "Snowflake", "Obfs4", "Conjure")),
+    Aether(setOf("TunnelReadiness", "AetherAutoConfig", "AetherBinary", "AetherSheet")),
+    Foxy(setOf("FoxyVpnService", "FoxyConfig", "ControlPlaneHttp", "FxaAuthRepository", "ServerListClient", "LocalSocks5Server", "Socks5UdpDnsRelay")),
+    Sstp(setOf("SstpBridge", "SstpTraffic")),
     Dns(setOf("DnsTunnel", "DnsProbe", "DnsScanner", "DnsTunnelController", "Dnstt", "VayDns")),
     MasterDns(setOf("MasterDns", "MasterDnsController", "masterdns")),
     Psiphon(setOf("Psiphon")),
@@ -72,8 +74,10 @@ private enum class LogCategory(val tags: Set<String>) {
 
 private fun categoriesFor(kind: String?): Set<LogCategory> = when (kind) {
     VpnManager.KIND_XRAY, VpnManager.KIND_SNISPOOF -> setOf(LogCategory.Xray)
+    VpnManager.KIND_AETHER -> setOf(LogCategory.Aether)
+    VpnManager.KIND_FOXY -> setOf(LogCategory.Foxy)
+    VpnManager.KIND_SSTP -> setOf(LogCategory.Sstp)
     VpnManager.KIND_PSIPHON -> setOf(LogCategory.Psiphon)
-    VpnManager.KIND_TOR -> setOf(LogCategory.Tor)
     VpnManager.KIND_DNS_TUNNEL -> setOf(LogCategory.Dns)
     VpnManager.KIND_MASTERDNS -> setOf(LogCategory.MasterDns)
     VpnManager.KIND_SSH -> setOf(LogCategory.Ssh, LogCategory.Xray)
@@ -110,7 +114,9 @@ private fun levelLabel(level: LogLevel): String = when (level) {
 private fun categoryLabel(category: LogCategory): String = when (category) {
     LogCategory.App -> stringResource(Res.string.logs_source_app)
     LogCategory.Xray -> "Xray"
-    LogCategory.Tor -> "Tor"
+    LogCategory.Aether -> "Aether"
+    LogCategory.Foxy -> "Foxy"
+    LogCategory.Sstp -> "SSTP"
     LogCategory.Dns -> "DNS"
     LogCategory.MasterDns -> "MasterDNS"
     LogCategory.Psiphon -> "Psiphon"
@@ -121,6 +127,7 @@ private fun categoryLabel(category: LogCategory): String = when (category) {
 fun LogSheet(onDismiss: () -> Unit) {
     val platform = LocalPlatform.current
     val logsCopied = stringResource(Res.string.logs_copied)
+    val logsUploadFailed = stringResource(Res.string.logs_upload_failed)
     val allLines by LogBus.lines.collectAsStateWithLifecycle()
 
     DisposableEffect(Unit) {
@@ -135,6 +142,8 @@ fun LogSheet(onDismiss: () -> Unit) {
     var showAll by remember { mutableStateOf(false) }
     var level by remember { mutableStateOf(LogLevel.All) }
     var query by remember { mutableStateOf("") }
+    var uploading by remember { mutableStateOf(false) }
+    var uploadCode by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(activeKind) { showAll = activeKind == null; picked = null }
 
@@ -196,8 +205,39 @@ fun LogSheet(onDismiss: () -> Unit) {
                 FilledTonalButton(onClick = { platform.shareText(lines.joinToString("\n") { it.raw }) }) {
                     Icon(painterResource(Res.drawable.ic_ios_share), stringResource(Res.string.logs_share), Modifier.height(18.dp))
                 }
+                if (platform.supportsLogUpload) {
+                    FilledTonalButton(enabled = !uploading, onClick = {
+                        uploading = true
+                        uploadCode = null
+                        scope.launch {
+                            val code = platform.uploadLog(lines.joinToString("\n") { it.raw })
+                            uploading = false
+                            if (code != null) uploadCode = code else platform.toast(logsUploadFailed)
+                        }
+                    }) {
+                        Icon(painterResource(Res.drawable.ic_upload), stringResource(Res.string.logs_upload), Modifier.height(18.dp))
+                    }
+                }
                 FilledTonalButton(onClick = { LogBus.clear() }) {
                     Icon(painterResource(Res.drawable.ic_delete), stringResource(Res.string.logs_clear), Modifier.height(18.dp))
+                }
+            }
+
+            if (uploadCode != null) {
+                Column(Modifier.fillMaxWidth().padding(bottom = 8.dp)) {
+                    Text(stringResource(Res.string.logs_upload_hint))
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        Text(uploadCode!!, fontWeight = FontWeight.Bold)
+                        FilledTonalButton(onClick = {
+                            platform.copyToClipboard(uploadCode!!)
+                            platform.toast(logsCopied)
+                        }) {
+                            Icon(painterResource(Res.drawable.ic_content_paste), stringResource(Res.string.logs_copy_code), Modifier.height(18.dp))
+                        }
+                    }
                 }
             }
 

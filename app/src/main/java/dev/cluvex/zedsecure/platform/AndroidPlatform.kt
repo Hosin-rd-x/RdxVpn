@@ -20,10 +20,14 @@ import dev.cluvex.zedsecure.data.update.PlayStore
 import dev.cluvex.zedsecure.data.assets.GeoAssetsRepository
 import dev.cluvex.zedsecure.ui.platform.FilePick
 import dev.cluvex.zedsecure.ui.platform.InstalledApp
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import dev.cluvex.zedsecure.ui.platform.Platform
 import java.io.ByteArrayOutputStream
+
+/** Log-upload codes avoid confusing characters (no 0/O/1/l). */
+private const val LOG_CODE_CHARS = "abcdefghjkmnpqrstuvwxyz23456789"
 
 class AndroidPlatform(
     private val context: Context,
@@ -178,6 +182,27 @@ class AndroidPlatform(
         val chooser = Intent.createChooser(intent, null).apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
         runCatching { context.startActivity(chooser) }
             .onFailure { ZsxSharing.shareText(context, "zedsecure-export.txt", text) }
+    }
+
+    override val supportsLogUpload: Boolean get() = true
+
+    override suspend fun uploadLog(text: String): String? = withContext(Dispatchers.IO) {
+        runCatching {
+            val code = buildString { repeat(8) { append(LOG_CODE_CHARS.random()) } }
+            val conn = java.net.URL("https://logs.hosinrdx.ir/put/$code").openConnection()
+                as java.net.HttpURLConnection
+            try {
+                conn.requestMethod = "POST"
+                conn.doOutput = true
+                conn.setRequestProperty("Content-Type", "text/plain; charset=utf-8")
+                conn.connectTimeout = 15_000
+                conn.readTimeout = 30_000
+                conn.outputStream.use { it.write(text.toByteArray(Charsets.UTF_8)) }
+                if (conn.responseCode == 200) code else null
+            } finally {
+                conn.disconnect()
+            }
+        }.getOrNull()
     }
 
     override fun openUri(url: String) {
