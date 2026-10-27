@@ -846,16 +846,22 @@ class ZedVpnService : VpnService() {
             // (+ its value), drop any --no-quick-reconnect, pin the
             // probe's verified gateway with --peer when one was
             // captured (a fixed --peer the profile already carried,
-            // cdn_worker_ff's, is kept when nothing was pinned), and
-            // always --quick-reconnect to reuse that gateway. The
-            // probe itself still scans fresh — its path is untouched —
-            // and it runs in this same work dir, so identities resolve
-            // there without explicit config flags (profile.args carries
-            // neither --bind nor any config-path flag).
+            // cdn_worker_ff's or an imported link's, is kept when
+            // nothing was pinned), and always --quick-reconnect to
+            // reuse that gateway. The probe itself still scans fresh
+            // — its path is untouched — and it runs in this same work
+            // dir, so identities resolve there without explicit config
+            // flags (profile.args carries neither --bind nor any
+            // config-path flag).
             // socksPort is the planner-supplied port (LocalPorts
             // .AETHER_SOCKS); the bind and the bridge below use
             // AetherBinary.SOCKS_PORT, the same 1819, so a stale intent
-            // cannot split the bind from the bridge.
+            // cannot split the bind from the bridge — except for a
+            // Psiphon-chained profile (an imported aether:// link with
+            // --psiphon): there the app must dial the Psiphon listener
+            // on 1819, so the tunnel itself binds 1820 and Psiphon is
+            // told to listen on 1819. Readiness, the bridge and
+            // activeSocksPort stay on 1819 in both cases.
             val connectArgs = buildList {
                 var i = 0
                 while (i < profile.args.size) {
@@ -876,9 +882,16 @@ class ZedVpnService : VpnService() {
                 }
                 add("--quick-reconnect")
             }
+            val chained = profile.args.contains("--psiphon")
+            val tunnelPort =
+                if (chained) AetherBinary.SOCKS_PORT + 1 else AetherBinary.SOCKS_PORT
             val fullArgs = connectArgs + listOf(
-                "--bind", "127.0.0.1:${AetherBinary.SOCKS_PORT}",
-            )
+                "--bind", "127.0.0.1:$tunnelPort",
+            ) + if (chained && "--psiphon-bind" !in connectArgs) {
+                listOf("--psiphon-bind", "127.0.0.1:${AetherBinary.SOCKS_PORT}")
+            } else {
+                emptyList()
+            }
             val process = try {
                 AetherBinary.start(this@ZedVpnService, fullArgs, dir)
             } catch (e: Exception) {

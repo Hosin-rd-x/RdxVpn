@@ -13,6 +13,7 @@ import dev.cluvex.zedsecure.crypto.ZsxCrypto
 import dev.cluvex.zedsecure.crypto.ZsxExpiredException
 import dev.cluvex.zedsecure.crypto.ZsxMetadata
 import dev.cluvex.zedsecure.crypto.ZsxSealRequest
+import dev.cluvex.zedsecure.domain.config.AetherLink
 import dev.cluvex.zedsecure.domain.config.AmneziaLink
 import dev.cluvex.zedsecure.domain.config.AutoMember
 import dev.cluvex.zedsecure.domain.config.AutoSelectBuild
@@ -154,6 +155,20 @@ class ConfigRepository(private val store: KeyValueStore) {
             return@runCatching 1
         }
 
+        // One pasted aether:// link: strict parse so a bad link fails
+        // loudly instead of vanishing. Multi-line pastes fall through
+        // to the link loop below, which handles aether:// lines too.
+        if (AetherLink.isAetherLink(trimmed) && '\n' !in trimmed && '\r' !in trimmed) {
+            val parsed = runCatching { AetherLink.parse(trimmed) }.getOrNull()
+                ?: throw IllegalArgumentException("invalid aether:// link")
+            if (hasAetherDuplicate(parsed.profile, subscriptionId)) {
+                lastImportDuplicates = 1
+                return@runCatching 0
+            }
+            addAether(parsed.profile, parsed.name)
+            return@runCatching 1
+        }
+
         if (SsdLink.isSsdLink(trimmed)) {
             val links = SsdLink.parse(trimmed)
             require(links.isNotEmpty()) { "no servers in this ssd:// subscription" }
@@ -261,6 +276,14 @@ class ConfigRepository(private val store: KeyValueStore) {
                         addedAt = currentTimeMillis(),
                         subscriptionId = subscriptionId,
                     )
+                } else if (AetherLink.isAetherLink(link)) {
+                    val parsed = AetherLink.parse(link)
+                    VpnProfile.fromAether(
+                        settings = parsed.profile,
+                        id = newId(),
+                        addedAt = currentTimeMillis(),
+                        name = parsed.name,
+                    ).copy(subscriptionId = subscriptionId)
                 } else {
                     VpnProfile.fromLink(
                         link = link,
@@ -270,8 +293,13 @@ class ConfigRepository(private val store: KeyValueStore) {
                     )
                 }
             }.onSuccess { profile ->
+                // Aether profiles carry no raw payload, so they dedup on
+                // their session arguments instead of the link text.
                 val duplicate = (current + fresh).any {
-                    it.rawPayload() == link && it.subscriptionId == subscriptionId
+                    it.subscriptionId == subscriptionId &&
+                        (it.rawPayload() == link ||
+                            (profile.aetherSettings() != null &&
+                                it.aetherSettings()?.args == profile.aetherSettings()?.args))
                 }
                 if (duplicate) duplicates++ else fresh += profile
             }
@@ -615,6 +643,14 @@ class ConfigRepository(private val store: KeyValueStore) {
         persistProfiles()
         if (_activeId.value == null) setActive(profile.id)
         return profile
+    }
+
+    /** True when an Aether profile with the same session arguments already exists. */
+    private fun hasAetherDuplicate(
+        profile: dev.cluvex.zedsecure.domain.config.AetherProfile,
+        subscriptionId: String,
+    ): Boolean = _profiles.value.any {
+        it.subscriptionId == subscriptionId && it.aetherSettings()?.args == profile.args
     }
 
     fun addProxyChain(memberIds: List<String>, name: String, id: String? = null): VpnProfile {
