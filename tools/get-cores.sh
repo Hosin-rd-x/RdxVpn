@@ -75,7 +75,10 @@ case "$TARGET" in
     # (error=13, Permission denied, seen on device 2026-10-25), while a
     # file shipped as a native library is extracted to the app's lib
     # folder, where execution is allowed. It is never loaded as a JNI
-    # library, only started as a subprocess. It is fetched at build time
+    # library, only started as a subprocess. The tarball also holds
+    # pt/psiphon-tunnel-core, the console client a chained profile makes
+    # the core start as its own program; it ships the same way, as
+    # libpsiphon-tunnel-core.so. Both are fetched at build time
     # like every other core and never committed.
     rm -rf "$ROOT/app/src/main/assets/aether"
     for abi in arm64-v8a armeabi-v7a x86_64; do
@@ -87,9 +90,10 @@ case "$TARGET" in
       mkdir -p "$jni/$abi"
       rm -rf "$CACHE/aether-$abi"
       mkdir -p "$CACHE/aether-$abi"
-      tar -xzf "$(fetch aether "$asset")" -C "$CACHE/aether-$abi" aether
+      tar -xzf "$(fetch aether "$asset")" -C "$CACHE/aether-$abi" aether pt/psiphon-tunnel-core
       cp "$CACHE/aether-$abi/aether" "$jni/$abi/libaether.so"
-      chmod +x "$jni/$abi/libaether.so"
+      cp "$CACHE/aether-$abi/pt/psiphon-tunnel-core" "$jni/$abi/libpsiphon-tunnel-core.so"
+      chmod +x "$jni/$abi/libaether.so" "$jni/$abi/libpsiphon-tunnel-core.so"
     done
     ;;
   linux)

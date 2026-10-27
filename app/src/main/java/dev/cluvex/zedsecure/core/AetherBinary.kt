@@ -19,6 +19,9 @@ import java.util.concurrent.TimeUnit
  * shipped as a native library may be executed from the lib folder. The
  * binary is never loaded as a JNI library, only started as a subprocess.
  * See AETHER-NOTICE.md for the licensing consequence of bundling it.
+ * Chained profiles also need the Psiphon console client beside it
+ * (libpsiphon-tunnel-core.so, from the same release tarball); the core
+ * is pointed at it with AETHER_PSIPHON_BIN when it is present.
  */
 object AetherBinary {
 
@@ -27,6 +30,10 @@ object AetherBinary {
     /** Path of the binary in the app's native library folder. */
     fun binaryFile(context: Context): File =
         File(context.applicationInfo.nativeLibraryDir, "libaether.so")
+
+    /** Path of the Psiphon console client in the app's native library folder, when shipped. */
+    fun psiphonBinaryFile(context: Context): File =
+        File(context.applicationInfo.nativeLibraryDir, "libpsiphon-tunnel-core.so")
 
     /**
      * Returns the Aether binary from the app's native library folder.
@@ -78,11 +85,20 @@ object AetherBinary {
         val binary = ensureInstalled(context).getOrThrow()
         workDir.mkdirs()
         val log = File(workDir, "aether.log")
-        return ProcessBuilder(listOf(binary.absolutePath) + args)
+        val builder = ProcessBuilder(listOf(binary.absolutePath) + args)
             .directory(workDir)
             .redirectErrorStream(true)
             .redirectOutput(ProcessBuilder.Redirect.to(log))
-            .start()
+        // Chained profiles (--psiphon) make the core start the Psiphon
+        // console client as a program of its own; it looks for it in
+        // AETHER_PSIPHON_BIN first. The client ships beside the core as
+        // libpsiphon-tunnel-core.so (tools/get-cores.sh); without it the
+        // core dies at startup (seen on device 2026-10-27, exit=1).
+        val psiphon = psiphonBinaryFile(context)
+        if (psiphon.exists() && psiphon.canExecute()) {
+            builder.environment()["AETHER_PSIPHON_BIN"] = psiphon.absolutePath
+        }
+        return builder.start()
     }
 
     /** Stops [process]: destroy, wait up to 3 seconds, then force-kill. */
