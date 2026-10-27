@@ -1207,7 +1207,7 @@ class ConfigRepository(private val store: KeyValueStore) {
     fun invalidCount(): Int = _profiles.value.count { !keepAsValid(it) }
 
     private fun keepAsValid(profile: VpnProfile): Boolean {
-        if (profile.isLocked || profile.isManagedTunnel || profile.isProxyChain || profile.isFoxy) return true
+        if (profile.isLocked || profile.isManagedTunnel || profile.isProxyChain || profile.isFoxy || profile.isAether) return true
 
         if (!profile.isCustom && !profile.isSingBoxConfig &&
             (profile.address.isBlank() || profile.address == "-" || profile.port <= 0)

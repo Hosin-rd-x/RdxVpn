@@ -136,6 +136,7 @@ data class VpnProfile(
     val isSingBoxConfig: Boolean get() = source is ProfileSource.SingBoxConfig
     val isFoxy: Boolean get() = source is ProfileSource.Foxy
     val isSstp: Boolean get() = source is ProfileSource.Sstp
+    val isAether: Boolean get() = source is ProfileSource.Aether
 
     fun autoSelectSettings(): ProfileSource.AutoSelect? = source as? ProfileSource.AutoSelect
 
