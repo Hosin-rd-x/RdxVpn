@@ -34,7 +34,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.cluvex.zedsecure.core.VpnManager
 import dev.cluvex.zedsecure.data.config.ConfigRepository
 import dev.cluvex.zedsecure.data.config.PresetSubscriptions
-import dev.cluvex.zedsecure.data.config.VpnProfile
+import dev.cluvex.zedsecure.domain.config.VpnProfile
 import dev.cluvex.zedsecure.data.net.NetworkInfoRepository
 import dev.cluvex.zedsecure.data.net.PingService
 import dev.cluvex.zedsecure.domain.model.ConnectionState
