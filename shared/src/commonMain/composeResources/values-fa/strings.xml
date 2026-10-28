@@ -1488,4 +1488,24 @@
     <string name="ip_health_asn">ASN</string>
     <string name="ip_health_org">ارائه‌دهنده</string>
     <string name="ip_health_blocklist">بلاک‌لیست‌ها</string>
+    <string name="nav_tester">تستر</string>
+    <string name="tester_title">تستر کانفیگ</string>
+    <string name="tester_desc">همه کانفیگ‌های RDX - CF را با اینترنت همین گوشی تست می‌کند، هر بار یک اپراتور. گوشی هر کانفیگ را امتحان می‌کند، وصل شدنش را ثبت می‌کند و گزارش را می‌فرستد. پیش از تست، وی‌پی‌ان را قطع کن.</string>
+    <string name="tester_refresh">به‌روزرسانی لیست RDX - CF</string>
+    <string name="tester_importing">در حال به‌روزرسانی…</string>
+    <string name="tester_count">%1$d کانفیگ در لیست</string>
+    <string name="tester_empty">هنوز کانفیگی نیست. اول لیست را به‌روز کن.</string>
+    <string name="tester_run_mci">تست با همراه اول</string>
+    <string name="tester_run_irancell">تست با ایرانسل</string>
+    <string name="tester_cancel">لغو</string>
+    <string name="tester_running">در حال تست… %1$d از %2$d</string>
+    <string name="tester_live_counts">وصل شد: %1$d · وصل نشد: %2$d</string>
+    <string name="tester_done">تمام شد: %1$d از %2$d روی %3$s وصل شدند</string>
+    <string name="tester_uploading">در حال فرستادن گزارش…</string>
+    <string name="tester_code_hint">این کد را برای جاسم بفرست تا نتیجه کامل را بخواند:</string>
+    <string name="tester_copy_code">کپی کد</string>
+    <string name="tester_upload_failed">فرستادن گزارش نشد. اتصال را بررسی کن و دوباره بزن.</string>
+    <string name="tester_retry_upload">تلاش دوباره برای فرستادن</string>
+    <string name="tester_disconnect_first">اول وی‌پی‌ان را قطع کن. تست موقع وصل بودن، تونل فعال را می‌سنجد نه اینترنت خودت.</string>
+    <string name="tester_carrier">اپراتور: %1$s</string>
 </resources>

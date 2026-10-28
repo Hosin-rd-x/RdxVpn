@@ -1495,4 +1495,24 @@
     <string name="ip_health_asn">ASN</string>
     <string name="ip_health_org">Provider</string>
     <string name="ip_health_blocklist">Blocklists</string>
+    <string name="nav_tester">Tester</string>
+    <string name="tester_title">Config tester</string>
+    <string name="tester_desc">Test every RDX - CF config on this phone's own internet, one carrier at a time. The phone tries each config, records whether it connects, and uploads the report. Disconnect the VPN before a run.</string>
+    <string name="tester_refresh">Refresh RDX - CF list</string>
+    <string name="tester_importing">Refreshing…</string>
+    <string name="tester_count">%1$d configs in the list</string>
+    <string name="tester_empty">No configs yet. Refresh the list first.</string>
+    <string name="tester_run_mci">Test on MCI</string>
+    <string name="tester_run_irancell">Test on Irancell</string>
+    <string name="tester_cancel">Cancel</string>
+    <string name="tester_running">Testing… %1$d of %2$d</string>
+    <string name="tester_live_counts">Connected: %1$d · Failed: %2$d</string>
+    <string name="tester_done">Done: %1$d of %2$d connected on %3$s</string>
+    <string name="tester_uploading">Uploading report…</string>
+    <string name="tester_code_hint">Send this code to Jasim so he can read the full results:</string>
+    <string name="tester_copy_code">Copy code</string>
+    <string name="tester_upload_failed">Report upload failed. Check the connection and try again.</string>
+    <string name="tester_retry_upload">Retry upload</string>
+    <string name="tester_disconnect_first">Disconnect the VPN first. A run while connected would measure the active tunnel, not your carrier.</string>
+    <string name="tester_carrier">Carrier: %1$s</string>
 </resources>

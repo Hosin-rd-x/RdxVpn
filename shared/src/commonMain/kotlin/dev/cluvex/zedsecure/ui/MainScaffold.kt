@@ -254,6 +254,13 @@ fun MainScaffold(
                         onActiveServerChanged()
                     },
                 )
+                TopDestination.Tester -> dev.cluvex.zedsecure.ui.tester.TesterScreen(
+                    repository = configRepository,
+                    contentPadding = innerPadding,
+                    delayTestUrl = settings.delayTestUrl,
+                    realPingConcurrency = settings.realPingConcurrency,
+                    appVersion = appVersion,
+                )
                 TopDestination.Settings -> SettingsScreen(
                     settings = settings,
                     contentPadding = innerPadding,

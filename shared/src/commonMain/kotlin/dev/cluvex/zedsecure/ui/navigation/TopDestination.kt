@@ -4,9 +4,11 @@ import dev.cluvex.zedsecure.shared.resources.Res
 import dev.cluvex.zedsecure.shared.resources.ic_dns
 import dev.cluvex.zedsecure.shared.resources.ic_home
 import dev.cluvex.zedsecure.shared.resources.ic_settings
+import dev.cluvex.zedsecure.shared.resources.ic_speed
 import dev.cluvex.zedsecure.shared.resources.nav_home
 import dev.cluvex.zedsecure.shared.resources.nav_servers
 import dev.cluvex.zedsecure.shared.resources.nav_settings
+import dev.cluvex.zedsecure.shared.resources.nav_tester
 import org.jetbrains.compose.resources.DrawableResource
 import org.jetbrains.compose.resources.StringResource
 
@@ -16,5 +18,6 @@ enum class TopDestination(
 ) {
     Home(Res.string.nav_home, Res.drawable.ic_home),
     Servers(Res.string.nav_servers, Res.drawable.ic_dns),
+    Tester(Res.string.nav_tester, Res.drawable.ic_speed),
     Settings(Res.string.nav_settings, Res.drawable.ic_settings),
 }

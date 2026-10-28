@@ -33,6 +33,13 @@ interface Platform {
     fun copyToClipboard(text: String)
     fun readClipboard(): String?
     fun shareText(text: String)
+
+    /** Whether this platform can upload text to the user's own receiver. */
+    val supportsLogUpload: Boolean get() = false
+
+    /** Uploads [text] and returns the code to share, or null on failure. */
+    suspend fun uploadLog(text: String): String? = null
+
     fun openUri(url: String)
 
     fun toast(message: String)

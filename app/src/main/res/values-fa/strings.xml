@@ -658,7 +658,7 @@
     <string name="snispoof_no_ack">سرور لبه بستهٔ جعلی را تأیید نکرد و همهٔ اتصال‌ها ریست شدند. این شبکه یا این IP تمیز اجازهٔ این روش را نمی‌دهد — یک IP تمیز دیگر را امتحان کن.</string>
     <string name="qr_scan_hint">دوربین را روی کد QR بگیرید</string>
     <string name="qr_scan_chunk_progress">بخش %1$d از %2$d — برای بقیه ثابت نگه دارید</string>
-    <string name="tile_label">Rdx VPN</string>
+    <string name="tile_label">Rdx VPN Tester</string>
     <string name="switch_server_timeout">تعویض سرور انجام نشد — اتصال قبلی قطع نشد.</string>
     <string name="engine_failed_with_reason">%1$s: %2$s</string>
     <string name="engine_failed_ssh">اتصال SSH ناموفق بود</string>
