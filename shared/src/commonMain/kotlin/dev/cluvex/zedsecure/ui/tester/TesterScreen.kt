@@ -188,6 +188,28 @@ fun TesterScreen(
                 ) { id, ms, _ ->
                     resultsFlow.update { it + (id to (ms ?: PingService.FAILED_PING)) }
                 }
+                // Stage 2: every stage-1 survivor must also survive several
+                // spaced re-probes, or it is marked failed. A single quick
+                // probe passes on carriers that drop sustained connections
+                // after a few packets, while real use dies.
+                val survivors = snapshot.filter {
+                    (resultsFlow.value[it.id] ?: PingService.FAILED_PING) > 0
+                }
+                if (survivors.isNotEmpty()) {
+                    done = 0
+                    total = survivors.size
+                    PingService.verifySustained(
+                        survivors,
+                        delayUrl = delayTestUrl,
+                        chainConfig = repository::chainProbeConfig,
+                        onProgress = { d, t ->
+                            done = d
+                            total = t
+                        },
+                    ) { id, ms ->
+                        resultsFlow.update { it + (id to (ms ?: PingService.FAILED_PING)) }
+                    }
+                }
             } catch (e: CancellationException) {
                 running = false
                 runJob = null

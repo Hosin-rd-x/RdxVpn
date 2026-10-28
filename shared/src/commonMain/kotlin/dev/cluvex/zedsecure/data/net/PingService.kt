@@ -14,6 +14,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Semaphore
@@ -39,6 +40,12 @@ object PingService {
     private const val REQUEST_PROBE_TIMEOUT_MS = 8_000
 
     private const val CUSTOM_PROBE_CONCURRENCY = 8
+
+    // Stage 2 of the config tester (see verifySustained): how many spaced
+    // re-probes each stage-1 survivor must pass, and the gap between them.
+    private const val SUSTAINED_PROBES = 3
+
+    private const val SUSTAINED_GAP_MS = 3_000L
 
     private val geoScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
@@ -155,6 +162,54 @@ object PingService {
                         if (country != null) onResult(profile.id, latency, country)
                     }
                 }
+            }
+        }.joinAll()
+    }
+
+    /**
+     * Stage 2 of the config tester: re-probe every stage-1 survivor several
+     * times, spaced apart, through the same single-shot probe path
+     * ([measureProfile]). A config stays ok only if EVERY spaced probe
+     * succeeds. One quick request can pass on carriers that drop sustained
+     * connections after a few packets (MCI vs Cloudflare CDN/WS), while
+     * real use dies — the spaced re-probes approximate holding the
+     * connection. Reports the last probe's ms, or [FAILED_PING].
+     * Cancellation propagates (delays are cancellable).
+     */
+    suspend fun verifySustained(
+        profiles: List<VpnProfile>,
+        delayUrl: String = NetworkInfoRepository.DELAY_TEST_URL,
+        chainConfig: (VpnProfile) -> String? = { null },
+        extraProbes: Int = SUSTAINED_PROBES,
+        gapMs: Long = SUSTAINED_GAP_MS,
+        concurrency: Int = REAL_PING_CONCURRENCY,
+        onProgress: (done: Int, total: Int) -> Unit = { _, _ -> },
+        onResult: (id: String, ms: Int?) -> Unit,
+    ) = withContext(Dispatchers.IO) {
+        val url = delayUrl.ifBlank { NetworkInfoRepository.DELAY_TEST_URL }
+        val permits = Semaphore(concurrency.takeIf { it in 1..128 } ?: REAL_PING_CONCURRENCY)
+        val total = profiles.size
+        var done = 0
+        val doneLock = Semaphore(1)
+        onProgress(0, total)
+        profiles.map { profile ->
+            launch(Dispatchers.IO) {
+                var lastMs = -1L
+                var passed = true
+                for (attempt in 0 until extraProbes) {
+                    if (attempt > 0) delay(gapMs)
+                    val ms = permits.withPermit { measureProfile(profile, url, chainConfig) }
+                    if (ms > 0) {
+                        lastMs = ms
+                    } else {
+                        // measureProfile already retried once internally, so one
+                        // failed spaced probe disqualifies the config.
+                        passed = false
+                        break
+                    }
+                }
+                onResult(profile.id, if (passed) lastMs.toInt() else FAILED_PING)
+                doneLock.withPermit { onProgress(++done, total) }
             }
         }.joinAll()
     }
