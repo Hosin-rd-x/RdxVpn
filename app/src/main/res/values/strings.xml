@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">Rdx VPN Aether</string>
+    <string name="app_name">Rdx VPN</string>
     <string name="brand_tagline">Private. Fast. Yours.</string>
 
     <string name="nav_home">Home</string>
@@ -670,7 +670,7 @@
     <string name="snispoof_no_ack">The edge never acknowledged the fake packet, so every connection was reset. This network or this clean IP does not allow the spoof — try a different clean IP.</string>
     <string name="qr_scan_hint">Point the camera at a QR code</string>
     <string name="qr_scan_chunk_progress">Part %1$d of %2$d — hold still for the rest</string>
-    <string name="tile_label">Rdx VPN Aether</string>
+    <string name="tile_label">Rdx VPN</string>
     <string name="switch_server_timeout">Could not switch server — the previous connection did not stop.</string>
     <string name="engine_failed_with_reason">%1$s: %2$s</string>
     <string name="engine_failed_ssh">SSH failed to connect</string>

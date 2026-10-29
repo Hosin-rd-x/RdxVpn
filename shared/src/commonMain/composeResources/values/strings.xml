@@ -50,11 +50,13 @@
     <string name="subs_title">Subscriptions</string>
     <string name="subs_add">Add subscription</string>
     <string name="preset_add">RDX - CF</string>
+    <string name="server_preset_add">RDX - SERVER</string>
     <string name="add_group_rdx">Rdx connection methods</string>
     <string name="sub_auto_name">Subscription link %1$d</string>
     <string name="update_pending_title">A new update is available</string>
     <string name="notif_channel_foxy">Rdx VPN · Firefox tunnel</string>
     <string name="preset_sub_name_1">RDX - CF</string>
+    <string name="server_sub_name">RDX - SERVER</string>
     <string name="preset_sub_name_2">Auto config 2</string>
     <string name="preset_updated">Cloudflare configs updated</string>
     <string name="subs_add_and_fetch">Add and fetch</string>

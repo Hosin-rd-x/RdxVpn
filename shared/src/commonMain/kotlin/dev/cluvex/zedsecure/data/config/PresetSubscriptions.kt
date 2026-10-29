@@ -9,10 +9,20 @@ package dev.cluvex.zedsecure.data.config
  * One URL only: every config (share links + converted xray JSON + pinned
  * BlueKnight) is merged server-side into sub.txt, so the button creates a
  * single subscription instead of a cluttered list.
+ *
+ * The RDX - SERVER list ([SERVER_URLS]) follows the same pattern with a
+ * separate file on Hossein's own server, refreshed by its own button in
+ * the add sheet. Its contents are remotely editable without an app update,
+ * exactly like the Cloudflare list.
  */
 object PresetSubscriptions {
     val URLS = listOf(
         "https://gist.githubusercontent.com/Hosin-rd-x/25cb91654c5bd19d4d23134dd2ba4c24/raw/sub.txt",
+    )
+
+    /** Hossein's own-server configs ("RDX - SERVER"): same blob-of-links format. */
+    val SERVER_URLS = listOf(
+        "https://shop.hosinrdx.ir/rdx-server.txt",
     )
 
     /**

@@ -1361,6 +1361,26 @@ class ConfigRepository(private val store: KeyValueStore) {
     }
 
     /**
+     * One-tap import of [PresetSubscriptions.SERVER_URLS] (the "RDX - SERVER"
+     * button). Same refresh-not-duplicate semantics as
+     * [importPresetSubscriptions], but deliberately WITHOUT the bundled SSTP
+     * seeding and WITHOUT the legacy-preset cleanup: those belong to the
+     * Cloudflare preset button only.
+     */
+    suspend fun importServerSubscriptions(names: List<String>): Result<Int> = runCatching {
+        var total = 0
+        var failures = 0
+        PresetSubscriptions.SERVER_URLS.forEachIndexed { index, url ->
+            val name = names.getOrNull(index) ?: url.substringAfterLast('/')
+            importSubscriptionUrl(url, name)
+                .onSuccess { total += it.count }
+                .onFailure { failures++ }
+        }
+        if (failures > 0 && total == 0) throw IllegalArgumentException("server subscription unreachable")
+        total
+    }
+
+    /**
      * Preset subscriptions merged away server-side: their configs now
      * arrive through PresetSubscriptions.URLS, so both the entry and its
      * servers go away. Runs only after a successful refresh of the merged
@@ -1800,9 +1820,14 @@ class ConfigRepository(private val store: KeyValueStore) {
         const val FOXY_GROUP = "Foxy . RDX"
         const val SSTP_GROUP = "SSTP . RDX"
 
-        /** Remote list behind the SSTP tab - servers are added there, not in a release. */
+        /**
+         * Remote list behind the SSTP tab - servers are added there, not in a
+         * release. Hosted on Hossein's own server since the main merge
+         * (previously the ba90aa95 gist; that gist URL is the rollback
+         * pointer if the server file ever goes away).
+         */
         const val BUNDLED_SSTP_URL =
-            "https://gist.githubusercontent.com/Hosin-rd-x/ba90aa95ae8d4e2d95d59c759ec5a2a1/raw/sstp.txt"
+            "https://shop.hosinrdx.ir/sstp.txt"
         private const val BUNDLED_SSTP_LINK = "sstp://Vpn:vpn@public-vpn-156.opengw.net:443"
         private const val KEY_SSTP_SEEDED = "seeded_sstp"
         private const val PREFS = "zed_configs"

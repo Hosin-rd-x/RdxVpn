@@ -381,6 +381,28 @@ fun ServersScreen(
         }
     }
 
+    var serverPresetImporting by remember { mutableStateOf(false) }
+
+    /** One-tap: register Hossein's own-server subscription link, then fetch it. */
+    fun importServerConfigs() {
+        if (serverPresetImporting) return
+        serverPresetImporting = true
+        scope.launch {
+            repository.importServerSubscriptions(
+                listOf(getString(Res.string.server_sub_name)),
+            )
+                .onFailure {
+                    serverPresetImporting = false
+                    toastRes(Res.string.subs_failed)
+                }
+                .onSuccess { added ->
+                    serverPresetImporting = false
+                    if (added > 0) toastRes(Res.string.servers_imported, added)
+                    else toastRes(Res.string.preset_updated)
+                }
+        }
+    }
+
     var showAddSheet by rememberSaveable { mutableStateOf(false) }
 
     // A tour step that lives inside the add sheet: open it for the step, close it after.
@@ -1402,6 +1424,10 @@ fun ServersScreen(
                 showAddSheet = false
                 importPresetConfigs()
             },
+            onServerPreset = {
+                showAddSheet = false
+                importServerConfigs()
+            },
         )
     }
 
@@ -2343,6 +2369,7 @@ private fun AddServerSheet(
     onAether: (() -> Unit)? = null,
     onSubscription: () -> Unit,
     onPreset: () -> Unit,
+    onServerPreset: () -> Unit,
     onFirefox: () -> Unit,
 ) {
     val sheetScroll = rememberScrollState()
@@ -2424,6 +2451,7 @@ private fun AddServerSheet(
                     free = true,
                     modifier = Modifier.tourTargetInPage(dev.cluvex.zedsecure.ui.onboarding.TourTargets.SERVERS_RDX_CF),
                 )
+                Option(Res.drawable.ic_public, Res.string.server_preset_add, onServerPreset, free = true)
                 Option(Res.drawable.ic_sync, Res.string.sstp_online_title, onSstpList, free = true)
                 if (onAether != null) {
                     Option(Res.drawable.ic_bolt, Res.string.aether_add_title, onAether, free = true)
