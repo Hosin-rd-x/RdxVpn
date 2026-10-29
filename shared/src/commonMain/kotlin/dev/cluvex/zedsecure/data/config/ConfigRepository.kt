@@ -323,11 +323,16 @@ class ConfigRepository(private val store: KeyValueStore) {
             }.onSuccess { profile ->
                 // Aether profiles carry no raw payload, so they dedup on
                 // their session arguments instead of the link text.
-                val duplicate = (current + fresh).any {
-                    it.subscriptionId == subscriptionId &&
-                        (it.rawPayload() == link ||
-                            (profile.aetherSettings() != null &&
-                                it.aetherSettings()?.args == profile.aetherSettings()?.args))
+                // The two cases are disjoint: Aether compares args only
+                // between Aether profiles, anything else compares the
+                // raw link text, so a null payload can never stand in
+                // for an argument list.
+                val duplicate = (current + fresh).any { existing ->
+                    existing.subscriptionId == subscriptionId && (
+                        (profile.isAether && existing.isAether &&
+                            existing.aetherSettings()?.args == profile.aetherSettings()?.args) ||
+                        (!profile.isAether && existing.rawPayload() == link)
+                    )
                 }
                 if (duplicate) duplicates++ else fresh += profile
             }

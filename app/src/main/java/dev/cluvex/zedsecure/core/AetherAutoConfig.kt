@@ -486,6 +486,10 @@ object AetherAutoConfig {
         // ports; clear them before checking. Safe here: no session is
         // live (checked above), and the checks below re-verify.
         AetherBinary.killOrphans(context)
+        // killProcess is asynchronous: a dying leftover can still hold
+        // the port for a moment. Settle briefly so the check below sees
+        // the freed port instead of a false "port busy".
+        delay(300)
         val chainedScan = scanArgs.any { it == "--psiphon" || it == "--psiphon-reverse" }
         if (tcpOpen("127.0.0.1", PROBE_PORT, TCP_TIMEOUT_MS) ||
             (chainedScan && tcpOpen("127.0.0.1", PSIPHON_SCAN_PORT, TCP_TIMEOUT_MS))
