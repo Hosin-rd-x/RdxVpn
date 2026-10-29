@@ -33,6 +33,12 @@ interface Platform {
     fun copyToClipboard(text: String)
     fun readClipboard(): String?
     fun shareText(text: String)
+
+    /** Whether this platform can upload logs to the user's own log receiver. */
+    val supportsLogUpload: Boolean get() = false
+
+    /** Uploads [text] and returns the code to share, or null on failure. */
+    suspend fun uploadLog(text: String): String? = null
     fun openUri(url: String)
 
     fun toast(message: String)
@@ -58,6 +64,9 @@ interface Platform {
     val supportsSystemProxy: Boolean get() = false
 
     val supportsSniSpoof: Boolean get() = true
+
+    /** Whether the prebuilt Aether Android binary can run here (API 29+). */
+    val supportsAether: Boolean get() = false
 
     val supportsTun: Boolean get() = true
 

@@ -13,6 +13,7 @@ import dev.cluvex.zedsecure.crypto.ZsxCrypto
 import dev.cluvex.zedsecure.crypto.ZsxExpiredException
 import dev.cluvex.zedsecure.crypto.ZsxMetadata
 import dev.cluvex.zedsecure.crypto.ZsxSealRequest
+import dev.cluvex.zedsecure.domain.config.AetherLink
 import dev.cluvex.zedsecure.domain.config.AmneziaLink
 import dev.cluvex.zedsecure.domain.config.AutoMember
 import dev.cluvex.zedsecure.domain.config.AutoSelectBuild
@@ -96,11 +97,12 @@ class ConfigRepository(private val store: KeyValueStore) {
     }
 
     /**
-     * Ships one known-good relay so the SSTP engine works before the user has
-     * typed anything: the VPN Gate mirror with the demo credentials every
-     * VPN Gate client ships with. Added exactly once per install, so removing
-     * it stays removed. Called by the app container, never by the
-     * constructor: tests build a repo and expect it empty.
+     * Seeds one known-good relay when the user taps the preset button: the
+     * VPN Gate mirror with the demo credentials every VPN Gate client ships
+     * with. Added exactly once per install, so removing it stays removed.
+     * Called only by [importPresetSubscriptions], never automatically at
+     * startup and never by the constructor: tests build a repo and expect
+     * it empty.
      */
     fun ensureBundledSstp() {
         if (store.getBoolean(KEY_SSTP_SEEDED, false)) return
@@ -150,6 +152,20 @@ class ConfigRepository(private val store: KeyValueStore) {
             val (nm, prof) = SniSpoofLink.parse(trimmed)
                 ?: throw IllegalArgumentException("invalid snispoof:// link")
             addSniSpoof(prof, nm)
+            return@runCatching 1
+        }
+
+        // One pasted aether:// link: strict parse so a bad link fails
+        // loudly instead of vanishing. Multi-line pastes fall through
+        // to the link loop below, which handles aether:// lines too.
+        if (AetherLink.isAetherLink(trimmed) && '\n' !in trimmed && '\r' !in trimmed) {
+            val parsed = runCatching { AetherLink.parse(trimmed) }.getOrNull()
+                ?: throw IllegalArgumentException("invalid aether:// link")
+            if (hasAetherDuplicate(parsed.profile, subscriptionId)) {
+                lastImportDuplicates = 1
+                return@runCatching 0
+            }
+            addAether(parsed.profile, parsed.name)
             return@runCatching 1
         }
 
@@ -260,6 +276,14 @@ class ConfigRepository(private val store: KeyValueStore) {
                         addedAt = currentTimeMillis(),
                         subscriptionId = subscriptionId,
                     )
+                } else if (AetherLink.isAetherLink(link)) {
+                    val parsed = AetherLink.parse(link)
+                    VpnProfile.fromAether(
+                        settings = parsed.profile,
+                        id = newId(),
+                        addedAt = currentTimeMillis(),
+                        name = parsed.name,
+                    ).copy(subscriptionId = subscriptionId)
                 } else {
                     VpnProfile.fromLink(
                         link = link,
@@ -269,8 +293,13 @@ class ConfigRepository(private val store: KeyValueStore) {
                     )
                 }
             }.onSuccess { profile ->
+                // Aether profiles carry no raw payload, so they dedup on
+                // their session arguments instead of the link text.
                 val duplicate = (current + fresh).any {
-                    it.rawPayload() == link && it.subscriptionId == subscriptionId
+                    it.subscriptionId == subscriptionId &&
+                        (it.rawPayload() == link ||
+                            (profile.aetherSettings() != null &&
+                                it.aetherSettings()?.args == profile.aetherSettings()?.args))
                 }
                 if (duplicate) duplicates++ else fresh += profile
             }
@@ -592,6 +621,36 @@ class ConfigRepository(private val store: KeyValueStore) {
         persistProfiles()
         if (_activeId.value == null) setActive(profile.id)
         return profile
+    }
+
+    fun addAether(
+        settings: dev.cluvex.zedsecure.domain.config.AetherProfile,
+        name: String,
+        id: String? = null,
+    ): VpnProfile {
+        val existing = id?.let { profile(it) }
+        val profile = VpnProfile.fromAether(
+            settings = settings,
+            id = existing?.id ?: newId(),
+            addedAt = existing?.addedAt ?: currentTimeMillis(),
+            name = name,
+        ).let { carryOver(existing, it) }
+        _profiles.value = if (existing != null) {
+            _profiles.value.map { if (it.id == profile.id) profile else it }
+        } else {
+            listOf(profile) + _profiles.value
+        }
+        persistProfiles()
+        if (_activeId.value == null) setActive(profile.id)
+        return profile
+    }
+
+    /** True when an Aether profile with the same session arguments already exists. */
+    private fun hasAetherDuplicate(
+        profile: dev.cluvex.zedsecure.domain.config.AetherProfile,
+        subscriptionId: String,
+    ): Boolean = _profiles.value.any {
+        it.subscriptionId == subscriptionId && it.aetherSettings()?.args == profile.args
     }
 
     fun addProxyChain(memberIds: List<String>, name: String, id: String? = null): VpnProfile {
@@ -1148,7 +1207,7 @@ class ConfigRepository(private val store: KeyValueStore) {
     fun invalidCount(): Int = _profiles.value.count { !keepAsValid(it) }
 
     private fun keepAsValid(profile: VpnProfile): Boolean {
-        if (profile.isLocked || profile.isManagedTunnel || profile.isProxyChain || profile.isFoxy) return true
+        if (profile.isLocked || profile.isManagedTunnel || profile.isProxyChain || profile.isFoxy || profile.isAether) return true
 
         if (!profile.isCustom && !profile.isSingBoxConfig &&
             (profile.address.isBlank() || profile.address == "-" || profile.port <= 0)
@@ -1280,8 +1339,13 @@ class ConfigRepository(private val store: KeyValueStore) {
      * One-tap import of [PresetSubscriptions.URLS]. Re-running refreshes the
      * entries instead of duplicating them, so the button stays safe to tap.
      * Returns how many servers now sit behind those subscriptions.
+     *
+     * This is also the only place the bundled SSTP relay is seeded
+     * ([ensureBundledSstp]): nothing is added automatically at startup any
+     * more — SSTP servers appear only when the user taps this button.
      */
     suspend fun importPresetSubscriptions(names: List<String>): Result<Int> = runCatching {
+        ensureBundledSstp()
         var total = 0
         var failures = 0
         PresetSubscriptions.URLS.forEachIndexed { index, url ->

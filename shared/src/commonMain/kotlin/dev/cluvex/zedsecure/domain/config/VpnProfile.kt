@@ -54,6 +54,10 @@ sealed interface ProfileSource {
     data class Ikev2(val settings: Ikev2Profile) : ProfileSource
 
     @Serializable
+    @SerialName("aether")
+    data class Aether(val settings: AetherProfile) : ProfileSource
+
+    @Serializable
     @SerialName("sstp")
     data class Sstp(val settings: SstpProfile) : ProfileSource
 
@@ -132,6 +136,7 @@ data class VpnProfile(
     val isSingBoxConfig: Boolean get() = source is ProfileSource.SingBoxConfig
     val isFoxy: Boolean get() = source is ProfileSource.Foxy
     val isSstp: Boolean get() = source is ProfileSource.Sstp
+    val isAether: Boolean get() = source is ProfileSource.Aether
 
     fun autoSelectSettings(): ProfileSource.AutoSelect? = source as? ProfileSource.AutoSelect
 
@@ -163,6 +168,8 @@ data class VpnProfile(
     fun openConnectSettings(): OpenConnectProfile? = (source as? ProfileSource.OpenConnect)?.settings
 
     fun ikev2Settings(): Ikev2Profile? = (source as? ProfileSource.Ikev2)?.settings
+
+    fun aetherSettings(): AetherProfile? = (source as? ProfileSource.Aether)?.settings
 
     fun sstpSettings(): SstpProfile? = (source as? ProfileSource.Sstp)?.settings
 
@@ -213,6 +220,7 @@ data class VpnProfile(
         is ProfileSource.MasterDns -> ZedLink.build(name, src)
         is ProfileSource.OpenConnect -> ZedLink.build(name, src)
         is ProfileSource.Ikev2 -> ZedLink.build(name, src)
+        is ProfileSource.Aether -> null
 
         is ProfileSource.Sstp -> SstpLink.build(src.settings)
 
@@ -257,6 +265,7 @@ data class VpnProfile(
         is ProfileSource.MasterDns -> throw IllegalStateException("MasterDNS profiles do not build Xray config")
         is ProfileSource.OpenConnect -> throw IllegalStateException("OpenConnect profiles do not build Xray config")
         is ProfileSource.Ikev2 -> throw IllegalStateException("IKEv2 profiles do not build Xray config")
+        is ProfileSource.Aether -> throw IllegalStateException("Aether profiles do not build Xray config")
         is ProfileSource.Sstp -> throw IllegalStateException("SSTP profiles do not build Xray config")
         is ProfileSource.Tor -> throw IllegalStateException("Tor profiles do not build Xray config")
         is ProfileSource.Ssh -> throw IllegalStateException("SSH profiles do not build Xray config")
@@ -380,6 +389,22 @@ data class VpnProfile(
             port = 0,
             transportLabel = "IKEv2",
             source = ProfileSource.Ikev2(settings),
+            addedAt = addedAt,
+        )
+
+        fun fromAether(
+            settings: AetherProfile,
+            id: String,
+            addedAt: Long,
+            name: String,
+        ): VpnProfile = VpnProfile(
+            id = id,
+            name = name.ifBlank { settings.displayName },
+            protocol = "AETHER",
+            address = settings.address,
+            port = 0,
+            transportLabel = "Aether",
+            source = ProfileSource.Aether(settings),
             addedAt = addedAt,
         )
 

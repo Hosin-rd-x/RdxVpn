@@ -97,6 +97,8 @@ import dev.cluvex.zedsecure.data.net.PingService
 import dev.cluvex.zedsecure.core.AutoSelect
 import dev.cluvex.zedsecure.core.FoxyImportBridge
 import dev.cluvex.zedsecure.domain.config.AutoSelectIds
+import dev.cluvex.zedsecure.domain.config.AetherProfile
+import dev.cluvex.zedsecure.domain.config.AetherScanResult
 import dev.cluvex.zedsecure.domain.config.ConfigParseException
 import dev.cluvex.zedsecure.domain.config.ConfigParser
 import dev.cluvex.zedsecure.domain.config.VpnProfile
@@ -141,6 +143,22 @@ fun ServersScreen(
 
     personalization: Personalization = Personalization.Default,
     reduceMotion: Boolean = false,
+    // No Aether visibility param: the add-sheet entry shows on every
+    // Android host and is hidden only on desktop (LocalPlatform
+    // .isComputer, at the call site below). Below API 29 the sheet
+    // shows its unavailable note (Platform.supportsAether); the engine
+    // refuses Aether below API 29 as well.
+    // App-layer auto-config runner (AetherAutoConfig). Null when unwired
+    // (e.g. desktop): the sheet then shows its unavailable note.
+    onAetherAuto: (suspend (onProgress: (String) -> Unit) -> Result<AetherProfile>)? = null,
+    // App-layer endpoint scanner for the manual Aether editor
+    // (AetherAutoConfig.scanEndpoint). Null hides the scan button.
+    onAetherScan: (suspend (args: List<String>, onProgress: (String) -> Unit) -> Result<AetherScanResult>)? = null,
+    // App-layer one-tap start: with no tunnel running, onServerActivated
+    // alone would only arm Aether for the Home connect button, so the app
+    // layer supplies a start-when-idle hook that makes the sheet's single
+    // button a real one-tap connect. Null on unwired platforms.
+    onAetherConnect: (() -> Unit)? = null,
 ) {
     val platform = LocalPlatform.current
     val scope = rememberCoroutineScope()
@@ -419,6 +437,8 @@ fun ServersScreen(
     var showSniSpoof by rememberSaveable { mutableStateOf(false) }
     var showProxyChain by rememberSaveable { mutableStateOf(false) }
     var showCrossChain by rememberSaveable { mutableStateOf(false) }
+    var showAether by rememberSaveable { mutableStateOf(false) }
+    var showAetherManual by rememberSaveable { mutableStateOf(false) }
 
     val servers = profiles.filterNot { it.isLocked }
 
@@ -1360,6 +1380,16 @@ fun ServersScreen(
                 showAddSheet = false
                 showCrossChain = true
             },
+            // Null hides the entry; non-null shows it. The gate lives
+            // here, not in AddServerSheet, so the sheet stays dumb.
+            // Android always offers the entry; desktop does not ship
+            // the Aether binary, so the row hides there.
+            onAether = if (!LocalPlatform.current.isComputer) {
+                {
+                    showAddSheet = false
+                    showAether = true
+                }
+            } else null,
             onSubscription = {
                 showAddSheet = false
                 showSubs = true
@@ -1449,6 +1479,51 @@ fun ServersScreen(
                 showSsh = false
                 repository.addSsh(settings, name)
                 onServerActivated()
+            },
+        )
+    }
+
+    if (showAether) {
+        AetherSheet(
+            onDismiss = { showAether = false },
+            // Below API 29 the sheet shows its unavailable note and
+            // disables the button instead of attempting a run; the
+            // engine refuses Aether below API 29 as well.
+            onAutoConnect = if (LocalPlatform.current.supportsAether) onAetherAuto else null,
+            onSave = { name, settings ->
+                showAether = false
+                // Mirrors the other sheets' save flow (addX + activate),
+                // then goes one step further like a server-card tap
+                // (setActive + onServerActivated): with a tunnel already
+                // running this restarts onto the new Aether profile.
+                // With none running, onServerActivated alone would only
+                // arm Aether for the Home connect button, so the
+                // start-when-idle hook below starts the tunnel right
+                // away — that is what makes this one tap.
+                val saved = repository.addAether(settings, name)
+                repository.setActive(saved.id)
+                onServerActivated()
+                onAetherConnect?.invoke()
+            },
+            onManualClick = {
+                showAether = false
+                showAetherManual = true
+            },
+        )
+    }
+
+    if (showAetherManual) {
+        AetherManualSheet(
+            onDismiss = { showAetherManual = false },
+            onScan = onAetherScan,
+            onSave = { name, settings ->
+                showAetherManual = false
+                // Same one-tap finish as the automatic sheet: save, make
+                // active, and start right away.
+                val saved = repository.addAether(settings, name)
+                repository.setActive(saved.id)
+                onServerActivated()
+                onAetherConnect?.invoke()
             },
         )
     }
@@ -1607,6 +1682,22 @@ fun ServersScreen(
                 )
             }
 
+            target.isAether -> {
+                AetherManualSheet(
+                    initial = target.aetherSettings(),
+                    initialName = target.name,
+                    onDismiss = { editTarget = null },
+                    onScan = onAetherScan,
+                    onSave = { name, settings ->
+                        // Edit in place: addAether with the same id keeps
+                        // the profile's place, history and pinned peer
+                        // (unless the editor cleared it).
+                        repository.addAether(settings, name, id = target.id)
+                        toastRes(Res.string.saved)
+                        editTarget = null
+                    },
+                )
+            }
             target.isPsiphon -> {
                 PsiphonSheet(
                     initial = target.psiphonSettings(),
@@ -2248,6 +2339,8 @@ private fun AddServerSheet(
     onSniSpoof: () -> Unit,
     onProxyChain: () -> Unit,
     onCrossChain: () -> Unit,
+    // Null hides the Aether entry (unsupported device / unwired platform).
+    onAether: (() -> Unit)? = null,
     onSubscription: () -> Unit,
     onPreset: () -> Unit,
     onFirefox: () -> Unit,
@@ -2332,6 +2425,9 @@ private fun AddServerSheet(
                     modifier = Modifier.tourTargetInPage(dev.cluvex.zedsecure.ui.onboarding.TourTargets.SERVERS_RDX_CF),
                 )
                 Option(Res.drawable.ic_sync, Res.string.sstp_online_title, onSstpList, free = true)
+                if (onAether != null) {
+                    Option(Res.drawable.ic_bolt, Res.string.aether_add_title, onAether, free = true)
+                }
 
                 OptionGroup(Res.string.add_group_chains)
                 Option(Res.drawable.ic_add_link, Res.string.proxychain_add_title, onProxyChain)

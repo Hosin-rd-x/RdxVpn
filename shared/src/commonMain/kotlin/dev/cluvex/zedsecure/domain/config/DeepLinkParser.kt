@@ -10,12 +10,12 @@ object DeepLinkParser {
     val SCHEMES: Set<String> = setOf(
         "zedsecure", "v2rayng", "hiddify", "sing-box", "clash", "clashmeta", "v2raytun", "streisand",
         "happ", "vless", "vmess", "trojan", "ss", "hysteria", "hysteria2", "hy2", "wireguard",
-        "socks", "socks5", "snispoof",
+        "socks", "socks5", "snispoof", "aether",
     )
 
     private val CONFIG_SCHEMES = setOf(
         "vless", "vmess", "trojan", "ss", "hysteria", "hysteria2", "hy2", "wireguard", "socks", "socks5",
-        "snispoof",
+        "snispoof", "aether",
     )
 
     private const val MAX_LENGTH = 64 * 1024
@@ -169,6 +169,10 @@ data class DeepLinkPreview(
             if (SniSpoofLink.isSniSpoofLink(text)) {
                 return DeepLinkPreview(SniSpoofLink.parse(text)?.first?.takeIf { it.isNotBlank() }, "SNI spoof")
             }
+            if (AetherLink.isAetherLink(text)) {
+                val parsed = runCatching { AetherLink.parse(text) }.getOrNull()
+                return DeepLinkPreview(parsed?.name?.takeIf { it.isNotBlank() }, "Aether")
+            }
             if (SingBoxLinks.handles(text)) {
                 val singBox = runCatching { SingBoxLinks.parse(text) }.getOrNull()
                 val server = singBox?.let { SingBoxJson.servers(it.fragment).firstOrNull() }
@@ -202,6 +206,7 @@ data class DeepLinkPreview(
             is ProfileSource.Foxy -> "Firefox"
             is ProfileSource.SingBox -> "sing-box"
             is ProfileSource.SingBoxConfig -> "sing-box config"
+            is ProfileSource.Aether -> "Aether"
             is ProfileSource.Link, is ProfileSource.RawJson, is ProfileSource.Sealed -> "Config"
         }
     }

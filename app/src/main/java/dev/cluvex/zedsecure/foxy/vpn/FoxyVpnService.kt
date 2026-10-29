@@ -259,6 +259,10 @@ class FoxyVpnService : VpnService() {
     }
 
     override fun onDestroy() {
+        // A destroy without a prior requestDisconnect (system kill,
+        // stopService, idle-branch stop) must not strand the ongoing
+        // notification: exitForeground() is idempotent.
+        exitForeground()
         ControlPlaneHttp.socketProtector = null
         runCatching {
             getSystemService(ConnectivityManager::class.java)?.unregisterNetworkCallback(networkCallback)
@@ -345,6 +349,9 @@ class FoxyVpnService : VpnService() {
             watchdogJob == null
         if (idle) {
             releaseWakeLocks()
+            // Idle stops previously left the ongoing notification posted
+            // with nothing running: exit the foreground first.
+            exitForeground()
             stopSelf()
             return
         }
@@ -1212,6 +1219,9 @@ class FoxyVpnService : VpnService() {
         foregroundActive = false
         lastNotificationText = null
         runCatching { stopForeground(STOP_FOREGROUND_REMOVE) }
+        // Belt and braces: a notify() update racing this exit must not
+        // leave the id posted with nothing running.
+        runCatching { getSystemService(NotificationManager::class.java)?.cancel(NOTIFICATION_ID) }
     }
 
     private fun updateNotification(text: String, subText: String? = null) {

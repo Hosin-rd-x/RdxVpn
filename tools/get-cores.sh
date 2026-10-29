@@ -15,8 +15,14 @@ fetch() {
   dir="$CACHE/$repo/$tag"
   base="https://github.com/$repo/releases/download/$tag"
   mkdir -p "$dir"
-  [ -s "$dir/SHA256SUMS" ] || curl -fsSL --retry 3 -o "$dir/SHA256SUMS" "$base/SHA256SUMS"
-  want=$(awk -v a="$asset" '$2 == a || $2 == "*" a { print $1 }' "$dir/SHA256SUMS")
+  # Most cores publish SHA256SUMS; Aether publishes SHA256SUMS.txt instead.
+  if [ ! -s "$dir/SHA256SUMS" ] && [ ! -s "$dir/SHA256SUMS.txt" ]; then
+    curl -fsSL --retry 3 -o "$dir/SHA256SUMS" "$base/SHA256SUMS" 2>/dev/null ||
+      { rm -f "$dir/SHA256SUMS"; curl -fsSL --retry 3 -o "$dir/SHA256SUMS.txt" "$base/SHA256SUMS.txt"; }
+  fi
+  sums="$dir/SHA256SUMS"
+  [ -s "$sums" ] || sums="$dir/SHA256SUMS.txt"
+  want=$(awk -v a="$asset" '$2 == a || $2 == "*" a { print $1 }' "$sums")
   [ -n "$want" ] || { echo "$asset is not in $repo $tag" >&2; exit 1; }
   if [ ! -s "$dir/$asset" ] || [ "$(digest "$dir/$asset")" != "$want" ]; then
     curl -fsSL --retry 3 -o "$dir/$asset" "$base/$asset"
@@ -52,13 +58,43 @@ case "$TARGET" in
     cp "$(fetch zedcore zedcore.aar)" "$ROOT/app/libs/zedcore.aar"
     for abi in arm64-v8a armeabi-v7a x86_64; do
       mkdir -p "$jni/$abi"
-      for core in tor snispoof hev; do
+      # Tor was removed (2026-10-25): its binaries and geoip data are
+      # gone from the app on purpose, so it is not fetched here anymore.
+      # Desktop targets below still fetch Tor; only Android drops it.
+      for core in snispoof hev; do
         unzip -q -o "$(fetch "$core" "$core-android-$abi.zip")" -d "$jni/$abi"
       done
     done
     unpack "$(fetch zeptun zeptun-android-jniLibs.zip)" "$CACHE/zeptun-android"
     cp -r "$CACHE/zeptun-android/jniLibs/." "$jni/"
     find "$jni" -name '*.so' -exec chmod +x {} +
+    # Aether ships a standalone executable per ABI (a .tar.gz holding one
+    # `aether` binary). It is shipped as a native library
+    # (jniLibs/<abi>/libaether.so), NOT as an asset: Android refuses to
+    # execute a file the app itself copies into its private folder
+    # (error=13, Permission denied, seen on device 2026-10-25), while a
+    # file shipped as a native library is extracted to the app's lib
+    # folder, where execution is allowed. It is never loaded as a JNI
+    # library, only started as a subprocess. The tarball also holds
+    # pt/psiphon-tunnel-core, the console client a chained profile makes
+    # the core start as its own program; it ships the same way, as
+    # libpsiphon-tunnel-core.so. Both are fetched at build time
+    # like every other core and never committed.
+    rm -rf "$ROOT/app/src/main/assets/aether"
+    for abi in arm64-v8a armeabi-v7a x86_64; do
+      case "$abi" in
+        arm64-v8a) asset="aether-android-arm64.tar.gz" ;;
+        armeabi-v7a) asset="aether-android-armv7.tar.gz" ;;
+        x86_64) asset="aether-android-x86_64.tar.gz" ;;
+      esac
+      mkdir -p "$jni/$abi"
+      rm -rf "$CACHE/aether-$abi"
+      mkdir -p "$CACHE/aether-$abi"
+      tar -xzf "$(fetch aether "$asset")" -C "$CACHE/aether-$abi" aether pt/psiphon-tunnel-core
+      cp "$CACHE/aether-$abi/aether" "$jni/$abi/libaether.so"
+      cp "$CACHE/aether-$abi/pt/psiphon-tunnel-core" "$jni/$abi/libpsiphon-tunnel-core.so"
+      chmod +x "$jni/$abi/libaether.so" "$jni/$abi/libpsiphon-tunnel-core.so"
+    done
     ;;
   linux)
     bin="$ROOT/desktop/src/main/resources/bin/linux"

@@ -24,6 +24,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import dev.cluvex.zedsecure.core.AetherAutoConfig
 import dev.cluvex.zedsecure.core.AndroidVpn
 import dev.cluvex.zedsecure.core.StartPlanner
 import dev.cluvex.zedsecure.core.VaultImportBus
@@ -458,6 +459,19 @@ class MainActivity : ComponentActivity() {
                         },
                         aiBridge = aiBridge,
                         appVersion = dev.cluvex.zedsecure.BuildConfig.VERSION_NAME,
+                        onAetherAuto = { onProgress ->
+                            AetherAutoConfig.runAuto(applicationContext, onProgress)
+                        },
+                        onAetherScan = { args, onProgress ->
+                            AetherAutoConfig.scanEndpoint(applicationContext, args, onProgress)
+                        },
+                        onAetherConnect = {
+                            // Only start when idle: when a tunnel is already
+                            // running, onServerActivated's restart path owns
+                            // the switch, and toggling here would stop it.
+                            val st = VpnManager.status.value.state
+                            if (!st.isActive && !st.isTransitioning) toggleConnection()
+                        },
                     )
 
                     dev.cluvex.zedsecure.ui.OpenConnectAuthDialog()

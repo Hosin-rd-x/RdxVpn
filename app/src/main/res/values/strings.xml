@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">Rdx VPN</string>
+    <string name="app_name">Rdx VPN Aether</string>
     <string name="brand_tagline">Private. Fast. Yours.</string>
 
     <string name="nav_home">Home</string>
@@ -670,7 +670,7 @@
     <string name="snispoof_no_ack">The edge never acknowledged the fake packet, so every connection was reset. This network or this clean IP does not allow the spoof — try a different clean IP.</string>
     <string name="qr_scan_hint">Point the camera at a QR code</string>
     <string name="qr_scan_chunk_progress">Part %1$d of %2$d — hold still for the rest</string>
-    <string name="tile_label">Rdx VPN</string>
+    <string name="tile_label">Rdx VPN Aether</string>
     <string name="switch_server_timeout">Could not switch server — the previous connection did not stop.</string>
     <string name="engine_failed_with_reason">%1$s: %2$s</string>
     <string name="engine_failed_ssh">SSH failed to connect</string>
@@ -694,4 +694,22 @@
     <string name="auto_group_manual_short">Manual</string>
     <string name="sstp_not_ready">This SSTP profile is saved; the connection engine ships with the next release.</string>
     <string name="sstp_timeout">SSTP did not answer in time; try another server.</string>
+
+    <string name="aether_requires_android_10">Aether needs Android 10 or newer.</string>
+    <string name="aether_progress_masque">Trying MASQUE…</string>
+    <string name="aether_progress_warp">Trying WARP…</string>
+    <string name="aether_progress_cdn">Trying CDN…</string>
+    <string name="aether_progress_memory">Trying the last method that worked…</string>
+    <string name="aether_progress_masque_h3">Trying MASQUE H3…</string>
+    <string name="aether_progress_masque_v6">Trying MASQUE IPv6…</string>
+    <string name="aether_retry_status">Retrying… attempt %1$d of %2$d, in %3$d seconds</string>
+    <string name="aether_peer_fallback_notice">Connected through a different address.</string>
+    <string name="aether_err_no_network">No internet connection. Connect first, then try again.</string>
+    <string name="aether_err_binary_missing">The Aether engine is missing from the app. Reinstall the app and try again.</string>
+    <string name="aether_err_permission">The app could not run the Aether engine (permission denied).</string>
+    <string name="aether_err_timeout">Automatic setup took too long. Try again when the network is better.</string>
+    <string name="aether_err_all_failed">None of the methods worked on this network right now. Try again later, or when you are on another network.</string>
+    <string name="aether_err_port_busy">Another tunnel is already using the test connection. Disconnect it first, then try again.</string>
+    <string name="aether_err_scan">The scan found no working endpoint with these settings. Try another scan mode.</string>
+    <string name="aether_chain_unsupported">Aether cannot be used inside a proxy chain.</string>
 </resources>

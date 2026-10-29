@@ -71,6 +71,9 @@ fun MainScaffold(
 
     aiBridge: dev.cluvex.zedsecure.domain.ai.AiAppBridge? = null,
     appVersion: String = "",
+    onAetherAuto: (suspend (onProgress: (String) -> Unit) -> Result<dev.cluvex.zedsecure.domain.config.AetherProfile>)? = null,
+    onAetherScan: (suspend (args: List<String>, onProgress: (String) -> Unit) -> Result<dev.cluvex.zedsecure.domain.config.AetherScanResult>)? = null,
+    onAetherConnect: (() -> Unit)? = null,
 ) {
     val platform = dev.cluvex.zedsecure.ui.platform.LocalPlatform.current
     var current by rememberSaveable { mutableStateOf(TopDestination.Home) }
@@ -248,6 +251,9 @@ fun MainScaffold(
                     autoSortAfterTest = settings.autoSortAfterTest,
                     personalization = settings.toPersonalization(),
                     reduceMotion = settings.reduceMotion,
+                    onAetherAuto = onAetherAuto,
+                    onAetherScan = onAetherScan,
+                    onAetherConnect = onAetherConnect,
                     onServerActivated = {
                         if (settings.homeAfterSelect) current = TopDestination.Home
 

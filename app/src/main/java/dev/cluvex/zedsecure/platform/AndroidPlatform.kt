@@ -20,10 +20,14 @@ import dev.cluvex.zedsecure.data.update.PlayStore
 import dev.cluvex.zedsecure.data.assets.GeoAssetsRepository
 import dev.cluvex.zedsecure.ui.platform.FilePick
 import dev.cluvex.zedsecure.ui.platform.InstalledApp
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import dev.cluvex.zedsecure.ui.platform.Platform
 import java.io.ByteArrayOutputStream
+
+/** Log-upload codes avoid confusing characters (no 0/O/1/l). */
+private const val LOG_CODE_CHARS = "abcdefghjkmnpqrstuvwxyz23456789"
 
 class AndroidPlatform(
     private val context: Context,
@@ -153,6 +157,12 @@ class AndroidPlatform(
     override val supportsDynamicColor: Boolean
         get() = android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S
 
+    // Aether's prebuilt Android binary needs API 29+; the engine refuses
+    // Aether below that as well, so this only drives the sheet's
+    // unavailable note, never the row's visibility.
+    override val supportsAether: Boolean
+        get() = android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q
+
     override val supportsQrScan: Boolean
         get() = context.packageManager.hasSystemFeature(android.content.pm.PackageManager.FEATURE_CAMERA_ANY)
 
@@ -178,6 +188,27 @@ class AndroidPlatform(
         val chooser = Intent.createChooser(intent, null).apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
         runCatching { context.startActivity(chooser) }
             .onFailure { ZsxSharing.shareText(context, "zedsecure-export.txt", text) }
+    }
+
+    override val supportsLogUpload: Boolean get() = true
+
+    override suspend fun uploadLog(text: String): String? = withContext(Dispatchers.IO) {
+        runCatching {
+            val code = buildString { repeat(8) { append(LOG_CODE_CHARS.random()) } }
+            val conn = java.net.URL("https://logs.hosinrdx.ir/put/$code").openConnection()
+                as java.net.HttpURLConnection
+            try {
+                conn.requestMethod = "POST"
+                conn.doOutput = true
+                conn.setRequestProperty("Content-Type", "text/plain; charset=utf-8")
+                conn.connectTimeout = 15_000
+                conn.readTimeout = 30_000
+                conn.outputStream.use { it.write(text.toByteArray(Charsets.UTF_8)) }
+                if (conn.responseCode == 200) code else null
+            } finally {
+                conn.disconnect()
+            }
+        }.getOrNull()
     }
 
     override fun openUri(url: String) {
@@ -253,6 +284,13 @@ class AndroidPlatform(
 
     override fun openBatteryOptimizationSettings() {
         val candidates = listOf(
+            // Direct per-app request screen first: one tap grants the
+            // exemption. Falls through to the list when the device
+            // does not offer it.
+            Intent(
+                AndroidSettings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+                Uri.fromParts("package", context.packageName, null),
+            ),
             Intent(AndroidSettings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS),
             Intent(
                 AndroidSettings.ACTION_APPLICATION_DETAILS_SETTINGS,

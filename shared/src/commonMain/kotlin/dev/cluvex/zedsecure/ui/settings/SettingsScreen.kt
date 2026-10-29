@@ -1330,13 +1330,17 @@ private fun VpnPage(
                 LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
                     exempt = batteryPlatform.isIgnoringBatteryOptimizations
                 }
-                SettingsActionRow(
-                    title = stringResource(Res.string.battery_opt_title),
-                    summary = stringResource(
-                        if (exempt) Res.string.battery_opt_off else Res.string.battery_opt_on,
-                    ),
-                    onClick = { batteryPlatform.openBatteryOptimizationSettings() },
-                )
+                // The card shows ONLY while the exemption is missing:
+                // once granted there is nothing to act on, and the row
+                // disappears when the user comes back from the system
+                // screen (ON_RESUME above re-reads the state).
+                if (!exempt) {
+                    SettingsActionRow(
+                        title = stringResource(Res.string.battery_opt_title),
+                        summary = stringResource(Res.string.battery_opt_on),
+                        onClick = { batteryPlatform.openBatteryOptimizationSettings() },
+                    )
+                }
             }
             SettingsSwitchRow(
                 title = stringResource(Res.string.kill_switch),

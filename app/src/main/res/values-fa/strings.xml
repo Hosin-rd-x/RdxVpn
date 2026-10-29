@@ -682,4 +682,22 @@
     <string name="auto_group_manual_short">دستی</string>
     <string name="sstp_not_ready">کانفیگ SSTP ذخیره شد؛ موتور اتصالش توی نسخه بعد میاد.</string>
     <string name="sstp_timeout">SSTP به‌موقع جواب نداد؛ سرور دیگه‌ای رو امتحان کن.</string>
+
+    <string name="aether_requires_android_10">Aether به اندروید ۱۰ یا جدیدتر نیاز دارد.</string>
+    <string name="aether_progress_masque">در حال امتحان MASQUE…</string>
+    <string name="aether_progress_warp">در حال امتحان WARP…</string>
+    <string name="aether_progress_cdn">در حال امتحان CDN…</string>
+    <string name="aether_progress_memory">در حال امتحان آخرین روشی که جواب داد…</string>
+    <string name="aether_progress_masque_h3">در حال امتحان MASQUE H3…</string>
+    <string name="aether_progress_masque_v6">در حال امتحان MASQUE IPv6…</string>
+    <string name="aether_retry_status">تلاش %1$d از %2$d، بعد از %3$d ثانیه</string>
+    <string name="aether_peer_fallback_notice">به آدرس دیگری وصل شدی.</string>
+    <string name="aether_err_no_network">اینترنت وصل نیست؛ اول اینترنت را وصل کن و دوباره بزن.</string>
+    <string name="aether_err_binary_missing">موتور Aether داخل برنامه پیدا نشد. برنامه را دوباره نصب کن و دوباره امتحان کن.</string>
+    <string name="aether_err_permission">برنامه نتوانست موتور Aether را اجرا کند (دسترسی داده نشد).</string>
+    <string name="aether_err_timeout">اتصال خودکار خیلی طول کشید. وقتی اینترنت بهتر شد دوباره امتحان کن.</string>
+    <string name="aether_err_all_failed">هیچ‌کدام از روش‌ها روی این شبکه جواب نداد. بعداً یا روی یک شبکهٔ دیگر دوباره امتحان کن.</string>
+    <string name="aether_err_port_busy">یک تونل دیگر همین الان در حال استفاده از اتصال آزمایشی است. اول قطعش کن، بعد دوباره بزن.</string>
+    <string name="aether_err_scan">اسکن با این تنظیم‌ها نقطهٔ سالمی پیدا نکرد. یه حالت اسکن دیگه رو امتحان کن.</string>
+    <string name="aether_chain_unsupported">Aether را نمی‌توان داخل زنجیرهٔ پروکسی استفاده کرد.</string>
 </resources>
