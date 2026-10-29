@@ -16,6 +16,10 @@ object VpnManager {
         val totalUpload: Long = 0,
         val serverName: String? = null,
         val error: String? = null,
+        /** One-line transient note shown while connected (retry status,
+         *  peer-fallback note). Cleared by every state transition that
+         *  builds a fresh Status; preserved by onMetrics. */
+        val notice: String? = null,
 
         val sessionId: Int = 0,
     )
@@ -94,12 +98,26 @@ object VpnManager {
         return true
     }
 
-    fun onConnected(remark: String?) {
+    fun onConnected(remark: String?, notice: String? = null) {
         _status.value = _status.value.copy(
             state = ConnectionState.Connected,
             serverName = remark ?: _status.value.serverName,
             error = null,
+            notice = notice,
         )
+    }
+
+    /**
+     * Updates the transient connected-state note (monitor retry status,
+     * peer-fallback note). Only applies while Connected or Connecting:
+     * it must never resurrect a dead session's status.
+     */
+    fun setNotice(notice: String?) {
+        val current = _status.value
+        if (current.state != ConnectionState.Connected &&
+            current.state != ConnectionState.Connecting
+        ) return
+        _status.value = current.copy(notice = notice)
     }
 
     fun onMetrics(durationSeconds: Int, downBps: Long, upBps: Long, totalDown: Long, totalUp: Long) {

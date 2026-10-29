@@ -77,15 +77,18 @@ object AetherLink {
             if (effectiveProtocol == "mim") {
                 val outer = params["outer"]?.takeIf { it.isNotBlank() }
                     ?: throw IllegalArgumentException("mim link needs an outer endpoint")
-                add("--mim-outer"); add(outer)
+                // IPv6 hops need brackets for the core's --peer parser
+                // (see AetherPeer); normalize at parse so a link can
+                // never store an unbracketed IPv6 endpoint.
+                add("--mim-outer"); add(AetherPeer.normalize(outer))
                 address = hostOf(outer)
                 params["inner"]?.takeIf { it.isNotBlank() }?.let {
-                    add("--mim-inner"); add(it)
+                    add("--mim-inner"); add(AetherPeer.normalize(it))
                 }
             } else {
                 val peer = decode(authority).trim()
                 if (peer.isNotEmpty()) {
-                    add("--peer"); add(peer)
+                    add("--peer"); add(AetherPeer.normalize(peer))
                     address = hostOf(peer)
                 }
             }

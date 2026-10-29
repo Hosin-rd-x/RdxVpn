@@ -687,6 +687,11 @@
     <string name="aether_progress_masque">در حال امتحان MASQUE…</string>
     <string name="aether_progress_warp">در حال امتحان WARP…</string>
     <string name="aether_progress_cdn">در حال امتحان CDN…</string>
+    <string name="aether_progress_memory">در حال امتحان آخرین روشی که جواب داد…</string>
+    <string name="aether_progress_masque_h3">در حال امتحان MASQUE H3…</string>
+    <string name="aether_progress_masque_v6">در حال امتحان MASQUE IPv6…</string>
+    <string name="aether_retry_status">تلاش %1$d از %2$d، بعد از %3$d ثانیه</string>
+    <string name="aether_peer_fallback_notice">به آدرس دیگری وصل شدی.</string>
     <string name="aether_err_no_network">اینترنت وصل نیست؛ اول اینترنت را وصل کن و دوباره بزن.</string>
     <string name="aether_err_binary_missing">موتور Aether داخل برنامه پیدا نشد. برنامه را دوباره نصب کن و دوباره امتحان کن.</string>
     <string name="aether_err_permission">برنامه نتوانست موتور Aether را اجرا کند (دسترسی داده نشد).</string>

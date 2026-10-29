@@ -4,7 +4,9 @@ import android.content.Context
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import android.os.Build
+import android.os.SystemClock
 import dev.cluvex.zedsecure.R
+import dev.cluvex.zedsecure.domain.config.AetherPeer
 import dev.cluvex.zedsecure.domain.config.AetherProfile
 import dev.cluvex.zedsecure.domain.config.AetherScanResult
 import java.net.HttpURLConnection
@@ -47,11 +49,26 @@ object AetherAutoConfig {
     /** SOCKS port the probe tunnel listens on (the engine's port). */
     private const val PROBE_PORT = AetherBinary.SOCKS_PORT
 
+    /** SOCKS port background-optimizer probes listen on: never the live
+     *  session's 1819, the chained tunnel's 1820, or the psiphon-scan
+     *  port 1821. Verified unused in the tree. */
+    internal const val OPTIMIZER_PORT = 1822
+
     /** Psiphon listener port for chained scans (the core's own default). */
     private const val PSIPHON_SCAN_PORT = 1821
 
     /** Per-candidate budget: scan + tunnel + trace must fit inside this. */
     private const val CANDIDATE_TIMEOUT_MS = 75_000L
+
+    /** Memory-rung budget: a recalled winner with --quick-reconnect and
+     *  no scan either answers at once or is stale; never wait long. */
+    private const val MEMORY_TIMEOUT_MS = 20_000L
+
+    /** Quick-rung budget: the cheap first tries (MASQUE-H2, WARP). */
+    private const val QUICK_TIMEOUT_MS = 30_000L
+
+    /** Tactics-rung budget: cheap H3 / IPv6 variants, one step deeper. */
+    private const val TACTIC_TIMEOUT_MS = 45_000L
 
     /** Manual-editor scan budget: one scan with the user's own settings. */
     private const val SCAN_TIMEOUT_MS = 90_000L
@@ -72,7 +89,7 @@ object AetherAutoConfig {
     private const val IPV6_PROBE_HOST = "2606:4700:4700::1111"
     private const val IPV6_PROBE_PORT = 443
 
-    private data class Candidate(
+    internal data class Candidate(
         val method: String,
         val displayName: String,
         val args: List<String>,
@@ -89,13 +106,124 @@ object AetherAutoConfig {
         val progressRes: Int,
     )
 
+    /**
+     * The ladder, in order. Shared by [runAuto] and the background
+     * optimizer so both probe the exact same definitions: MASQUE-H2
+     * first (works on both firewalls per the notes), WARP as the
+     * general fallback, then the cheap tactic rungs (H3, IPv6), then
+     * the firewall-specific deep candidates (CDN over IPv6, F&F).
+     * On Irancell, methods other than the F&F one face upload speed
+     * limits, which is why cdn_worker_ff is tried even after the
+     * general methods: a working general method is still preferred,
+     * and F&F remains as the firewall-specific fallback.
+     */
+    internal fun buildCandidates(ipv6Available: Boolean): List<Candidate> = listOf(
+        // masque_h2: protocol MASQUE-HTTP/2, scan, pick a working IP.
+        // --masque (MASQUE over QUIC/HTTP-3) + --h2 (HTTP/2 instead
+        // of HTTP/3) + --scan balanced (collect a few, keep fastest).
+        // Default IP version is IPv4, matching the note's MCI and
+        // Irancell MASQUE/H2 steps (no IP-type step in either).
+        Candidate(
+            method = "masque_h2",
+            displayName = "Aether خودکار – MASQUE",
+            args = listOf("--masque", "--h2", "--scan", "balanced"),
+            progressRes = R.string.aether_progress_masque,
+        ),
+        // warp: protocol wireguard, scan, pick a working IP.
+        // --wg (classic WireGuard) + --scan balanced. IP type IPv6
+        // when IPv6 is available, else both (--dual), matching the
+        // notes: MCI wants IPv6, Irancell accepts any IP type.
+        Candidate(
+            method = "warp",
+            displayName = "Aether خودکار – WARP",
+            args = listOf("--wg", "--scan", "balanced") +
+                if (ipv6Available) listOf("--ip", "v6") else listOf("--dual"),
+            ipVersion = if (ipv6Available) "v6" else "any",
+            progressRes = R.string.aether_progress_warp,
+        ),
+        // masque_h3: the H3/QUIC variant of the quick rung. Cheap
+        // (same scan shape as masque_h2) but a genuinely different
+        // transport, so it is its own rung after the quick rung.
+        Candidate(
+            method = "masque_h3",
+            displayName = "Aether خودکار – MASQUE H3",
+            args = listOf("--masque", "--h3", "--scan", "balanced"),
+            progressRes = R.string.aether_progress_masque_h3,
+        ),
+        // masque_v6: MASQUE-H2 over IPv6 as a tactic rung (same args
+        // as the CDN/IPv6 candidate, without its F&F profile fields).
+        // Skipped entirely when IPv6 is unavailable.
+        Candidate(
+            method = "masque_v6",
+            displayName = "Aether خودکار – MASQUE IPv6",
+            args = listOf("--masque", "--h2", "--ip", "v6", "--scan", "balanced"),
+            ipVersion = "v6",
+            requiresIpv6 = true,
+            progressRes = R.string.aether_progress_masque_v6,
+        ),
+        // cdn_worker_ipv6 (MCI-style): MASQUE-H2 over IPv6, found by
+        // scan. The note's IPv6 address (e.g. in the
+        // 2a06:98c1:3101::/32 range) is what the scan picks at
+        // connect time, so address stays empty here — the engine
+        // re-scans with these args. Note-settings with no Aether
+        // CLI flag (verified against cli.rs: no --fingerprint,
+        // --cipher-suites, --final-mask or --ech-config-list flag
+        // exists) are stored in the profile fields, NOT-YET-CONSUMED
+        // by the binary: fingerprint chrome, echConfigList /
+        // cipherSuites / finalMask cleared (empty).
+        Candidate(
+            method = "cdn_worker_ipv6",
+            displayName = "Aether خودکار – CDN",
+            args = listOf("--masque", "--h2", "--ip", "v6", "--scan", "balanced"),
+            ipVersion = "v6",
+            fingerprint = "chrome", // NOT-YET-CONSUMED by the binary
+            cipherSuites = "", // cleared per note, NOT-YET-CONSUMED
+            finalMask = "", // cleared per note, NOT-YET-CONSUMED
+            echConfigList = "", // cleared per note, NOT-YET-CONSUMED
+            requiresIpv6 = true,
+            progressRes = R.string.aether_progress_cdn,
+        ),
+        // cdn_worker_ff (Irancell-style F&F): MASQUE-H2 forced to
+        // the note's address. --peer forces a peer and skips
+        // scanning (per the CLI usage text), so no --scan flag
+        // here; :443 is the TLS port of the H2 transport.
+        // Note-settings with no Aether CLI flag (verified against
+        // cli.rs: no --fingerprint, --cipher-suites, --final-mask,
+        // --ech-config-list or --alpn flag exists) are stored in
+        // the profile fields, NOT-YET-CONSUMED by the binary:
+        // echConfigList cleared, finalMask tlshello-0-len (the F&F
+        // value), cipherSuites semi-python (the F&F value),
+        // fingerprint unsafe, ALPN http/1.1 for ws and h2,http/1.1
+        // for XHTTP (collapsed into the single alpn field).
+        Candidate(
+            method = "cdn_worker_ff",
+            displayName = "Aether خودکار – CDN",
+            args = listOf("--masque", "--h2", "--peer", "188.114.98.0:443"),
+            address = "188.114.98.0",
+            fingerprint = "unsafe", // NOT-YET-CONSUMED by the binary
+            cipherSuites = "semi-python", // NOT-YET-CONSUMED by the binary
+            finalMask = "tlshello-0-len", // NOT-YET-CONSUMED by the binary
+            echConfigList = "", // cleared per note, NOT-YET-CONSUMED
+            alpn = "h2,http/1.1", // NOT-YET-CONSUMED by the binary
+            progressRes = R.string.aether_progress_cdn,
+        ),
+    ).filterNot { it.requiresIpv6 && !ipv6Available }
+
     /** Result of one candidate probe: success, or the exact failure reason. */
-    private data class ProbeOutcome(
+    internal data class ProbeOutcome(
         val success: Boolean,
         val reason: String,
         val logTail: String = "",
         /** Gateway the probe's log announced as selected ("" if none). */
         val pinnedPeer: String = "",
+        /** Median HTTPS-trace latency in ms of the successful samples,
+         *  or -1 when the probe never carried a trace. */
+        val latencyMs: Long = -1,
+        /** Every successful trace sample, in time order (empty when
+         *  the probe never carried a trace). The optimizer checks
+         *  consecutive samples against the incumbent; the median
+         *  alone cannot prove that. */
+        val latencySamples: List<Long> = emptyList(),
     )
 
     suspend fun runAuto(context: Context, onProgress: (String) -> Unit): Result<AetherProfile> {
@@ -145,114 +273,105 @@ object AetherAutoConfig {
                 return@withContext fail(R.string.aether_err_permission)
             }
 
-            val ipv6Available = hasGlobalIpv6(context) || ipv6DialOk()
+            val ipv6Available = ipv6Available(context)
             val workDir = AetherBinary.configDir(context)
 
-            // Candidate order (rationale): MASQUE-H2 works on both
-            // firewalls per the notes, so it goes first; WARP is the
-            // general fallback; the CDN/WORKER variants are the
-            // firewall-specific ones and come last. On Irancell, methods
-            // other than the F&F one face upload speed limits, which is
-            // why cdn_worker_ff is tried even after the general methods:
-            // a working general method is still preferred, and F&F
-            // remains as the firewall-specific fallback.
-            val candidates = listOf(
-                // masque_h2: protocol MASQUE-HTTP/2, scan, pick a working IP.
-                // --masque (MASQUE over QUIC/HTTP-3) + --h2 (HTTP/2 instead
-                // of HTTP/3) + --scan balanced (collect a few, keep fastest).
-                // Default IP version is IPv4, matching the note's MCI and
-                // Irancell MASQUE/H2 steps (no IP-type step in either).
-                Candidate(
-                    method = "masque_h2",
-                    displayName = "Aether خودکار – MASQUE",
-                    args = listOf("--masque", "--h2", "--scan", "balanced"),
-                    progressRes = R.string.aether_progress_masque,
-                ),
-                // warp: protocol wireguard, scan, pick a working IP.
-                // --wg (classic WireGuard) + --scan balanced. IP type IPv6
-                // when IPv6 is available, else both (--dual), matching the
-                // notes: MCI wants IPv6, Irancell accepts any IP type.
-                Candidate(
-                    method = "warp",
-                    displayName = "Aether خودکار – WARP",
-                    args = listOf("--wg", "--scan", "balanced") +
-                        if (ipv6Available) listOf("--ip", "v6") else listOf("--dual"),
-                    ipVersion = if (ipv6Available) "v6" else "any",
-                    progressRes = R.string.aether_progress_warp,
-                ),
-                // cdn_worker_ipv6 (MCI-style): MASQUE-H2 over IPv6, found by
-                // scan. The note's IPv6 address (e.g. in the
-                // 2a06:98c1:3101::/32 range) is what the scan picks at
-                // connect time, so address stays empty here — the engine
-                // re-scans with these args. Note-settings with no Aether
-                // CLI flag (verified against cli.rs: no --fingerprint,
-                // --cipher-suites, --final-mask or --ech-config-list flag
-                // exists) are stored in the profile fields, NOT-YET-CONSUMED
-                // by the binary: fingerprint chrome, echConfigList /
-                // cipherSuites / finalMask cleared (empty).
-                Candidate(
-                    method = "cdn_worker_ipv6",
-                    displayName = "Aether خودکار – CDN",
-                    args = listOf("--masque", "--h2", "--ip", "v6", "--scan", "balanced"),
-                    ipVersion = "v6",
-                    fingerprint = "chrome", // NOT-YET-CONSUMED by the binary
-                    cipherSuites = "", // cleared per note, NOT-YET-CONSUMED
-                    finalMask = "", // cleared per note, NOT-YET-CONSUMED
-                    echConfigList = "", // cleared per note, NOT-YET-CONSUMED
-                    requiresIpv6 = true,
-                    progressRes = R.string.aether_progress_cdn,
-                ),
-                // cdn_worker_ff (Irancell-style F&F): MASQUE-H2 forced to
-                // the note's address. --peer forces a peer and skips
-                // scanning (per the CLI usage text), so no --scan flag
-                // here; :443 is the TLS port of the H2 transport.
-                // Note-settings with no Aether CLI flag (verified against
-                // cli.rs: no --fingerprint, --cipher-suites, --final-mask,
-                // --ech-config-list or --alpn flag exists) are stored in
-                // the profile fields, NOT-YET-CONSUMED by the binary:
-                // echConfigList cleared, finalMask tlshello-0-len (the F&F
-                // value), cipherSuites semi-python (the F&F value),
-                // fingerprint unsafe, ALPN http/1.1 for ws and h2,http/1.1
-                // for XHTTP (collapsed into the single alpn field).
-                Candidate(
-                    method = "cdn_worker_ff",
-                    displayName = "Aether خودکار – CDN",
-                    args = listOf("--masque", "--h2", "--peer", "188.114.98.0:443"),
-                    address = "188.114.98.0",
-                    fingerprint = "unsafe", // NOT-YET-CONSUMED by the binary
-                    cipherSuites = "semi-python", // NOT-YET-CONSUMED by the binary
-                    finalMask = "tlshello-0-len", // NOT-YET-CONSUMED by the binary
-                    echConfigList = "", // cleared per note, NOT-YET-CONSUMED
-                    alpn = "h2,http/1.1", // NOT-YET-CONSUMED by the binary
-                    progressRes = R.string.aether_progress_cdn,
-                ),
-            ).filterNot { it.requiresIpv6 && !ipv6Available }
+            val candidates = buildCandidates(ipv6Available)
 
+            // Budget ladder (quick-first). Rung 0 is the remembered
+            // winner for THIS network: --quick-reconnect, no scan, short
+            // budget — either it answers at once or it is stale. Then
+            // the cheap rungs (quick, tactics) before the deep ones, so
+            // a first connect is fast and a later connect on a known
+            // network is faster still. Within each rung, methods that
+            // failed on this network recently go last (deprioritized,
+            // never skipped).
+            //
             // withTimeout (not withTimeoutOrNull): its TimeoutCancellation-
             // Exception is the only thing that means "overall budget spent".
             // A cancellation from outside (sheet dismissed) is a plain
             // CancellationException, which this catch deliberately does not
             // swallow, so it still propagates to the caller.
+            val recalled = AetherRouteMemory.recall(context)
+            val failedRecently = AetherRouteMemory.failedMethods(context)
+            fun deprioritizedLast(rung: List<Candidate>): List<Candidate> =
+                rung.sortedBy { if (it.method in failedRecently) 1 else 0 }
             val failures = mutableListOf<Pair<Candidate, ProbeOutcome>>()
+            val attempted = mutableListOf<String>()
             val found: Pair<Candidate, ProbeOutcome>? = try {
                 withTimeout(OVERALL_TIMEOUT_MS) {
-                    for (candidate in candidates) {
-                        progress(candidate.progressRes)
-                        val outcome = probeCandidate(context, candidate, workDir)
-                        if (outcome.success) {
-                            return@withTimeout candidate to outcome
+                    // Rung 0: memory. A stale failure here is not added
+                    // to the sheet's detail — the same method appears
+                    // again in its own rung below.
+                    if (recalled != null) {
+                        val winner = candidates.firstOrNull { it.method == recalled.method }
+                        if (winner != null) {
+                            progress(R.string.aether_progress_memory)
+                            val outcome = probeCandidate(
+                                context,
+                                winner,
+                                workDir,
+                                MEMORY_TIMEOUT_MS,
+                                PROBE_PORT,
+                                overrideArgs = memoryProbeArgs(winner, recalled.peer),
+                            )
+                            attempted += winner.method
+                            if (outcome.success) {
+                                val peer = outcome.pinnedPeer.ifBlank { recalled.peer }
+                                return@withTimeout winner to outcome.copy(pinnedPeer = peer)
+                            }
                         }
-                        failures += candidate to outcome
+                    }
+                    val rungs = listOf(
+                        deprioritizedLast(
+                            candidates.filter { it.method == "masque_h2" || it.method == "warp" },
+                        ) to QUICK_TIMEOUT_MS,
+                        deprioritizedLast(
+                            candidates.filter { it.method == "masque_h3" || it.method == "masque_v6" },
+                        ) to TACTIC_TIMEOUT_MS,
+                        deprioritizedLast(
+                            candidates.filter {
+                                it.method == "cdn_worker_ipv6" || it.method == "cdn_worker_ff"
+                            },
+                        ) to CANDIDATE_TIMEOUT_MS,
+                    )
+                    for ((rung, timeoutMs) in rungs) {
+                        for (candidate in rung) {
+                            progress(candidate.progressRes)
+                            val outcome = probeCandidate(
+                                context,
+                                candidate,
+                                workDir,
+                                timeoutMs,
+                                PROBE_PORT,
+                            )
+                            attempted += candidate.method
+                            if (outcome.success) {
+                                return@withTimeout candidate to outcome
+                            }
+                            failures += candidate to outcome
+                            if (!currentCoroutineContext().isActive) break
+                        }
                         if (!currentCoroutineContext().isActive) break
                     }
                     null
                 }
             } catch (e: TimeoutCancellationException) {
+                AetherRouteMemory.rememberFailures(context, attempted)
                 return@withContext fail(R.string.aether_err_timeout)
             }
 
             if (found != null) {
                 val (candidate, outcome) = found
+                AetherRouteMemory.rememberWin(context, candidate.method, outcome.pinnedPeer)
+                // The methods that failed before the winner are still
+                // failures for THIS network: the next run deprioritizes
+                // them, and the background optimizer never wastes a
+                // probe re-trying one that just failed.
+                AetherRouteMemory.rememberFailures(
+                    context,
+                    failures.map { it.first.method },
+                )
                 Result.success(
                     AetherProfile(
                         method = candidate.method,
@@ -269,6 +388,7 @@ object AetherAutoConfig {
                     ),
                 )
             } else {
+                AetherRouteMemory.rememberFailures(context, attempted)
                 // Detailed failure: the sheet shows this message, so the
                 // user can screenshot the exact reason per method instead
                 // of a generic sentence.
@@ -288,6 +408,36 @@ object AetherAutoConfig {
                 Result.failure(Exception(detail))
             }
         }
+    }
+
+    /**
+     * Probe arguments for the memory rung: the candidate's args with
+     * every scan flag stripped (a memory hit must never re-scan),
+     * any stored `--peer` replaced by the remembered peer, and
+     * `--quick-reconnect` added. Candidate args here are simple
+     * space-separated tokens (no `=` forms, no two-hop flags), so a
+     * small local strip is exact.
+     */
+    private fun memoryProbeArgs(candidate: Candidate, peer: String): List<String> {
+        val args = mutableListOf<String>()
+        var i = 0
+        while (i < candidate.args.size) {
+            when (candidate.args[i]) {
+                "--scan" -> i += 2
+                "--peer" -> i += 2
+                "--quick-reconnect", "--no-quick-reconnect" -> i += 1
+                else -> {
+                    args += candidate.args[i]
+                    i += 1
+                }
+            }
+        }
+        if (peer.isNotBlank()) {
+            args += "--peer"
+            args += AetherPeer.normalize(peer)
+        }
+        args += "--quick-reconnect"
+        return args
     }
 
     /**
@@ -365,7 +515,7 @@ object AetherAutoConfig {
                     return@withTimeoutOrNull false
                 }
                 repeat(TRACE_ATTEMPTS) { attempt ->
-                    if (traceOk()) return@withTimeoutOrNull true
+                    if (traceOk(PROBE_PORT)) return@withTimeoutOrNull true
                     if (attempt + 1 < TRACE_ATTEMPTS) delay(TRACE_RETRY_DELAY_MS)
                 }
                 false
@@ -406,7 +556,11 @@ object AetherAutoConfig {
      * never be pinned.
      */
     private fun parseSelectedGateways(logText: String): Pair<String, String> {
-        fun clean(s: String): String = s.trimEnd(',', ';')
+        // Every captured gateway is normalized (AetherPeer): the core
+        // announces IPv6 gateways unbracketed, and pinning that form
+        // verbatim makes every later --peer connect die with "bad peer
+        // address". Normalizing here means no new bad value is stored.
+        fun clean(s: String): String = AetherPeer.normalize(s.trimEnd(',', ';'))
         Regex("""edge (\S+) \(outer\) and (\S+) \(inner\)""").find(logText)?.let {
             return clean(it.groupValues[1]) to clean(it.groupValues[2])
         }
@@ -442,30 +596,43 @@ object AetherAutoConfig {
      * can show why each method failed.
      * The probe process is always killed before returning — success,
      * failure, timeout or cancellation — so a probe can never leak.
-     * Probe args add only what a probe needs on top of the candidate's
-     * saved args: a fresh scan every time (--no-quick-reconnect, so a
-     * stale last-connection gateway cannot fake a pass) and the probe
-     * SOCKS bind. Config-path flags are deliberately NOT added: the
-     * process runs in the shared config dir, so identities registered
-     * by a probe are reused by the real engine instead of registering
-     * a second device (upstream rate-limits re-registration).
+     * By default the probe adds a fresh scan every time
+     * (--no-quick-reconnect, so a stale last-connection gateway cannot
+     * fake a pass) and the probe SOCKS bind. [overrideArgs] replaces
+     * the candidate's args wholesale (memory rung: pre-built
+     * --quick-reconnect args, no scan flag added). Config-path flags
+     * are deliberately NOT added: the process runs in the shared
+     * config dir, so identities registered by a probe are reused by
+     * the real engine instead of registering a second device
+     * (upstream rate-limits re-registration).
      * The log is truncated on every probe start, so this candidate's
      * tail is read here, before the next candidate overwrites it.
+     *
+     * [extraSamples] takes additional spaced trace samples through the
+     * same verified probe process (optimizer stability measurement);
+     * [ProbeOutcome.latencyMs] is the median of all successful samples.
+     * Internal (not private) so the background optimizer can reuse the
+     * exact same probing with its own port, timeout and work dir.
      */
-    private suspend fun probeCandidate(
+    internal suspend fun probeCandidate(
         context: Context,
         candidate: Candidate,
         workDir: java.io.File,
+        timeoutMs: Long = CANDIDATE_TIMEOUT_MS,
+        probePort: Int = PROBE_PORT,
+        overrideArgs: List<String>? = null,
+        extraSamples: Int = 0,
     ): ProbeOutcome {
         var process: Process? = null
         var outcome: ProbeOutcome? = null
         try {
-            if (tcpOpen("127.0.0.1", PROBE_PORT, TCP_TIMEOUT_MS)) {
-                outcome = ProbeOutcome(false, "پورت ۱۸۱۹ اشغال بود")
+            if (tcpOpen("127.0.0.1", probePort, TCP_TIMEOUT_MS)) {
+                outcome = ProbeOutcome(false, "پورت $probePort اشغال بود")
             } else {
-                val probeArgs = candidate.args + listOf(
-                    "--no-quick-reconnect",
-                    "--bind", "127.0.0.1:$PROBE_PORT",
+                val baseArgs = overrideArgs
+                    ?: (candidate.args + "--no-quick-reconnect")
+                val probeArgs = baseArgs + listOf(
+                    "--bind", "127.0.0.1:$probePort",
                 )
                 val started = try {
                     AetherBinary.start(context, probeArgs, workDir)
@@ -478,10 +645,10 @@ object AetherAutoConfig {
                     )
                 }
                 process = started
-                outcome = withTimeoutOrNull(CANDIDATE_TIMEOUT_MS) {
+                outcome = withTimeoutOrNull(timeoutMs) {
                     // Wait until the probe's SOCKS port answers.
                     while (currentCoroutineContext().isActive) {
-                        if (tcpOpen("127.0.0.1", PROBE_PORT, TCP_TIMEOUT_MS)) break
+                        if (tcpOpen("127.0.0.1", probePort, TCP_TIMEOUT_MS)) break
                         if (!started.isAlive) {
                             val code = runCatching { started.exitValue() }.getOrNull()
                             return@withTimeoutOrNull ProbeOutcome(
@@ -499,11 +666,25 @@ object AetherAutoConfig {
                     // real HTTPS request. Retry briefly — the tunnel can be
                     // up a moment before it carries traffic.
                     repeat(TRACE_ATTEMPTS) { attempt ->
-                        if (traceOk()) return@withTimeoutOrNull ProbeOutcome(true, "")
+                        val firstMs = traceLatencyMs(probePort)
+                        if (firstMs != null) {
+                            val samples = mutableListOf(firstMs)
+                            repeat(extraSamples) {
+                                delay(TRACE_RETRY_DELAY_MS)
+                                traceLatencyMs(probePort)?.let { samples += it }
+                            }
+                            val sorted = samples.sorted()
+                            return@withTimeoutOrNull ProbeOutcome(
+                                true,
+                                "",
+                                latencyMs = sorted[sorted.size / 2],
+                                latencySamples = samples,
+                            )
+                        }
                         if (attempt + 1 < TRACE_ATTEMPTS) delay(TRACE_RETRY_DELAY_MS)
                     }
                     ProbeOutcome(false, "تونل بالا آمد ولی اینترنت ازش رد نشد")
-                } ?: ProbeOutcome(false, "پورت جواب نداد (۷۵ ثانیه)")
+                } ?: ProbeOutcome(false, "پورت جواب نداد (${timeoutMs / 1000} ثانیه)")
             }
         } finally {
             // Runs on success, failure, timeout and cancellation alike.
@@ -527,6 +708,12 @@ object AetherAutoConfig {
         return outcome?.copy(logTail = tail, pinnedPeer = pinned)
             ?: ProbeOutcome(false, "نامشخص")
     }
+
+    /** IPv6 usable on the active network, by the same two checks
+     *  runAuto uses. The background optimizer reuses it so its
+     *  candidate list matches the ladder's. */
+    internal fun ipv6Available(context: Context): Boolean =
+        hasGlobalIpv6(context) || ipv6DialOk()
 
     /** Network availability only — no operator, carrier or SIM info. */
     private fun hasNetwork(context: Context): Boolean {
@@ -577,29 +764,34 @@ object AetherAutoConfig {
     }
 
     /**
-     * An HTTPS trace request through the probe's SOCKS proxy. Accepts
+     * An HTTPS trace request through a SOCKS proxy on [port]. Accepts
      * HTTP 200, or a body reporting warp=on, exactly as Aether's own
      * documented check does (curl -x socks5h://127.0.0.1:1819
-     * https://www.cloudflare.com/cdn-cgi/trace).
+     * https://www.cloudflare.com/cdn-cgi/trace). Returns the request
+     * latency in ms, or null when the tunnel does not carry traffic.
+     * Blocking socket work: call only from a background dispatcher.
      */
-    private fun traceOk(): Boolean {
-        val proxy = Proxy(Proxy.Type.SOCKS, InetSocketAddress("127.0.0.1", PROBE_PORT))
+    internal fun traceLatencyMs(port: Int): Long? {
+        val proxy = Proxy(Proxy.Type.SOCKS, InetSocketAddress("127.0.0.1", port))
         val conn = runCatching {
             URL(TRACE_URL).openConnection(proxy) as HttpURLConnection
-        }.getOrNull() ?: return false
+        }.getOrNull() ?: return null
         conn.connectTimeout = TRACE_TIMEOUT_MS
         conn.readTimeout = TRACE_TIMEOUT_MS
+        val startMs = SystemClock.elapsedRealtime()
         try {
             val code = conn.responseCode
-            if (code == HttpURLConnection.HTTP_OK) return true
-            val errorBody = runCatching {
-                conn.errorStream?.readBytes()?.decodeToString().orEmpty()
-            }.getOrDefault("")
-            return errorBody.contains("warp=on")
+            val ok = code == HttpURLConnection.HTTP_OK ||
+                runCatching {
+                    conn.errorStream?.readBytes()?.decodeToString().orEmpty()
+                }.getOrDefault("").contains("warp=on")
+            return if (ok) SystemClock.elapsedRealtime() - startMs else null
         } catch (e: Exception) {
-            return false
+            return null
         } finally {
             conn.disconnect()
         }
     }
+
+    private fun traceOk(port: Int): Boolean = traceLatencyMs(port) != null
 }

@@ -16,6 +16,7 @@ import dev.amirzr.flutter_v2ray_client.v2ray.core.HevTunCore
 import dev.cluvex.zedsecure.R
 import dev.cluvex.zedsecure.data.settings.SettingsRepository
 import dev.cluvex.zedsecure.domain.config.LocalPorts
+import dev.cluvex.zedsecure.domain.config.AetherPeer
 import dev.cluvex.zedsecure.domain.config.RoutingMigration
 import dev.cluvex.zedsecure.domain.model.AppSettings
 import dev.cluvex.zedsecure.domain.model.RulesetItem
@@ -94,6 +95,29 @@ class ZedVpnService : VpnService() {
     /** True once the first callback after registration has been seen. */
     @Volatile
     private var aetherBaselineSet = false
+
+    /** Background-optimizer job for ladder-connected Aether sessions:
+     *  probes other ladder methods and, rarely, swaps the core behind
+     *  the live TUN. Cancelled by stopAether and by the network-change
+     *  reconnect (that path owns the session from then on). */
+    private var aetherOptimizerJob: Job? = null
+
+    /** True while the optimizer is swapping the core behind the live
+     *  TUN. The monitor treats the retired process's exit as expected
+     *  while this is set, instead of spending restart budget on it. */
+    @Volatile
+    private var aetherSwapPending = false
+
+    /** True once the optimizer has switched this session. At most one
+     *  switch per session, ever. */
+    private var aetherOptimizerSwitched = false
+
+    /** True when the running session connected without a usable pinned
+     *  peer (the pinned value failed validation and no fixed peer
+     *  replaced it), so the connect fell back to --quick-reconnect
+     *  alone. finishConnected turns this into the one-line fallback
+     *  notice; cleared by stopAether. */
+    private var aetherPeerFallback = false
 
     private var singBoxLastUp = 0L
     private var singBoxLastDown = 0L
@@ -918,6 +942,13 @@ class ZedVpnService : VpnService() {
         return "masque" in protocols || "mim" in protocols || "gool" in protocols
     }
 
+    /** Connect-time arguments plus whether the pinned peer had to be
+     *  dropped (see [buildAetherConnectArgs]). */
+    private data class AetherConnectArgs(
+        val args: List<String>,
+        val peerFallback: Boolean,
+    )
+
     /**
      * Connect-time arguments for an Aether profile.
      *
@@ -942,6 +973,17 @@ class ZedVpnService : VpnService() {
      * as stored): true forces HTTP/2, false forces HTTP/3. Only
      * applied to MASQUE-family profiles.
      *
+     * Emit-time normalization (the stored-profile half of the IPv6
+     * bracket fix): every peer endpoint this function emits — the
+     * pinned peer, a stored --peer, the two-hop hop flags and
+     * explicit peers lists — is normalized through AetherPeer, so a
+     * profile saved before the fix, carrying an unbracketed IPv6
+     * peer, connects without being deleted or recreated. A peer that
+     * is still unusable after normalization is dropped instead of
+     * killing the connect: when the dropped value was the pinned
+     * peer and nothing replaces it, [AetherConnectArgs.peerFallback]
+     * is set and the session connects with --quick-reconnect alone.
+     *
      * The bind is service-owned: the planner-supplied socksPort
      * (LocalPorts.AETHER_SOCKS) is 1819, and the bind and the bridge
      * use AetherBinary.SOCKS_PORT, the same 1819, so a stale intent
@@ -954,7 +996,7 @@ class ZedVpnService : VpnService() {
     private fun buildAetherConnectArgs(
         profile: dev.cluvex.zedsecure.domain.config.AetherProfile,
         flipH2: Boolean?,
-    ): List<String> {
+    ): AetherConnectArgs {
         val isTwoHop = aetherIsTwoHop(profile.args)
         val eligible = aetherFlipEligible(profile.args)
         val effectiveFlip = if (eligible) flipH2 else null
@@ -982,11 +1024,34 @@ class ZedVpnService : VpnService() {
                         if (peersValue?.trim() == "auto") {
                             i += if ('=' in token) 1 else 2
                         } else {
-                            add(token)
-                            if ('=' !in token) {
-                                profile.args.getOrNull(i + 1)?.let { add(it) }
+                            // Kept — with each element normalized, so an
+                            // unbracketed IPv6 element cannot kill the
+                            // connect the way --peer did.
+                            val normalized = peersValue
+                                ?.split(',')
+                                ?.joinToString(",") { AetherPeer.normalize(it.trim()) }
+                            if ('=' in token) {
+                                add("$flag=$normalized")
+                            } else {
+                                add(token)
+                                normalized?.let { add(it) }
                             }
                             i += if ('=' in token) 1 else 2
+                        }
+                    }
+                    // Two-hop hop endpoints, carried as separate flags:
+                    // normalize their values at emit time, exactly like
+                    // --peer below, for stored profiles saved before
+                    // the bracket fix.
+                    "--gool-peer", "--mim-outer", "--mim-inner",
+                    "--wiw-outer", "--wiw-inner", "--h2-peer" -> {
+                        if ('=' in token) {
+                            add("$flag=${AetherPeer.normalize(token.substringAfter('='))}")
+                            i += 1
+                        } else {
+                            add(token)
+                            profile.args.getOrNull(i + 1)?.let { add(AetherPeer.normalize(it)) }
+                            i += 2
                         }
                     }
                     "--no-quick-reconnect", "--quick-reconnect" -> i += 1
@@ -1017,23 +1082,51 @@ class ZedVpnService : VpnService() {
             // single-hop profiles. Two-hop profiles (gool/mim) carry
             // their outer hop in --peer itself, so the stored value is
             // always kept there — a pin must never override it.
-            if (!isTwoHop && profile.pinnedPeer.isNotBlank()) {
-                add("--peer"); add(profile.pinnedPeer)
-            } else if (storedPeer != null) {
-                add("--peer"); add(storedPeer)
+            // Every emitted peer is normalized (AetherPeer) and
+            // validated: an unbracketed IPv6 peer stored before the
+            // bracket fix must connect, and a peer that is still
+            // unusable must not kill the connect.
+            var peerFallback = false
+            val pinned = AetherPeer.normalize(profile.pinnedPeer)
+            val stored = storedPeer?.let { AetherPeer.normalize(it) }
+            if (!isTwoHop && pinned.isNotBlank()) {
+                if (AetherPeer.isUsable(pinned)) {
+                    add("--peer"); add(pinned)
+                } else if (stored != null && AetherPeer.isUsable(stored)) {
+                    // The pinned gateway is unusable, but the profile's
+                    // own fixed peer is fine: use it. This is the
+                    // normal "kept fixed peer" path, not a fallback.
+                    add("--peer"); add(stored)
+                } else {
+                    // No usable peer at all: connect with
+                    // --quick-reconnect alone and let the core use its
+                    // last connection. The caller surfaces the
+                    // fallback notice.
+                    peerFallback = true
+                }
+            } else if (stored != null) {
+                if (AetherPeer.isUsable(stored)) {
+                    add("--peer"); add(stored)
+                }
+                // An unusable stored peer is dropped silently: it is
+                // corrupt data, not a pinned gateway, and the next
+                // editor save rewrites it normalized. No notice.
             }
             add("--quick-reconnect")
         }
         val chained = profile.args.contains("--psiphon")
         val tunnelPort =
             if (chained) AetherBinary.SOCKS_PORT + 1 else AetherBinary.SOCKS_PORT
-        return connectArgs + listOf(
-            "--bind", "127.0.0.1:$tunnelPort",
-        ) + if (chained && "--psiphon-bind" !in connectArgs) {
-            listOf("--psiphon-bind", "127.0.0.1:${AetherBinary.SOCKS_PORT}")
-        } else {
-            emptyList()
-        }
+        return AetherConnectArgs(
+            connectArgs + listOf(
+                "--bind", "127.0.0.1:$tunnelPort",
+            ) + if (chained && "--psiphon-bind" !in connectArgs) {
+                listOf("--psiphon-bind", "127.0.0.1:${AetherBinary.SOCKS_PORT}")
+            } else {
+                emptyList()
+            },
+            peerFallback,
+        )
     }
 
     private fun startAether(
@@ -1073,7 +1166,14 @@ class ZedVpnService : VpnService() {
             // Connect args are built by buildAetherConnectArgs (no
             // re-scan, pinned peer, --quick-reconnect, service-owned
             // binds); see that function for the full rationale.
-            val fullArgs = buildAetherConnectArgs(profile, flipH2 = null)
+            val built = buildAetherConnectArgs(profile, flipH2 = null)
+            aetherPeerFallback = built.peerFallback
+            if (built.peerFallback) {
+                LogBus.append(
+                    "W/Aether: آدرس ذخیره‌شده قابل استفاده نبود — وصل با اتصال سریع، بدون آدرس مشخص",
+                )
+            }
+            val fullArgs = built.args
             val process = try {
                 AetherBinary.start(this@ZedVpnService, fullArgs, dir)
             } catch (e: Exception) {
@@ -1108,6 +1208,7 @@ class ZedVpnService : VpnService() {
             VpnManager.activeSocksPort = AetherBinary.SOCKS_PORT
             finishConnected()
             startAetherMonitor()
+            startAetherOptimizer(profile)
         }
     }
 
@@ -1184,7 +1285,28 @@ class ZedVpnService : VpnService() {
                 val proc = aetherProcess ?: return@launch
                 val exitCode = runCatching { proc.waitFor() }.getOrNull()
                 if (!isActive || generation != aetherGeneration || userStop) return@launch
-                if (aetherProcess !== proc) return@launch
+                if (aetherSwapPending) {
+                    // The optimizer is swapping the core behind the
+                    // live TUN: the retired process's exit is
+                    // expected. Wait for the swap to settle, then
+                    // watch the new process — without spending
+                    // restart budget and without spinning on the
+                    // dead process while the swap runs.
+                    var waited = 0L
+                    while (aetherSwapPending && waited < 10_000L &&
+                        isActive && generation == aetherGeneration && !userStop
+                    ) {
+                        delay(200)
+                        waited += 200
+                    }
+                    continue
+                }
+                // The process changed under the same generation: only
+                // the optimizer swap does that (stopAether bumps the
+                // generation, and the check above already returned).
+                // Watch the current process instead of ending the
+                // monitor while the session still runs.
+                if (aetherProcess !== proc) continue
                 // Tunnel already torn down (the stop path raced us):
                 // nothing to restart.
                 if (!connected) return@launch
@@ -1219,6 +1341,7 @@ class ZedVpnService : VpnService() {
                     waitForAetherPortUp(AETHER_RESTART_READY_TIMEOUT_MS)
                     if (TunnelReadiness.verify(AetherBinary.SOCKS_PORT, timeoutMs = 10_000, attempts = 1)) {
                         restarts = 0
+                        clearAetherRetryNotice()
                     }
                     continue
                 }
@@ -1232,6 +1355,20 @@ class ZedVpnService : VpnService() {
                     stopEverything(); return@launch
                 }
                 restarts++
+                // Backoff: 3s, then 6s, then 12s. The bound stays 3
+                // relaunches — only the spacing changes. The status
+                // line names the wait, in Persian, from the real
+                // relaunch state: attempt N of 3, after D seconds.
+                val backoffMs = AETHER_RESTART_BACKOFF_MS
+                    .getOrElse(restarts - 1) { AETHER_RESTART_BACKOFF_MS.last() }
+                VpnManager.setNotice(
+                    getString(
+                        R.string.aether_retry_status,
+                        restarts,
+                        AETHER_MAX_RESTARTS,
+                        (backoffMs / 1000).toInt(),
+                    ),
+                )
                 // A real drop: flip the transport once (HTTP/2 <-> HTTP/3)
                 // for MASQUE-family profiles — one side or the other is
                 // often what the firewall is throttling right now — and
@@ -1245,14 +1382,16 @@ class ZedVpnService : VpnService() {
                     // flag at all, which this app reads as H2 — means
                     // "go H3".
                     aetherFlipH2 = aetherArgs.contains("--h3") || aetherArgs.contains("--quic")
-                    newArgs = buildAetherConnectArgs(profile, aetherFlipH2)
+                    val rebuilt = buildAetherConnectArgs(profile, aetherFlipH2)
+                    aetherPeerFallback = rebuilt.peerFallback
+                    newArgs = rebuilt.args
                 }
                 Log.w(TAG, "Aether exited unexpectedly; restart $restarts/$AETHER_MAX_RESTARTS; exit=$exitCode")
                 LogBus.append(
                     "I/Aether: موتور بسته شد (کد خروج $exitCode) — وصل دوباره با " +
                         if (aetherFlipH2 == true) "HTTP/2" else if (aetherFlipH2 == false) "HTTP/3" else "همان تنظیم",
                 )
-                delay(1_000)
+                delay(backoffMs)
                 if (!isActive || generation != aetherGeneration || userStop) return@launch
                 // The dead process may have left a Psiphon child holding
                 // the ports or its datastore; clear it before relaunch.
@@ -1278,8 +1417,235 @@ class ZedVpnService : VpnService() {
                 waitForAetherPortUp(AETHER_RESTART_READY_TIMEOUT_MS)
                 if (TunnelReadiness.verify(AetherBinary.SOCKS_PORT, timeoutMs = 10_000, attempts = 1)) {
                     restarts = 0
+                    clearAetherRetryNotice()
                 }
             }
+        }
+    }
+
+    /**
+     * The retry notice served its purpose: restore the session's own
+     * notice (the peer-fallback note, if the session has one) now that
+     * the relaunched core verifiably carries traffic.
+     */
+    private fun clearAetherRetryNotice() {
+        VpnManager.setNotice(
+            if (aetherPeerFallback) getString(R.string.aether_peer_fallback_notice) else null,
+        )
+    }
+
+    /**
+     * Background optimizer, phase 2 of the quick-first algorithm:
+     * after the session is stable, probe the OTHER ladder methods in
+     * the background and move to a clearly faster one — without the
+     * user ever seeing a disconnect.
+     *
+     * Runs ONLY for sessions connected via the ladder: the gate is
+     * the profile's method name, which the auto-config alone sets to
+     * a ladder name (imported links use "link", the manual editor
+     * uses "manual"), plus no --psiphon and no two-hop flags. Manual
+     * and stored profiles keep their exact behavior: this function
+     * returns before doing anything for them.
+     *
+     * Safety, in order: probes use the isolated optimizer dir and
+     * port 1822 (never the live 1819, never the chained 1820, never
+     * the scan port 1821), so they cannot touch the live tunnel;
+     * the incumbent is only challenged when it is slower than 300ms
+     * (good enough means no switch); a challenger must beat it by
+     * 30% on two CONSECUTIVE samples; at most one switch, only in
+     * the first five minutes and at least a minute after connect;
+     * ANY optimizer failure is ignored and the live session is
+     * untouched; the job is cancelled on disconnect and on a
+     * network-change reconnect.
+     */
+    private fun startAetherOptimizer(
+        profile: dev.cluvex.zedsecure.domain.config.AetherProfile,
+    ) {
+        aetherOptimizerJob?.cancel()
+        aetherOptimizerJob = null
+        val candidates = AetherAutoConfig.buildCandidates(AetherAutoConfig.ipv6Available(this))
+        if (candidates.none { it.method == profile.method }) return
+        if (profile.args.contains("--psiphon")) return
+        if (aetherIsTwoHop(profile.args)) return
+        aetherOptimizerJob = scope.launch(Dispatchers.IO) {
+            val generation = aetherGeneration
+            // Let the incumbent prove itself stable first.
+            delay(AETHER_OPTIMIZER_STABLE_MS)
+            if (!isActive || generation != aetherGeneration || userStop || !connected) return@launch
+            if (kind != VpnManager.KIND_AETHER) return@launch
+            // Judge the incumbent through the LIVE tunnel. If it does
+            // not carry traffic, or is already good enough, there is
+            // nothing to optimize — leave the session alone.
+            val incumbentSamples = measureIncumbentSamples()
+            if (incumbentSamples.size < 2) return@launch
+            val sortedIncumbent = incumbentSamples.sorted()
+            val incumbentMedian = sortedIncumbent[sortedIncumbent.size / 2]
+            if (incumbentMedian < AETHER_OPTIMIZER_GOOD_ENOUGH_MS) return@launch
+            val failedRecently = AetherRouteMemory.failedMethods(this@ZedVpnService)
+            var probed = 0
+            for (challenger in candidates) {
+                if (probed >= AETHER_OPTIMIZER_MAX_CHALLENGERS) break
+                if (challenger.method == profile.method) continue
+                if (challenger.method in failedRecently) continue
+                if (!isActive || generation != aetherGeneration || userStop || !connected) return@launch
+                if (aetherOptimizerSwitched) return@launch
+                val ageMs = System.currentTimeMillis() - connectWhen
+                if (ageMs < AETHER_OPTIMIZER_MIN_AGE_MS || ageMs > AETHER_OPTIMIZER_WINDOW_MS) return@launch
+                probed++
+                val outcome = try {
+                    AetherAutoConfig.probeCandidate(
+                        this@ZedVpnService,
+                        challenger,
+                        AetherBinary.optimizerDir(this@ZedVpnService),
+                        AETHER_OPTIMIZER_PROBE_TIMEOUT_MS,
+                        AetherAutoConfig.OPTIMIZER_PORT,
+                        extraSamples = 2,
+                    )
+                } catch (e: kotlinx.coroutines.CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    // A failed probe is not a session problem: try
+                    // the next challenger, live session untouched.
+                    continue
+                }
+                if (!outcome.success) continue
+                // Two CONSECUTIVE samples must each beat the
+                // incumbent by 30%: one lucky sample is not
+                // stability, and the median alone cannot prove it.
+                val beatMs = incumbentMedian *
+                    AETHER_OPTIMIZER_BEAT_NUMERATOR / AETHER_OPTIMIZER_BEAT_DENOMINATOR
+                val wins = outcome.latencySamples.zipWithNext().any { (a, b) ->
+                    a <= beatMs && b <= beatMs
+                }
+                if (!wins) continue
+                val switched = swapAetherCore(profile, challenger, outcome)
+                if (switched) {
+                    AetherRouteMemory.rememberWin(
+                        this@ZedVpnService,
+                        challenger.method,
+                        outcome.pinnedPeer,
+                    )
+                    LogBus.append(
+                        "I/Aether: روش سریع‌تر پیدا شد (${challenger.displayName}) — بدون قطع شدن عوض شد",
+                    )
+                }
+                // One switch attempt ends the optimizer either way:
+                // a failed swap means the session is fragile and is
+                // left alone from here.
+                return@launch
+            }
+        }
+    }
+
+    /** Trace samples through the live tunnel, for judging the incumbent. */
+    private suspend fun measureIncumbentSamples(): List<Long> {
+        val samples = mutableListOf<Long>()
+        repeat(AETHER_OPTIMIZER_INCUMBENT_SAMPLES) { index ->
+            if (index > 0) delay(AETHER_OPTIMIZER_SAMPLE_GAP_MS)
+            if (!connected || userStop) return samples
+            AetherAutoConfig.traceLatencyMs(AetherBinary.SOCKS_PORT)?.let { samples += it }
+        }
+        return samples
+    }
+
+    /**
+     * Switches the running session to [challenger]'s args behind the
+     * live TUN, without tearing the TUN down. Mechanism: same-port
+     * core swap. The bridge is bound to the SOCKS port, not the
+     * process — the monitor has always relaunched exactly this way
+     * — so the old core is stopped, the new core binds the same
+     * port, and the bridge keeps forwarding with a blink of a
+     * second or two. The stats loop and onTunnelFailed are held off
+     * by the existing swappingCore flag for the whole blink, and
+     * the monitor is told the exit is a swap, not a crash.
+     *
+     * Returns true only when the new core verifiably carries
+     * traffic. On ANY failure the incumbent is restored and false
+     * is returned, so the caller leaves the session alone.
+     */
+    private suspend fun swapAetherCore(
+        incumbent: dev.cluvex.zedsecure.domain.config.AetherProfile,
+        challenger: AetherAutoConfig.Candidate,
+        outcome: AetherAutoConfig.ProbeOutcome,
+    ): Boolean {
+        val dir = aetherWorkDir ?: return false
+        val oldProcess = aetherProcess ?: return false
+        val oldArgs = aetherArgs
+        val oldFallback = aetherPeerFallback
+        val newProfile = incumbent.copy(
+            method = challenger.method,
+            args = challenger.args,
+            displayName = challenger.displayName,
+            address = challenger.address,
+            ipVersion = challenger.ipVersion,
+            fingerprint = challenger.fingerprint,
+            cipherSuites = challenger.cipherSuites,
+            finalMask = challenger.finalMask,
+            echConfigList = challenger.echConfigList,
+            alpn = challenger.alpn,
+            pinnedPeer = outcome.pinnedPeer,
+        )
+        val built = buildAetherConnectArgs(newProfile, flipH2 = null)
+        aetherSwapPending = true
+        swappingCore = true
+        try {
+            AetherBinary.stop(oldProcess)
+            AetherBinary.killOrphans(this)
+            val started = runCatching {
+                AetherBinary.start(this, built.args, dir)
+            }.getOrNull()
+            if (started == null) {
+                rollbackAetherCore(incumbent, oldArgs, oldFallback, dir)
+                return false
+            }
+            aetherProcess = started
+            aetherArgs = built.args
+            aetherFlipH2 = null
+            aetherPeerFallback = built.peerFallback
+            if (!waitForAetherPortUp(AETHER_OPTIMIZER_SWAP_READY_MS)) {
+                rollbackAetherCore(incumbent, oldArgs, oldFallback, dir)
+                return false
+            }
+            if (!TunnelReadiness.verify(AetherBinary.SOCKS_PORT, timeoutMs = 10_000, attempts = 1)) {
+                rollbackAetherCore(incumbent, oldArgs, oldFallback, dir)
+                return false
+            }
+            aetherProfile = newProfile
+            aetherOptimizerSwitched = true
+            return true
+        } finally {
+            swappingCore = false
+            aetherSwapPending = false
+        }
+    }
+
+    /**
+     * Restores the incumbent core after a failed swap. Best effort:
+     * if the restore itself fails, aetherProcess still points at a
+     * stopped process, and the monitor/stats loop end the session
+     * cleanly as a dead engine — nothing else can save it then.
+     */
+    private suspend fun rollbackAetherCore(
+        incumbent: dev.cluvex.zedsecure.domain.config.AetherProfile,
+        oldArgs: List<String>,
+        oldFallback: Boolean,
+        dir: java.io.File,
+    ) {
+        val current = aetherProcess
+        if (current != null) runCatching { AetherBinary.stop(current) }
+        AetherBinary.killOrphans(this)
+        val restored = runCatching { AetherBinary.start(this, oldArgs, dir) }.getOrNull()
+        if (restored != null) {
+            aetherProcess = restored
+            aetherArgs = oldArgs
+            aetherProfile = incumbent
+            aetherFlipH2 = null
+            aetherPeerFallback = oldFallback
+            waitForAetherPortUp(AETHER_OPTIMIZER_SWAP_READY_MS)
+            TunnelReadiness.verify(AetherBinary.SOCKS_PORT, timeoutMs = 10_000, attempts = 1)
+            LogBus.append("W/Aether: عوض کردن روش جواب نداد — برگشت به روش قبلی")
+        } else {
+            LogBus.append("W/Aether: عوض کردن روش و برگشت به روش قبلی هم جواب نداد")
         }
     }
 
@@ -1359,6 +1725,11 @@ class ZedVpnService : VpnService() {
             delay(AETHER_NETWORK_SETTLE_MS)
             if (userStop || generation != aetherGeneration) return@launch
             if (aetherMonitorJob?.isActive != true) return@launch
+            // The reconnect owns the session from here: the optimizer
+            // never runs again in this session, so it cannot probe or
+            // swap a core the reconnect is about to replace.
+            aetherOptimizerJob?.cancel()
+            aetherOptimizerJob = null
             val proc = aetherProcess ?: return@launch
             if (!proc.isAlive) return@launch
             aetherExpectExit = true
@@ -1370,6 +1741,11 @@ class ZedVpnService : VpnService() {
         aetherGeneration++
         aetherMonitorJob?.cancel()
         aetherMonitorJob = null
+        aetherOptimizerJob?.cancel()
+        aetherOptimizerJob = null
+        aetherSwapPending = false
+        aetherOptimizerSwitched = false
+        aetherPeerFallback = false
         unregisterAetherNetworkCallback()
         aetherExpectExit = false
         aetherProfile = null
@@ -1510,7 +1886,18 @@ class ZedVpnService : VpnService() {
         }
         stage = VpnNotifications.Stage.Connected
         connectWhen = System.currentTimeMillis()
-        VpnManager.onConnected(remark)
+        // An Aether session that fell back from an unusable pinned peer
+        // carries the one-line notice; every other engine, and an
+        // Aether session that used its peer, passes null — the same
+        // as the previous unconditional call.
+        VpnManager.onConnected(
+            remark,
+            if (kind == VpnManager.KIND_AETHER && aetherPeerFallback) {
+                getString(R.string.aether_peer_fallback_notice)
+            } else {
+                null
+            },
+        )
         notify(connectedNotification(0, 0, 0, 0))
         ZedWidgetProvider.refresh(this, force = true)
         startStatsLoop()
@@ -1667,7 +2054,13 @@ class ZedVpnService : VpnService() {
                     VpnManager.KIND_SSH -> ssh?.isRunning == true
                     VpnManager.KIND_OPENCONNECT -> openConnect?.isRunning == true
                     VpnManager.KIND_SINGBOX -> singBox?.isRunning == true
-                    VpnManager.KIND_AETHER -> aetherProcess?.isAlive == true
+                    // swappingCore covers the optimizer's core swap
+                    // blink, exactly as it covers Xray core swaps in
+                    // the else branch: without it the stats loop
+                    // would break out of the loop on the first tick
+                    // after the old process was stopped, freezing
+                    // the timer and traffic display for the session.
+                    VpnManager.KIND_AETHER -> swappingCore || aetherProcess?.isAlive == true
 
                     VpnManager.KIND_CROSS_CHAIN ->
                         engineAlive(crossInnerKind, outer = false) && engineAlive(crossOuterKind, outer = true)
@@ -2475,6 +2868,45 @@ class ZedVpnService : VpnService() {
         private const val AETHER_RESTART_READY_TIMEOUT_MS = 60_000L
 
         private const val AETHER_MAX_RESTARTS = 3
+
+        /** Backoff between monitor relaunches: 3s, then 6s, then 12s.
+         *  The previous fixed 1s hammered a struggling network; the
+         *  bound stays 3 relaunches — only the spacing changes, and
+         *  the status line names the wait (see aether_retry_status). */
+        private val AETHER_RESTART_BACKOFF_MS = longArrayOf(3_000L, 6_000L, 12_000L)
+
+        /** Optimizer: how long the session must be up before the
+         *  background search starts (the incumbent must prove itself
+         *  stable first). */
+        private const val AETHER_OPTIMIZER_STABLE_MS = 30_000L
+
+        /** Optimizer: earliest a switch may happen after connect, and
+         *  the window inside which a switch is allowed at all. */
+        private const val AETHER_OPTIMIZER_MIN_AGE_MS = 60_000L
+        private const val AETHER_OPTIMIZER_WINDOW_MS = 5 * 60_000L
+
+        /** Optimizer: an incumbent this fast is good enough — no
+         *  challenger is probed and no switch happens. */
+        private const val AETHER_OPTIMIZER_GOOD_ENOUGH_MS = 300L
+
+        /** Optimizer: a challenger must beat the incumbent by this
+         *  fraction on consecutive samples to earn a switch. */
+        private const val AETHER_OPTIMIZER_BEAT_NUMERATOR = 7L
+        private const val AETHER_OPTIMIZER_BEAT_DENOMINATOR = 10L
+
+        /** Optimizer: most challengers probed in one session, and the
+         *  probe budget each challenger gets. */
+        private const val AETHER_OPTIMIZER_MAX_CHALLENGERS = 3
+        private const val AETHER_OPTIMIZER_PROBE_TIMEOUT_MS = 45_000L
+
+        /** Optimizer: trace samples taken through the live tunnel to
+         *  judge the incumbent, and the gap between them. */
+        private const val AETHER_OPTIMIZER_INCUMBENT_SAMPLES = 3
+        private const val AETHER_OPTIMIZER_SAMPLE_GAP_MS = 3_000L
+
+        /** Optimizer: port-up budget for the swapped-in core before
+         *  rolling back to the incumbent. */
+        private const val AETHER_OPTIMIZER_SWAP_READY_MS = 15_000L
 
         /** Settle delay after a network switch before restarting Aether:
          * a switch fires several callbacks; one restart is enough. */

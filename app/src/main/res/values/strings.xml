@@ -699,6 +699,11 @@
     <string name="aether_progress_masque">Trying MASQUE…</string>
     <string name="aether_progress_warp">Trying WARP…</string>
     <string name="aether_progress_cdn">Trying CDN…</string>
+    <string name="aether_progress_memory">Trying the last method that worked…</string>
+    <string name="aether_progress_masque_h3">Trying MASQUE H3…</string>
+    <string name="aether_progress_masque_v6">Trying MASQUE IPv6…</string>
+    <string name="aether_retry_status">Retrying… attempt %1$d of %2$d, in %3$d seconds</string>
+    <string name="aether_peer_fallback_notice">Connected through a different address.</string>
     <string name="aether_err_no_network">No internet connection. Connect first, then try again.</string>
     <string name="aether_err_binary_missing">The Aether engine is missing from the app. Reinstall the app and try again.</string>
     <string name="aether_err_permission">The app could not run the Aether engine (permission denied).</string>

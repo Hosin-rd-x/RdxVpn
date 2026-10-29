@@ -328,6 +328,19 @@ fun HomeScreen(
                     onShowLogs = { showLogs = true },
                 )
 
+                val notice = ui.notice?.takeIf { it.isNotBlank() }
+                AnimatedVisibility(visible = ui.state == ConnectionState.Connected && notice != null) {
+                    notice?.let {
+                        Text(
+                            it,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                        )
+                    }
+                }
+
                 val fault = when {
                     ui.state == ConnectionState.Error ->
                         ui.error?.takeIf { it.isNotBlank() }

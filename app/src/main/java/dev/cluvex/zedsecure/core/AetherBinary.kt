@@ -73,6 +73,15 @@ object AetherBinary {
         File(context.filesDir, "aether-scan").apply { mkdirs() }
 
     /**
+     * Working directory for background-optimizer probes: separate from
+     * both [configDir] and [scanDir], for the same reason — a probe
+     * truncates its own log, and must never wipe the live session's
+     * log or a scan's. Own identity, registered once and reused.
+     */
+    fun optimizerDir(context: Context): File =
+        File(context.filesDir, "aether-optimizer").apply { mkdirs() }
+
+    /**
      * Last few lines of the binary's own log (stdout+stderr go there),
      * cleaned for display: blank lines dropped, ANSI colors stripped,
      * lines capped so a log tail stays readable in an error report.

@@ -284,6 +284,13 @@ class AndroidPlatform(
 
     override fun openBatteryOptimizationSettings() {
         val candidates = listOf(
+            // Direct per-app request screen first: one tap grants the
+            // exemption. Falls through to the list when the device
+            // does not offer it.
+            Intent(
+                AndroidSettings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+                Uri.fromParts("package", context.packageName, null),
+            ),
             Intent(AndroidSettings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS),
             Intent(
                 AndroidSettings.ACTION_APPLICATION_DETAILS_SETTINGS,

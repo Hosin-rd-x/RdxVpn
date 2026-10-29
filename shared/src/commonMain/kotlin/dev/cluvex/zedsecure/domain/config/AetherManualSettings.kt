@@ -137,23 +137,25 @@ data class AetherManualSettings(
             PROTOCOL_WG_OVER_MASQUE -> {
                 // Modern gool: the outer hop is the MASQUE peer, the
                 // inner hop the WireGuard endpoint dialled inside it.
-                settingValue(outerPeer)?.let { addAll(listOf("--peer", it)) }
-                settingValue(innerPeer)?.let { addAll(listOf("--gool-peer", it)) }
+                // IPv6 endpoints are bracketed (AetherPeer) — the
+                // core rejects an unbracketed IPv6 --peer outright.
+                settingValue(outerPeer)?.let { addAll(listOf("--peer", AetherPeer.normalize(it))) }
+                settingValue(innerPeer)?.let { addAll(listOf("--gool-peer", AetherPeer.normalize(it))) }
                 if (outerPeer.isBlank() && innerPeer.isBlank()) add("--wiw-scan")
             }
             PROTOCOL_GOOL -> {
                 // Classic gool (WireGuard in WireGuard) shares the same
                 // endpoint pair; only --gool-classic above differs.
-                settingValue(outerPeer)?.let { addAll(listOf("--peer", it)) }
-                settingValue(innerPeer)?.let { addAll(listOf("--gool-peer", it)) }
+                settingValue(outerPeer)?.let { addAll(listOf("--peer", AetherPeer.normalize(it))) }
+                settingValue(innerPeer)?.let { addAll(listOf("--gool-peer", AetherPeer.normalize(it))) }
             }
             PROTOCOL_MIM -> {
-                settingValue(outerPeer)?.let { addAll(listOf("--mim-outer", it)) }
-                settingValue(innerPeer)?.let { addAll(listOf("--mim-inner", it)) }
+                settingValue(outerPeer)?.let { addAll(listOf("--mim-outer", AetherPeer.normalize(it))) }
+                settingValue(innerPeer)?.let { addAll(listOf("--mim-inner", AetherPeer.normalize(it))) }
                 if (outerPeer.isBlank() && innerPeer.isBlank()) add("--mim-scan")
             }
             else -> {
-                settingValue(peer)?.let { addAll(listOf("--peer", it)) }
+                settingValue(peer)?.let { addAll(listOf("--peer", AetherPeer.normalize(it))) }
             }
         }
         when (psiphon) {
@@ -181,7 +183,7 @@ data class AetherManualSettings(
         settingValue(startupSecs)?.let { addAll(listOf("--startup-secs", it)) }
         settingValue(perf)?.let { addAll(listOf("--perf", it)) }
         if (noQuicV2) add("--no-quic-v2")
-        settingValue(h2Peer)?.let { addAll(listOf("--h2-peer", it)) }
+        settingValue(h2Peer)?.let { addAll(listOf("--h2-peer", AetherPeer.normalize(it))) }
         settingValue(routeBlock)?.let { addAll(listOf("--route-block", it)) }
         settingValue(routeDirect)?.let { addAll(listOf("--route-direct", it)) }
         settingValue(upstream)?.let { addAll(listOf("--upstream", it)) }

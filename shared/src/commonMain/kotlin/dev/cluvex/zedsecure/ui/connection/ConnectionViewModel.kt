@@ -18,6 +18,7 @@ data class ConnectionUiState(
     val totalUpload: Long = 0,
     val activeConfigName: String? = null,
     val error: String? = null,
+    val notice: String? = null,
     val sessionId: Int = 0,
 )
 
@@ -33,6 +34,7 @@ class ConnectionViewModel : ViewModel() {
                 totalUpload = s.totalUpload,
                 activeConfigName = s.serverName,
                 error = s.error,
+                notice = s.notice,
                 sessionId = s.sessionId,
             )
         }
