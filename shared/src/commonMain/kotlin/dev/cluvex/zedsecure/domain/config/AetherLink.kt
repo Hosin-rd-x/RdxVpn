@@ -67,7 +67,10 @@ object AetherLink {
             add("--protocol"); add(effectiveProtocol)
             add("--scan"); add(scan)
             add("--ip"); add(ip)
-            if (params["transport"]?.lowercase() == "h2") add("--h2")
+            when (params["transport"]?.lowercase()) {
+                "h2", "http2" -> add("--h2")
+                "h3", "http3", "quic" -> add("--h3")
+            }
             params["sni"]?.takeIf { it.isNotBlank() && effectiveProtocol == "masque" }?.let {
                 add("--masque-sni"); add(it)
             }
