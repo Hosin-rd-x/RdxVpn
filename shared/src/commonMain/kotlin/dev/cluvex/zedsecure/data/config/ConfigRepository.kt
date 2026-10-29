@@ -97,14 +97,6 @@ class ConfigRepository(private val store: KeyValueStore) {
     }
 
     /**
-     * Seeds one known-good relay when the user taps the preset button: the
-     * VPN Gate mirror with the demo credentials every VPN Gate client ships
-     * with. Added exactly once per install, so removing it stays removed.
-     * Called only by [importPresetSubscriptions], never automatically at
-     * startup and never by the constructor: tests build a repo and expect
-     * it empty.
-     */
-    /**
      * Upgrade path for installs that seeded the SSTP subscription before the
      * main merge: rewrite the old gist URL to the own-server file, in place.
      * Creates nothing and re-seeds nothing: a user who deleted the SSTP
@@ -116,12 +108,29 @@ class ConfigRepository(private val store: KeyValueStore) {
         val old = _subscriptions.value.firstOrNull {
             it.url.equals(LEGACY_SSTP_URL, ignoreCase = true)
         } ?: return
+        // If a subscription already points at the new file (e.g. the row
+        // was tapped after the upgrade), rewriting the old one would leave
+        // two subscriptions with the same URL. Drop the stale row instead
+        // and keep its servers: the new subscription refreshes the same
+        // list, so nothing is lost.
+        if (_subscriptions.value.any { it.id != old.id && it.url.equals(BUNDLED_SSTP_URL, ignoreCase = true) }) {
+            removeSubscription(old.id, alsoRemoveServers = false)
+            return
+        }
         _subscriptions.value = _subscriptions.value.map {
             if (it.id == old.id) it.copy(url = BUNDLED_SSTP_URL) else it
         }
         persistSubscriptions()
     }
 
+    /**
+     * Seeds one known-good relay when the user taps the preset button: the
+     * VPN Gate mirror with the demo credentials every VPN Gate client ships
+     * with. Added exactly once per install, so removing it stays removed.
+     * Called only by [importPresetSubscriptions], never automatically at
+     * startup and never by the constructor: tests build a repo and expect
+     * it empty.
+     */
     fun ensureBundledSstp() {
         migrateSstpSubscriptionUrl()
         if (store.getBoolean(KEY_SSTP_SEEDED, false)) return

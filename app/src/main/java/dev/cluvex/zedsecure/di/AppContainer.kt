@@ -28,6 +28,13 @@ class AppContainer(context: Context) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     init {
+        // Upgraded installs still point the SSTP subscription at the old
+        // gist URL until the preset button or the SSTP row is tapped;
+        // rewrite it once here instead. Creates nothing and re-seeds
+        // nothing (a no-op when no legacy subscription exists). Seeding
+        // itself stays tap-only: see [ConfigRepository.ensureBundledSstp].
+        runCatching { configRepository.migrateSstpSubscriptionUrl() }
+
         AppInfo.versionName = BuildConfig.VERSION_NAME
 
         DeviceIdentity.id = runCatching {

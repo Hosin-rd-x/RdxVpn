@@ -1010,7 +1010,12 @@ class ZedVpnService : VpnService() {
                 when (flag) {
                     // --scan balanced and --scan=balanced alike: skip
                     // the flag and its value, so connect never re-scans.
-                    "--scan" -> i += if ('=' in token) 1 else 2
+                    // A bare --scan never eats a following flag: with
+                    // "--scan --h3" the --h3 must survive.
+                    "--scan" -> {
+                        val next = profile.args.getOrNull(i + 1)
+                        i += if ('=' in token) 1 else if (next == null || next.startsWith("--")) 1 else 2
+                    }
                     // Two-hop scan flags: a connect must never re-scan
                     // for a hop, pinned or not.
                     "--mim-scan", "--wiw-scan", "--gool-scan" -> i += 1
