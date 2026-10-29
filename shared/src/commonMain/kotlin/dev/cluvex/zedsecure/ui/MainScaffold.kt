@@ -75,7 +75,7 @@ fun MainScaffold(
     // values (API 29+ gate + AetherAutoConfig runner). Defaults hide Aether.
     aetherSupported: Boolean = false,
     onAetherAuto: (suspend (onProgress: (String) -> Unit) -> Result<dev.cluvex.zedsecure.domain.config.AetherProfile>)? = null,
-    onAetherScan: (suspend (args: List<String>, onProgress: (String) -> Unit) -> Result<String>)? = null,
+    onAetherScan: (suspend (args: List<String>, onProgress: (String) -> Unit) -> Result<dev.cluvex.zedsecure.domain.config.AetherScanResult>)? = null,
     onAetherConnect: (() -> Unit)? = null,
 ) {
     val platform = dev.cluvex.zedsecure.ui.platform.LocalPlatform.current

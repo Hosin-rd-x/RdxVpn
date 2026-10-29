@@ -1592,6 +1592,8 @@
     <string name="aether_m_chained_hint">Chained: Telegram messages work, but voice and video calls may not go through. For calls, make a direct profile.</string>
     <string name="aether_m_direct_hint">Direct, without a chain: best for Telegram, including calls.</string>
     <string name="aether_m_unknown_hint">This profile has other settings the editor does not show. They are kept unchanged.</string>
+    <string name="aether_m_dropped_hint">Removed on save: %1$s</string>
+    <string name="aether_m_noize_h2_note">Noize does not apply to MASQUE over HTTP/2. Choose HTTP/3 to use it.</string>
     <string name="aether_m_error_endpoint">Check the endpoint: it must look like host:port.</string>
     <string name="aether_m_error_upstream">The upstream proxy must start with socks5:// or http://.</string>
 </resources>

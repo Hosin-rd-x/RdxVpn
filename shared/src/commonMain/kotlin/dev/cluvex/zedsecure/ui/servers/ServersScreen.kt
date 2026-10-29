@@ -98,6 +98,7 @@ import dev.cluvex.zedsecure.core.AutoSelect
 import dev.cluvex.zedsecure.core.FoxyImportBridge
 import dev.cluvex.zedsecure.domain.config.AutoSelectIds
 import dev.cluvex.zedsecure.domain.config.AetherProfile
+import dev.cluvex.zedsecure.domain.config.AetherScanResult
 import dev.cluvex.zedsecure.domain.config.ConfigParseException
 import dev.cluvex.zedsecure.domain.config.ConfigParser
 import dev.cluvex.zedsecure.domain.config.VpnProfile
@@ -152,7 +153,7 @@ fun ServersScreen(
     onAetherAuto: (suspend (onProgress: (String) -> Unit) -> Result<AetherProfile>)? = null,
     // App-layer endpoint scanner for the manual Aether editor
     // (AetherAutoConfig.scanEndpoint). Null hides the scan button.
-    onAetherScan: (suspend (args: List<String>, onProgress: (String) -> Unit) -> Result<String>)? = null,
+    onAetherScan: (suspend (args: List<String>, onProgress: (String) -> Unit) -> Result<AetherScanResult>)? = null,
     // App-layer one-tap start: with no tunnel running, onServerActivated
     // alone would only arm Aether for the Home connect button, so the app
     // layer supplies a start-when-idle hook that makes the sheet's single

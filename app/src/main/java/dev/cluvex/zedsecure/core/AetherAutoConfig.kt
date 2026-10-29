@@ -6,6 +6,7 @@ import android.net.NetworkCapabilities
 import android.os.Build
 import dev.cluvex.zedsecure.R
 import dev.cluvex.zedsecure.domain.config.AetherProfile
+import dev.cluvex.zedsecure.domain.config.AetherScanResult
 import java.net.HttpURLConnection
 import java.net.Inet6Address
 import java.net.InetSocketAddress
@@ -45,6 +46,9 @@ object AetherAutoConfig {
 
     /** SOCKS port the probe tunnel listens on (the engine's port). */
     private const val PROBE_PORT = AetherBinary.SOCKS_PORT
+
+    /** Psiphon listener port for chained scans (the core's own default). */
+    private const val PSIPHON_SCAN_PORT = 1821
 
     /** Per-candidate budget: scan + tunnel + trace must fit inside this. */
     private const val CANDIDATE_TIMEOUT_MS = 75_000L
@@ -288,22 +292,32 @@ object AetherAutoConfig {
 
     /**
      * Manual-editor scan: runs ONE probe with the editor's own settings
-     * (scan form, with --no-quick-reconnect and the probe bind added by
-     * the caller) and returns the gateway the binary selected, or a
+     * (scan form, with --no-quick-reconnect, the probe bind, and for
+     * chained scans --psiphon-bind 127.0.0.1:1821, all added by the
+     * caller) and returns the gateway(s) the binary selected, or a
      * failure with a ready-to-show message. The probe process is always
      * killed before returning, and the returned gateway is only ever
-     * filled into the editor's endpoint field — connecting never
+     * filled into the editor's endpoint fields — connecting never
      * re-scans. Verification is the same bar as the one-tap probes: the
      * SOCKS port must answer AND carry a real HTTPS trace.
+     *
+     * The probe runs in its own work directory ([AetherBinary.scanDir]),
+     * never the session's: starting a process truncates its log, and a
+     * scan must not wipe a live session's log. A scan also refuses to
+     * run while a session is live at all.
      */
     suspend fun scanEndpoint(
         context: Context,
         scanArgs: List<String>,
         onProgress: (String) -> Unit = {},
-    ): Result<String> = withContext(Dispatchers.IO) {
-        fun fail(res: Int): Result<String> =
+    ): Result<AetherScanResult> = withContext(Dispatchers.IO) {
+        fun fail(res: Int): Result<AetherScanResult> =
             Result.failure(Exception(context.getString(res)))
-        if (tcpOpen("127.0.0.1", PROBE_PORT, TCP_TIMEOUT_MS)) {
+        // A scan must never run while a session is live: a second core
+        // would truncate the session's log and fight it for the ports.
+        // The port checks below are only the backstop — a session that
+        // is still connecting may not have bound yet.
+        if (VpnManager.status.value.state.isActive) {
             return@withContext fail(R.string.aether_err_port_busy)
         }
         val binary = AetherBinary.ensureInstalled(context).getOrNull()
@@ -318,7 +332,17 @@ object AetherAutoConfig {
         if (!binary.canExecute()) {
             return@withContext fail(R.string.aether_err_permission)
         }
-        val workDir = AetherBinary.configDir(context)
+        // Leftovers from an earlier scan or session can still hold the
+        // ports; clear them before checking. Safe here: no session is
+        // live (checked above), and the checks below re-verify.
+        AetherBinary.killOrphans(context)
+        val chainedScan = scanArgs.any { it == "--psiphon" || it == "--psiphon-reverse" }
+        if (tcpOpen("127.0.0.1", PROBE_PORT, TCP_TIMEOUT_MS) ||
+            (chainedScan && tcpOpen("127.0.0.1", PSIPHON_SCAN_PORT, TCP_TIMEOUT_MS))
+        ) {
+            return@withContext fail(R.string.aether_err_port_busy)
+        }
+        val workDir = AetherBinary.scanDir(context)
         var process: Process? = null
         try {
             val started = try {
@@ -349,11 +373,12 @@ object AetherAutoConfig {
             if (!verified) {
                 return@withContext fail(R.string.aether_err_scan)
             }
-            val gateway = parseSelectedGateway(AetherBinary.logTail(workDir, 2000))
+            val (gateway, innerGateway) =
+                parseSelectedGateways(AetherBinary.logTail(workDir, 2000))
             if (gateway.isBlank()) {
                 return@withContext fail(R.string.aether_err_scan)
             }
-            Result.success(gateway)
+            Result.success(AetherScanResult(gateway, innerGateway))
         } finally {
             // Same guarantee as the one-tap probes: the scan process
             // never outlives this call.
@@ -367,23 +392,49 @@ object AetherAutoConfig {
         AetherBinary.logTail(workDir)
 
     /**
+     * Gateways the binary picked, read from its own log lines: the outer
+     * hop, plus the inner hop when the run announced both. Two-hop runs
+     * announce both hops on one line — gool logs "using cloudflare edge
+     * {outer} (outer) and {inner} (inner)", MIM logs "masque-in-masque
+     * ready: {outer} (outer) and {inner} (inner)" — and that line wins
+     * over the single-pick lines, because for MIM the core logs two
+     * "selected MASQUE gateway" picks (outer, then inner-avoiding) and
+     * only the pair line says which is which. Single-hop runs announce
+     * one gateway. Returns ("", "") when the binary announces no pick.
+     * Only the "selected ..." announcement counts — the "candidate ok
+     * ..." lines are gateways merely tried, not the one chosen, and must
+     * never be pinned.
+     */
+    private fun parseSelectedGateways(logText: String): Pair<String, String> {
+        fun clean(s: String): String = s.trimEnd(',', ';')
+        Regex("""edge (\S+) \(outer\) and (\S+) \(inner\)""").find(logText)?.let {
+            return clean(it.groupValues[1]) to clean(it.groupValues[2])
+        }
+        Regex("""ready: (\S+) \(outer\) and (\S+) \(inner\)""").find(logText)?.let {
+            return clean(it.groupValues[1]) to clean(it.groupValues[2])
+        }
+        Regex("""selected MASQUE gateway (\S+)""").find(logText)?.let {
+            return clean(it.groupValues[1]) to ""
+        }
+        Regex("""selected WireGuard endpoint (\S+)""").find(logText)?.let {
+            return clean(it.groupValues[1]) to ""
+        }
+        // Single-hop ready line. Only reached when no pick line above
+        // matched; \S+ stops at the space, so it cannot truncate a peer.
+        Regex("""using cloudflare edge (\S+)""").find(logText)?.let {
+            return clean(it.groupValues[1]) to ""
+        }
+        return "" to ""
+    }
+
+    /**
      * Gateway the binary picked, read from its own log lines. Only the
      * "selected ..." announcement counts — the "candidate ok ..." lines
      * are gateways merely tried, not the one chosen, and must never be
      * pinned. Returns "" when the binary announces no pick.
      */
-    private fun parseSelectedGateway(logText: String): String {
-        val patterns = listOf(
-            Regex("""selected MASQUE gateway (\S+)"""),
-            Regex("""selected WireGuard endpoint (\S+)"""),
-            Regex("""using cloudflare edge (\S+)(?! \(outer\))"""),
-        )
-        for (pattern in patterns) {
-            val match = pattern.find(logText) ?: continue
-            return match.groupValues[1].trimEnd(',', ';')
-        }
-        return ""
-    }
+    private fun parseSelectedGateway(logText: String): String =
+        parseSelectedGateways(logText).first
 
     /**
      * Runs one candidate's probe tunnel and verifies it end to end, and

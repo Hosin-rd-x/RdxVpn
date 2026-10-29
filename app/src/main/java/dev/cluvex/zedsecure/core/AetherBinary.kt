@@ -63,6 +63,16 @@ object AetherBinary {
         File(context.filesDir, "aether").apply { mkdirs() }
 
     /**
+     * Working directory for manual-editor scans: separate from
+     * [configDir], because starting a process truncates its own
+     * aether.log, and a scan must never wipe the live session's log.
+     * Also only created, never cleaned: a scan in this directory
+     * registers its own identity once and reuses it afterwards.
+     */
+    fun scanDir(context: Context): File =
+        File(context.filesDir, "aether-scan").apply { mkdirs() }
+
+    /**
      * Last few lines of the binary's own log (stdout+stderr go there),
      * cleaned for display: blank lines dropped, ANSI colors stripped,
      * lines capped so a log tail stays readable in an error report.

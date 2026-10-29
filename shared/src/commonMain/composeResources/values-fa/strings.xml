@@ -1585,6 +1585,8 @@
     <string name="aether_m_chained_hint">زنجیره‌ای: پیام‌های تلگرام کار می‌کنن ولی تماس صوتی و تصویری ممکنه نگذره. برای تماس، یه پروفایل مستقیم بساز.</string>
     <string name="aether_m_direct_hint">مستقیم، بدون زنجیره: برای تلگرام بهترینه، از جمله تماس.</string>
     <string name="aether_m_unknown_hint">این پروفایل تنظیم‌های دیگری هم داره که ویرایشگر نشون نمی‌ده. اون‌ها دست‌نخورده می‌مونن.</string>
+    <string name="aether_m_dropped_hint">موقع ذخیره این‌ها حذف می‌شن: %1$s</string>
+    <string name="aether_m_noize_h2_note">روی MASQUE با HTTP/2 اعمال نمی‌شه. برای استفاده ازش HTTP/3 رو انتخاب کن.</string>
     <string name="aether_m_error_endpoint">نقطه رو چک کن: باید شبیه host:port باشه.</string>
     <string name="aether_m_error_upstream">پروکسی بالادست باید با socks5:// یا http:// شروع بشه.</string>
 </resources>

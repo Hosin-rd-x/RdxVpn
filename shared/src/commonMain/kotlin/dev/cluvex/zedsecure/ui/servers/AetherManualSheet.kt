@@ -40,6 +40,7 @@ import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
 import dev.cluvex.zedsecure.domain.config.AetherManualSettings
 import dev.cluvex.zedsecure.domain.config.AetherProfile
+import dev.cluvex.zedsecure.domain.config.AetherScanResult
 import dev.cluvex.zedsecure.shared.resources.Res
 import dev.cluvex.zedsecure.shared.resources.*
 import dev.cluvex.zedsecure.ui.components.PickerField
@@ -57,14 +58,14 @@ import dev.cluvex.zedsecure.ui.components.PickerField
  * service connects with --quick-reconnect, like PattNG's session.
  *
  * [onScan] runs in the app layer (it starts the real binary): it gets
- * scan-form args and returns the gateway the scan selected, or a
+ * scan-form args and returns the gateway(s) the scan selected, or a
  * failure with a ready-to-show message. Null hides the scan button.
  */
 @Composable
 fun AetherManualSheet(
     onDismiss: () -> Unit,
     onSave: (name: String, AetherProfile) -> Unit,
-    onScan: (suspend (args: List<String>, onProgress: (String) -> Unit) -> Result<String>)? = null,
+    onScan: (suspend (args: List<String>, onProgress: (String) -> Unit) -> Result<AetherScanResult>)? = null,
     initial: AetherProfile? = null,
     initialName: String = "",
 ) {
@@ -97,6 +98,7 @@ fun AetherManualSheet(
     val upstreamError = stringResource(Res.string.aether_m_error_upstream)
     val scanFailed = stringResource(Res.string.aether_m_scan_failed)
     val scanFoundTemplate = stringResource(Res.string.aether_m_scan_found)
+    val droppedHintTemplate = stringResource(Res.string.aether_m_dropped_hint)
 
     ModalBottomSheet(
         onDismissRequest = { dismiss() },
@@ -124,6 +126,18 @@ fun AetherManualSheet(
             if (initialSettings.hasUnknownArgs) {
                 Text(
                     stringResource(Res.string.aether_m_unknown_hint),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+
+            // Flags this profile would silently drop on save (blocked
+            // flags, values that read as flags, settings the current
+            // shape does not emit): named here instead of disappearing.
+            val droppedFlags = (settings.droppedFlags + settings.droppedOnSave()).distinct()
+            if (droppedFlags.isNotEmpty()) {
+                Text(
+                    droppedHintTemplate.replace("%1\$s", droppedFlags.joinToString("، ")),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -186,6 +200,13 @@ fun AetherManualSheet(
                 selected = settings.ipVersion,
                 onSelect = { settings = settings.copy(ipVersion = it) },
             )
+            // Noize shapes UDP/HTTP-3 only: on MASQUE over H2 the core
+            // takes none, so the selector is disabled there with a note
+            // instead of silently dropping the choice on save.
+            val noizeDisabled = settings.isOverMasque &&
+                settings.transport == AetherManualSettings.TRANSPORT_H2 &&
+                settings.psiphon != AetherManualSettings.PSIPHON_REVERSE &&
+                settings.psiphon != AetherManualSettings.PSIPHON_ONLY
             PickerField(
                 label = stringResource(Res.string.aether_m_noize),
                 options = keepCurrent(
@@ -202,17 +223,29 @@ fun AetherManualSheet(
                 ),
                 selected = settings.noize,
                 onSelect = { settings = settings.copy(noize = it) },
+                enabled = !noizeDisabled,
             )
+            if (noizeDisabled) {
+                Text(
+                    stringResource(Res.string.aether_m_noize_h2_note),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
 
             if (settings.isTwoHop) {
                 F(settings.outerPeer, Res.string.aether_m_outer, "162.159.198.79:443") {
+                    // A hand-edited endpoint replaces the scanned one.
+                    scannedPeer = ""
                     settings = settings.copy(outerPeer = it)
                 }
                 F(settings.innerPeer, Res.string.aether_m_inner, "162.159.198.106:443") {
+                    scannedPeer = ""
                     settings = settings.copy(innerPeer = it)
                 }
             } else {
                 F(settings.peer, Res.string.aether_m_peer, "162.159.198.54:443") {
+                    scannedPeer = ""
                     settings = settings.copy(peer = it)
                 }
             }
@@ -230,19 +263,38 @@ fun AetherManualSheet(
                                 val scanArgs = snapshot.toArgs() + listOf(
                                     "--no-quick-reconnect",
                                     "--bind", "127.0.0.1:1819",
-                                )
+                                ) + if (snapshot.psiphon == AetherManualSettings.PSIPHON_CHAIN ||
+                                    snapshot.psiphon == AetherManualSettings.PSIPHON_REVERSE
+                                ) {
+                                    // The chain is served on its own port,
+                                    // like at connect time (there the chain
+                                    // takes 1819 and the tunnel 1820; the
+                                    // scan verifies the tunnel on 1819, so
+                                    // the chain takes the core's default
+                                    // 1821 here).
+                                    listOf("--psiphon-bind", "127.0.0.1:1821")
+                                } else {
+                                    emptyList()
+                                }
                                 val result = onScan(scanArgs) { }
                                 scanRunning = false
                                 scanJob = null
                                 result.fold(
-                                    onSuccess = { gateway ->
+                                    onSuccess = { scan ->
                                         if (snapshot.isTwoHop) {
-                                            settings = settings.copy(outerPeer = gateway)
+                                            settings = settings.copy(
+                                                outerPeer = scan.gateway,
+                                                // A scan that announced no
+                                                // inner hop keeps a typed
+                                                // one; the core picks the
+                                                // missing hop itself.
+                                                innerPeer = scan.innerGateway.ifBlank { settings.innerPeer },
+                                            )
                                         } else {
-                                            settings = settings.copy(peer = gateway)
-                                            scannedPeer = gateway
+                                            settings = settings.copy(peer = scan.gateway)
+                                            scannedPeer = scan.gateway
                                         }
-                                        scanMessage = scanFoundTemplate.replace("%1\$s", gateway)
+                                        scanMessage = scanFoundTemplate.replace("%1\$s", scan.gateway)
                                     },
                                     onFailure = { e ->
                                         scanMessage = e.message?.takeIf { it.isNotBlank() } ?: scanFailed
@@ -474,14 +526,16 @@ fun AetherManualSheet(
                     }
                     error = null
                     // The pinned gateway belongs to the scanned endpoint:
-                    // a hand-edited endpoint replaces it, and two-hop
+                    // a hand-edited endpoint replaces it (scannedPeer is
+                    // cleared on edit, and only counts here while it
+                    // still equals the typed endpoint), and two-hop
                     // profiles never pin (the service would add a stray
                     // --peer next to the hop flags).
                     val peerChanged = initial == null ||
                         snapshot.peer != initialSettings.peer ||
                         snapshot.outerPeer != initialSettings.outerPeer
                     val pinned = when {
-                        scannedPeer.isNotBlank() -> scannedPeer
+                        scannedPeer.isNotBlank() && scannedPeer == snapshot.peer -> scannedPeer
                         snapshot.isTwoHop -> ""
                         peerChanged -> ""
                         else -> initial?.pinnedPeer.orEmpty()

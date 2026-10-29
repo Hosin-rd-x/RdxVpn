@@ -75,6 +75,8 @@ data class AetherManualSettings(
     val upstream: String = "",
     /** True when [fromArgs] met flags it does not model (kept in [extraArgs]). */
     val hasUnknownArgs: Boolean = false,
+    /** Service-owned flags dropped while parsing stored args; shown in the editor. */
+    val droppedFlags: List<String> = emptyList(),
 ) {
     val isTwoHop: Boolean get() = protocol == PROTOCOL_GOOL || protocol == PROTOCOL_MIM ||
         protocol == PROTOCOL_WG_OVER_MASQUE
@@ -110,12 +112,19 @@ data class AetherManualSettings(
         if (isOverMasque) {
             settingValue(masqueSni)?.let { addAll(listOf("--masque-sni", it)) }
         }
-        if (isOverMasque && transport == TRANSPORT_H2) {
-            add("--h2")
-            if (fragment) {
-                add("--fragment")
-                settingValue(fragmentSize)?.let { addAll(listOf("--fragment-size", it)) }
-                settingValue(fragmentDelay)?.let { addAll(listOf("--fragment-delay", it)) }
+        if (isOverMasque) {
+            // The transport is always written explicitly: H2 as --h2, H3
+            // as --h3. A missing flag reads back as H2 (see fromArgs), so
+            // leaving H3 silent would corrupt it to H2 on re-save.
+            if (transport == TRANSPORT_H2) {
+                add("--h2")
+                if (fragment) {
+                    add("--fragment")
+                    settingValue(fragmentSize)?.let { addAll(listOf("--fragment-size", it)) }
+                    settingValue(fragmentDelay)?.let { addAll(listOf("--fragment-delay", it)) }
+                }
+            } else {
+                add("--h3")
             }
         }
         if (isOverMasque && ech) {
@@ -178,6 +187,70 @@ data class AetherManualSettings(
         settingValue(upstream)?.let { addAll(listOf("--upstream", it)) }
         addAll(filterExtraArgs(splitExtraArgs(extraArgs)))
     }
+
+    /**
+     * Flag names these settings would silently drop on save, for the
+     * editor's hint line: blocked flags in the extra-args text, values
+     * that read as their own flag, and settings the current protocol /
+     * transport / Psiphon shape does not emit. Noize on H2 is excluded:
+     * the editor disables that selector with its own note instead.
+     */
+    fun droppedOnSave(): List<String> = buildList {
+        addAll(droppedExtraArgs(splitExtraArgs(extraArgs)))
+        // A structured value that looks like its own flag is rejected
+        // by settingValue and never reaches the core.
+        fun rejected(flag: String, value: String) {
+            if (value.isNotBlank() && settingValue(value) == null) add(flag)
+        }
+        rejected("--dns", dns)
+        rejected("--exit-loc", exitLoc)
+        rejected("--masque-sni", masqueSni)
+        rejected("--fragment-size", fragmentSize)
+        rejected("--fragment-delay", fragmentDelay)
+        rejected("--ech-dns", echDns)
+        rejected("--ech-domain", echDomain)
+        rejected("--peer", peer)
+        rejected("--mim-outer", outerPeer)
+        rejected("--mim-inner", innerPeer)
+        rejected("--psiphon-cdn-ips", psiphonCdnIps)
+        rejected("--psiphon-cdn-sni", psiphonCdnSni)
+        rejected("--psiphon-region", psiphonRegion)
+        rejected("--reconnect-secs", reconnectSecs)
+        rejected("--keepalive", keepaliveSecs)
+        rejected("--validate-secs", validateSecs)
+        rejected("--startup-secs", startupSecs)
+        rejected("--perf", perf)
+        rejected("--h2-peer", h2Peer)
+        rejected("--route-block", routeBlock)
+        rejected("--route-direct", routeDirect)
+        rejected("--upstream", upstream)
+        if (!isOverMasque) {
+            if (masqueSni.isNotBlank()) add("--masque-sni")
+            if (fragment) add("--fragment")
+            if (ech) add("--ech")
+            fingerprintArgs(fingerprint).firstOrNull()?.let { add(it) }
+        } else if (transport != TRANSPORT_H2 && fragment) {
+            // Fragment is H2-only; on H3 the switch is hidden, but a
+            // stored profile can still carry it.
+            add("--fragment")
+        }
+        if (psiphon == PSIPHON_OFF) {
+            if (psiphonMode != PSIPHON_MODE_AUTO) add("--psiphon-mode")
+            if (psiphonRegion.isNotBlank()) add("--psiphon-region")
+            if (psiphonCdnIps.isNotBlank()) add("--psiphon-cdn-ips")
+            if (psiphonCdnSni.isNotBlank()) add("--psiphon-cdn-sni")
+            if (psiphonCdnSets.isNotBlank()) add("--psiphon-cdn-sets")
+        } else if (psiphonMode == PSIPHON_MODE_DIRECT) {
+            if (psiphonCdnIps.isNotBlank()) add("--psiphon-cdn-ips")
+            if (psiphonCdnSni.isNotBlank()) add("--psiphon-cdn-sni")
+            if (psiphonCdnSets.isNotBlank()) add("--psiphon-cdn-sets")
+        } else if (psiphonCdnIps.isBlank() && psiphonCdnSni.isNotBlank()) {
+            add("--psiphon-cdn-sni")
+        }
+        if (psiphonCdnSets.isNotBlank() && canonicalCdnSets(psiphonCdnSets) == null) {
+            add("--psiphon-cdn-sets")
+        }
+    }.distinct()
 
     companion object {
         const val PROTOCOL_MASQUE = "masque"
@@ -365,22 +438,34 @@ data class AetherManualSettings(
          * args field is the user's own explicit choice, and the core
          * reports a bad flag itself.
          */
-        fun filterExtraArgs(tokens: List<String>): List<String> {
+        fun filterExtraArgs(tokens: List<String>): List<String> =
+            filterExtraArgsWithDropped(tokens).first
+
+        /** Flag names [filterExtraArgs] drops from free-form tokens. */
+        fun droppedExtraArgs(tokens: List<String>): List<String> =
+            filterExtraArgsWithDropped(tokens).second
+
+        private fun filterExtraArgsWithDropped(
+            tokens: List<String>,
+        ): Pair<List<String>, List<String>> {
             val out = mutableListOf<String>()
+            val dropped = mutableListOf<String>()
             var i = 0
             while (i < tokens.size) {
                 val token = tokens[i]
                 val flag = token.substringBefore('=')
                 if (flag in BLOCKED_BOOL_FLAGS || flag in SESSION_FLAGS) {
+                    dropped += flag
                     i += 1
                 } else if (flag in BLOCKED_VALUE_FLAGS) {
+                    dropped += flag
                     i += if ('=' in token) 1 else 2
                 } else {
                     out += token
                     i += 1
                 }
             }
-            return out
+            return out to dropped
         }
 
         /**
@@ -463,6 +548,8 @@ data class AetherManualSettings(
             // (Kept only as raw tokens; see consumedTls below.)
             val unknown = mutableListOf<String>()
             var hadUnknown = false
+            // Service-owned flags dropped on parse, for the editor hint.
+            val dropped = mutableListOf<String>()
             // TLS signature pieces, kept as raw tokens so a set that is
             // not exactly one of the preset bundles can be preserved
             // verbatim instead of silently dropped on re-save.
@@ -489,6 +576,8 @@ data class AetherManualSettings(
                 when (flag) {
                     in BLOCKED_VALUE_FLAGS, in BLOCKED_BOOL_FLAGS -> {
                         // Service-owned: dropped; the value goes with it.
+                        // Recorded so the editor can say what was dropped.
+                        dropped += flag
                         if (flag in BLOCKED_VALUE_FLAGS && inlineValue == null) {
                             if (valueAt(i)?.startsWith("-") == false) i++
                         }
@@ -787,6 +876,14 @@ data class AetherManualSettings(
             if (protocol == PROTOCOL_WG_OVER_MASQUE && goolClassic) {
                 protocol = PROTOCOL_GOOL
             }
+            // "--protocol gool" is the core word for both modern gool
+            // (WireGuard over MASQUE) and classic gool; only
+            // --gool-classic tells them apart. Without it, gool means
+            // the modern one — otherwise a re-save would add
+            // --gool-classic and change the protocol.
+            if (protocol == PROTOCOL_GOOL && !goolClassic) {
+                protocol = PROTOCOL_WG_OVER_MASQUE
+            }
             if (protocol == PROTOCOL_GOOL || protocol == PROTOCOL_MIM ||
                 protocol == PROTOCOL_WG_OVER_MASQUE
             ) {
@@ -799,6 +896,10 @@ data class AetherManualSettings(
                 }
                 peer = ""
             }
+            // No transport flag means H2: this app's stored profiles
+            // (automatic, link, and older editor saves) all mean H2 when
+            // silent, and toArgs now always writes --h3 for H3 — so a
+            // silent profile is never a round-tripped H3.
             if (!transportSeen) transport = TRANSPORT_H2
             // The fingerprint is a preset only when the stored TLS
             // tokens are exactly that preset's bundle; anything else is
@@ -856,6 +957,7 @@ data class AetherManualSettings(
                 routeDirect = routeDirect,
                 upstream = upstream,
                 hasUnknownArgs = hadUnknown,
+                droppedFlags = dropped.distinct(),
             )
         }
     }
