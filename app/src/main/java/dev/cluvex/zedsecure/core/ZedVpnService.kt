@@ -1000,6 +1000,7 @@ class ZedVpnService : VpnService() {
         val isTwoHop = aetherIsTwoHop(profile.args)
         val eligible = aetherFlipEligible(profile.args)
         val effectiveFlip = if (eligible) flipH2 else null
+        var peerFallback = false
         val connectArgs = buildList {
             var i = 0
             var storedPeer: String? = null
@@ -1086,7 +1087,6 @@ class ZedVpnService : VpnService() {
             // validated: an unbracketed IPv6 peer stored before the
             // bracket fix must connect, and a peer that is still
             // unusable must not kill the connect.
-            var peerFallback = false
             val pinned = AetherPeer.normalize(profile.pinnedPeer)
             val stored = storedPeer?.let { AetherPeer.normalize(it) }
             if (!isTwoHop && pinned.isNotBlank()) {
