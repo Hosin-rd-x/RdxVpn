@@ -1235,11 +1235,11 @@ class ZedVpnService : VpnService() {
         if (aetherMonitorJob?.isActive != true) return
         if (aetherProcess == null || userStop) return
         val now = System.currentTimeMillis()
-        if (now - aetherLastNetworkRestartMs < NETWORK_MIN_INTERVAL_MS) return
+        if (now - aetherLastNetworkRestartMs < AETHER_NETWORK_MIN_INTERVAL_MS) return
         aetherLastNetworkRestartMs = now
         val generation = aetherGeneration
         scope.launch(Dispatchers.IO) {
-            delay(NETWORK_SETTLE_MS)
+            delay(AETHER_NETWORK_SETTLE_MS)
             if (userStop || generation != aetherGeneration) return@launch
             if (aetherMonitorJob?.isActive != true) return@launch
             val proc = aetherProcess ?: return@launch
@@ -2333,10 +2333,10 @@ class ZedVpnService : VpnService() {
 
         /** Settle delay after a network switch before restarting Aether:
          * a switch fires several callbacks; one restart is enough. */
-        private const val NETWORK_SETTLE_MS = 2_000L
+        private const val AETHER_NETWORK_SETTLE_MS = 2_000L
 
         /** Minimum gap between network-change restarts (anti-flap). */
-        private const val NETWORK_MIN_INTERVAL_MS = 15_000L
+        private const val AETHER_NETWORK_MIN_INTERVAL_MS = 15_000L
 
         private const val SNISPOOF_PORT = LocalPorts.SNI_SPOOF
         private const val MTU = 1500
