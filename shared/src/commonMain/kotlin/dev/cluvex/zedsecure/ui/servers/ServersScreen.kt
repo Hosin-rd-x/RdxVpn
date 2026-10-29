@@ -559,6 +559,7 @@ fun ServersScreen(
      */
     fun importSstpServers() {
         if (sstpImporting) return
+        repository.migrateSstpSubscriptionUrl()
         sstpImporting = true
         scope.launch {
             repository.importSubscriptionUrl(

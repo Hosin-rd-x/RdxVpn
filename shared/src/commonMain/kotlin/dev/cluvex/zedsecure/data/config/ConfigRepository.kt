@@ -104,7 +104,26 @@ class ConfigRepository(private val store: KeyValueStore) {
      * startup and never by the constructor: tests build a repo and expect
      * it empty.
      */
+    /**
+     * Upgrade path for installs that seeded the SSTP subscription before the
+     * main merge: rewrite the old gist URL to the own-server file, in place.
+     * Creates nothing and re-seeds nothing: a user who deleted the SSTP
+     * subscription keeps it deleted (no matching subscription, no-op), and
+     * the seeded profiles are untouched - only the subscription's URL moves,
+     * so the next refresh reads the new file.
+     */
+    fun migrateSstpSubscriptionUrl() {
+        val old = _subscriptions.value.firstOrNull {
+            it.url.equals(LEGACY_SSTP_URL, ignoreCase = true)
+        } ?: return
+        _subscriptions.value = _subscriptions.value.map {
+            if (it.id == old.id) it.copy(url = BUNDLED_SSTP_URL) else it
+        }
+        persistSubscriptions()
+    }
+
     fun ensureBundledSstp() {
+        migrateSstpSubscriptionUrl()
         if (store.getBoolean(KEY_SSTP_SEEDED, false)) return
         val existing = _subscriptions.value.firstOrNull { it.url == BUNDLED_SSTP_URL }
         val sub = existing ?: addSubscription(name = SSTP_GROUP, url = BUNDLED_SSTP_URL)
@@ -1828,6 +1847,10 @@ class ConfigRepository(private val store: KeyValueStore) {
          */
         const val BUNDLED_SSTP_URL =
             "https://shop.hosinrdx.ir/sstp.txt"
+
+        /** Pre-merge SSTP list location; only used to migrate old installs. */
+        private const val LEGACY_SSTP_URL =
+            "https://gist.githubusercontent.com/Hosin-rd-x/ba90aa95ae8d4e2d95d59c759ec5a2a1/raw/sstp.txt"
         private const val BUNDLED_SSTP_LINK = "sstp://Vpn:vpn@public-vpn-156.opengw.net:443"
         private const val KEY_SSTP_SEEDED = "seeded_sstp"
         private const val PREFS = "zed_configs"
