@@ -65,6 +65,9 @@ interface Platform {
 
     val supportsSniSpoof: Boolean get() = true
 
+    /** Whether the prebuilt Aether Android binary can run here (API 29+). */
+    val supportsAether: Boolean get() = false
+
     val supportsTun: Boolean get() = true
 
     val choosesTunEngine: Boolean get() = true

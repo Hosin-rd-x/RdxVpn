@@ -143,11 +143,11 @@ fun ServersScreen(
 
     personalization: Personalization = Personalization.Default,
     reduceMotion: Boolean = false,
-    // Aether needs Android 10 (API 29)+: the app layer passes
-    // Build.VERSION.SDK_INT >= 29. False hides the Aether entry entirely
-    // (desktop and older phones); the engine refuses Aether below API 29
-    // as well, so this gate is UX, not security.
-    aetherSupported: Boolean = false,
+    // No Aether visibility param: the add-sheet entry shows on every
+    // Android host and is hidden only on desktop (LocalPlatform
+    // .isComputer, at the call site below). Below API 29 the sheet
+    // shows its unavailable note (Platform.supportsAether); the engine
+    // refuses Aether below API 29 as well.
     // App-layer auto-config runner (AetherAutoConfig). Null when unwired
     // (e.g. desktop): the sheet then shows its unavailable note.
     onAetherAuto: (suspend (onProgress: (String) -> Unit) -> Result<AetherProfile>)? = null,
@@ -1382,7 +1382,9 @@ fun ServersScreen(
             },
             // Null hides the entry; non-null shows it. The gate lives
             // here, not in AddServerSheet, so the sheet stays dumb.
-            onAether = if (aetherSupported) {
+            // Android always offers the entry; desktop does not ship
+            // the Aether binary, so the row hides there.
+            onAether = if (!LocalPlatform.current.isComputer) {
                 {
                     showAddSheet = false
                     showAether = true
@@ -1484,7 +1486,10 @@ fun ServersScreen(
     if (showAether) {
         AetherSheet(
             onDismiss = { showAether = false },
-            onAutoConnect = onAetherAuto,
+            // Below API 29 the sheet shows its unavailable note and
+            // disables the button instead of attempting a run; the
+            // engine refuses Aether below API 29 as well.
+            onAutoConnect = if (LocalPlatform.current.supportsAether) onAetherAuto else null,
             onSave = { name, settings ->
                 showAether = false
                 // Mirrors the other sheets' save flow (addX + activate),

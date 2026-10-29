@@ -157,6 +157,12 @@ class AndroidPlatform(
     override val supportsDynamicColor: Boolean
         get() = android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S
 
+    // Aether's prebuilt Android binary needs API 29+; the engine refuses
+    // Aether below that as well, so this only drives the sheet's
+    // unavailable note, never the row's visibility.
+    override val supportsAether: Boolean
+        get() = android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q
+
     override val supportsQrScan: Boolean
         get() = context.packageManager.hasSystemFeature(android.content.pm.PackageManager.FEATURE_CAMERA_ANY)
 

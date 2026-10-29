@@ -71,9 +71,6 @@ fun MainScaffold(
 
     aiBridge: dev.cluvex.zedsecure.domain.ai.AiAppBridge? = null,
     appVersion: String = "",
-    // Threaded through to ServersScreen; the app layer supplies the real
-    // values (API 29+ gate + AetherAutoConfig runner). Defaults hide Aether.
-    aetherSupported: Boolean = false,
     onAetherAuto: (suspend (onProgress: (String) -> Unit) -> Result<dev.cluvex.zedsecure.domain.config.AetherProfile>)? = null,
     onAetherScan: (suspend (args: List<String>, onProgress: (String) -> Unit) -> Result<dev.cluvex.zedsecure.domain.config.AetherScanResult>)? = null,
     onAetherConnect: (() -> Unit)? = null,
@@ -254,7 +251,6 @@ fun MainScaffold(
                     autoSortAfterTest = settings.autoSortAfterTest,
                     personalization = settings.toPersonalization(),
                     reduceMotion = settings.reduceMotion,
-                    aetherSupported = aetherSupported,
                     onAetherAuto = onAetherAuto,
                     onAetherScan = onAetherScan,
                     onAetherConnect = onAetherConnect,

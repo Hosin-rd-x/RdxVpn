@@ -112,6 +112,12 @@ class ZedVpnService : VpnService() {
 
     private var killSwitchActive = false
 
+    // True only while this service is foregrounded for a live session
+    // (set by startInForeground, cleared by stopEverything). notify()
+    // refuses to post once it is false, so no job or racing callback can
+    // resurrect the notification after the final stop.
+    @Volatile private var notificationLive = false
+
     @Volatile private var reconnecting = false
     private var geoReloadJob: Job? = null
     private var holdWatch: android.net.ConnectivityManager.NetworkCallback? = null
@@ -153,7 +159,17 @@ class ZedVpnService : VpnService() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val command = intent?.getStringExtra(VpnManager.EXTRA_COMMAND)
 
-        if (command != VpnManager.CMD_STOP) {
+        // Enter the foreground only for intents that will actually run a
+        // session (or restore one). Anything else falls through to
+        // stopEverything() below, which removes the notification; posting
+        // first would flash (and, if teardown stalled, strand) a
+        // notification for a session that never runs — e.g. a sticky
+        // restart with a null intent on a non-Always-on install.
+        val willRunSession = command == VpnManager.CMD_START ||
+            command == VpnManager.CMD_START_ACTIVE ||
+            intent?.action == VpnService.SERVICE_INTERFACE ||
+            (intent == null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && isAlwaysOn)
+        if (willRunSession) {
             val wentForeground = runCatching {
                 startInForeground(
                     if (connected) connectedNotification(0, 0, 0, 0) else connectingNotification(),
@@ -180,6 +196,7 @@ class ZedVpnService : VpnService() {
                 proxyOnly = intent.getBooleanExtra(VpnManager.EXTRA_PROXY_ONLY, false)
                 if (config.isNullOrBlank()) {
                     VpnManager.onError(getString(R.string.engine_missing_config))
+                    notificationLive = false
                     stopForeground(Service.STOP_FOREGROUND_REMOVE)
                     stopSelf()
                     return START_NOT_STICKY
@@ -1708,6 +1725,7 @@ class ZedVpnService : VpnService() {
     }
 
     private fun notify(notification: android.app.Notification) {
+        if (!notificationLive) return
         getSystemService(NotificationManager::class.java)?.notify(VpnNotifications.NOTIFICATION_ID, notification)
     }
 
@@ -1923,11 +1941,30 @@ class ZedVpnService : VpnService() {
         }
         stopHoldWatch()
         reconnecting = false
+        // A user stop tears the kill-switch hold down fully: the flag
+        // must not survive the stop, or a later failure callback could
+        // mistake this dead service for a live hold.
+        killSwitchActive = false
+        notificationLive = false
         val tunToClose = tun
         tun = null
         connected = false
         VpnManager.onDisconnected(keepError = !userStop)
         stopForeground(Service.STOP_FOREGROUND_REMOVE)
+        // Belt and braces: stopForeground removes the foreground
+        // notification, but a plain notify() update to the same id from
+        // a racing callback must not leave an orphan behind either.
+        runCatching {
+            getSystemService(NotificationManager::class.java)?.cancel(VpnNotifications.NOTIFICATION_ID)
+        }
+        // The sibling services own their own notifications and tunnels:
+        // stopping here must stop them too, or their notification (and
+        // tunnel) outlives this service's stop. Both stops are
+        // runCatching no-ops when the sibling is not running, and the
+        // plan-switch branches start the sibling only after this
+        // returns, so a fresh start is never killed by its own stop.
+        runCatching { dev.cluvex.zedsecure.foxy.vpn.FoxyVpnService.stop(this) }
+        runCatching { SstpBridge.stop(this) }
         ZedWidgetProvider.refresh(this, force = true)
 
         if (Looper.myLooper() != Looper.getMainLooper()) {
@@ -2115,6 +2152,13 @@ class ZedVpnService : VpnService() {
         // twice when a stop is already in flight.
         userStop = true
         runCatching { stopEverything() }
+        // stopEverything() removes the notification synchronously, but a
+        // destroy must never leave one behind even if that call raced a
+        // teardown already in flight: cancel the id outright.
+        notificationLive = false
+        runCatching {
+            getSystemService(NotificationManager::class.java)?.cancel(VpnNotifications.NOTIFICATION_ID)
+        }
         // stopEverything() already reaches stopAether() via stopEngines(),
         // but it may hand teardown to a background thread; stop the Aether
         // process directly here too so a service destroy never leaks it.
@@ -2132,6 +2176,7 @@ class ZedVpnService : VpnService() {
     }
 
     private fun startInForeground(notification: android.app.Notification) {
+        notificationLive = true
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
             startForeground(VpnNotifications.NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
         } else {

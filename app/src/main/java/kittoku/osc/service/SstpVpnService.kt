@@ -268,11 +268,30 @@ internal class SstpVpnService : VpnService() {
     }
 
     internal fun close() {
+        cancelAllNotifications()
         stopForeground(true)
         stopSelf()
     }
 
+    /**
+     * Removes every notification this service can post. stopForeground
+     * only removes the foreground (disconnect) notification; the error
+     * and reconnect notifications are plain notify() posts and would
+     * otherwise linger after a disconnect.
+     */
+    private fun cancelAllNotifications() {
+        cancelNotification(NOTIFICATION_ERROR_ID)
+        cancelNotification(NOTIFICATION_RECONNECT_ID)
+        cancelNotification(NOTIFICATION_DISCONNECT_ID)
+        cancelNotification(NOTIFICATION_CERTIFICATE_ID)
+    }
+
     override fun onDestroy() {
+        // A destroy without a prior disconnect must not strand any
+        // notification (close() is the normal path; this covers the
+        // system-destroy path). Cancels are idempotent.
+        runCatching { cancelAllNotifications() }
+        runCatching { stopForeground(true) }
         logWriter?.write("Terminate VPN connection")
         logWriter?.close()
         logWriter = null
