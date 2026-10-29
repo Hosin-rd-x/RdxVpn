@@ -49,6 +49,9 @@ object AetherAutoConfig {
     /** Per-candidate budget: scan + tunnel + trace must fit inside this. */
     private const val CANDIDATE_TIMEOUT_MS = 75_000L
 
+    /** Manual-editor scan budget: one scan with the user's own settings. */
+    private const val SCAN_TIMEOUT_MS = 90_000L
+
     /** Whole-run budget across all candidates, so a run always ends. */
     private const val OVERALL_TIMEOUT_MS = 240_000L
 
@@ -280,6 +283,82 @@ object AetherAutoConfig {
                 }
                 Result.failure(Exception(detail))
             }
+        }
+    }
+
+    /**
+     * Manual-editor scan: runs ONE probe with the editor's own settings
+     * (scan form, with --no-quick-reconnect and the probe bind added by
+     * the caller) and returns the gateway the binary selected, or a
+     * failure with a ready-to-show message. The probe process is always
+     * killed before returning, and the returned gateway is only ever
+     * filled into the editor's endpoint field — connecting never
+     * re-scans. Verification is the same bar as the one-tap probes: the
+     * SOCKS port must answer AND carry a real HTTPS trace.
+     */
+    suspend fun scanEndpoint(
+        context: Context,
+        scanArgs: List<String>,
+        onProgress: (String) -> Unit = {},
+    ): Result<String> = withContext(Dispatchers.IO) {
+        fun fail(res: Int): Result<String> =
+            Result.failure(Exception(context.getString(res)))
+        if (tcpOpen("127.0.0.1", PROBE_PORT, TCP_TIMEOUT_MS)) {
+            return@withContext fail(R.string.aether_err_port_busy)
+        }
+        val binary = AetherBinary.ensureInstalled(context).getOrNull()
+        if (binary == null) {
+            val file = AetherBinary.binaryFile(context)
+            return@withContext if (file.exists() && !file.canExecute()) {
+                fail(R.string.aether_err_permission)
+            } else {
+                fail(R.string.aether_err_binary_missing)
+            }
+        }
+        if (!binary.canExecute()) {
+            return@withContext fail(R.string.aether_err_permission)
+        }
+        val workDir = AetherBinary.configDir(context)
+        var process: Process? = null
+        try {
+            val started = try {
+                AetherBinary.start(context, scanArgs, workDir)
+            } catch (e: Exception) {
+                return@withContext Result.failure(
+                    Exception("اجرا نشد: ${e.message ?: e.javaClass.simpleName}"),
+                )
+            }
+            process = started
+            val verified = withTimeoutOrNull(SCAN_TIMEOUT_MS) {
+                while (currentCoroutineContext().isActive) {
+                    if (tcpOpen("127.0.0.1", PROBE_PORT, TCP_TIMEOUT_MS)) break
+                    if (!started.isAlive) {
+                        return@withTimeoutOrNull false
+                    }
+                    delay(POLL_DELAY_MS)
+                }
+                if (!currentCoroutineContext().isActive) {
+                    return@withTimeoutOrNull false
+                }
+                repeat(TRACE_ATTEMPTS) { attempt ->
+                    if (traceOk()) return@withTimeoutOrNull true
+                    if (attempt + 1 < TRACE_ATTEMPTS) delay(TRACE_RETRY_DELAY_MS)
+                }
+                false
+            } ?: false
+            if (!verified) {
+                return@withContext fail(R.string.aether_err_scan)
+            }
+            val gateway = parseSelectedGateway(AetherBinary.logTail(workDir, 2000))
+            if (gateway.isBlank()) {
+                return@withContext fail(R.string.aether_err_scan)
+            }
+            Result.success(gateway)
+        } finally {
+            // Same guarantee as the one-tap probes: the scan process
+            // never outlives this call.
+            AetherBinary.stop(process)
+            process = null
         }
     }
 

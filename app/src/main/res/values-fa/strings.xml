@@ -693,5 +693,6 @@
     <string name="aether_err_timeout">اتصال خودکار خیلی طول کشید. وقتی اینترنت بهتر شد دوباره امتحان کن.</string>
     <string name="aether_err_all_failed">هیچ‌کدام از روش‌ها روی این شبکه جواب نداد. بعداً یا روی یک شبکهٔ دیگر دوباره امتحان کن.</string>
     <string name="aether_err_port_busy">یک تونل دیگر همین الان در حال استفاده از اتصال آزمایشی است. اول قطعش کن، بعد دوباره بزن.</string>
+    <string name="aether_err_scan">اسکن با این تنظیم‌ها نقطهٔ سالمی پیدا نکرد. یه حالت اسکن دیگه رو امتحان کن.</string>
     <string name="aether_chain_unsupported">Aether را نمی‌توان داخل زنجیرهٔ پروکسی استفاده کرد.</string>
 </resources>

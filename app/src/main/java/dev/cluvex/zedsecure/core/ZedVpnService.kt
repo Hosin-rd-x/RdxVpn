@@ -5,6 +5,8 @@ import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
+import android.net.ConnectivityManager
+import android.net.Network
 import android.net.VpnService
 import android.os.Build
 import android.os.Looper
@@ -61,6 +63,26 @@ class ZedVpnService : VpnService() {
     private var aetherGeneration = 0
     private var aetherArgs: List<String> = emptyList()
     private var aetherWorkDir: java.io.File? = null
+    /** Profile the running session was built from: the monitor rebuilds
+     * connect args from it (with the h2/h3 flip) after an unexpected
+     * death. Cleared by stopAether. */
+    private var aetherProfile: dev.cluvex.zedsecure.domain.config.AetherProfile? = null
+    /** H2/H3 flip state for the running session: null = as stored,
+     * true = force HTTP/2, false = force HTTP/3. Only set by the
+     * monitor after a real drop, and only for MASQUE-family profiles. */
+    private var aetherFlipH2: Boolean? = null
+    /** Set by the network-change handler just before it stops the
+     * process, so the monitor knows the exit was expected and
+     * relaunches without a scan, without a flip and without consuming
+     * restart budget. Always cleared by the monitor on read. */
+    @Volatile
+    private var aetherExpectExit = false
+    /** Default-network callback for instant reconnect on a network
+     * switch (Wi-Fi <-> mobile). Registered by the monitor, removed by
+     * stopAether. */
+    private var aetherNetworkCallback: ConnectivityManager.NetworkCallback? = null
+    /** Last network-change restart, for the 15s anti-flap interval. */
+    private var aetherLastNetworkRestartMs = 0L
 
     private var singBoxLastUp = 0L
     private var singBoxLastDown = 0L
@@ -808,6 +830,155 @@ class ZedVpnService : VpnService() {
         if (!controller.start()) stopEverything()
     }
 
+    /**
+     * Protocol words named by these args, whether spelled as their own
+     * flags (--masque, --mim, --gool) or as --protocol values (the form
+     * the manual editor stores). Both spellings exist in the wild:
+     * automatic and link profiles use the flags, manual profiles use
+     * --protocol.
+     */
+    private fun aetherArgProtocols(args: List<String>): Set<String> {
+        val found = mutableSetOf<String>()
+        var i = 0
+        while (i < args.size) {
+            val token = args[i]
+            val flag = token.substringBefore('=')
+            when (flag) {
+                "--masque" -> found += "masque"
+                "--wg", "--wireguard", "--warp" -> found += "wg"
+                "--gool", "--wiw" -> found += "gool"
+                "--gool-classic" -> found += "gool-classic"
+                "--mim", "--masque-in-masque" -> found += "mim"
+                "--protocol" -> {
+                    val value = if ('=' in token) {
+                        token.substringAfter('=')
+                    } else {
+                        args.getOrNull(i + 1).orEmpty().also { i++ }
+                    }
+                    found += value
+                }
+            }
+            i++
+        }
+        return found
+    }
+
+    /** Two-hop profiles: MIM, modern gool, and classic gool. */
+    private fun aetherIsTwoHop(args: List<String>): Boolean {
+        val protocols = aetherArgProtocols(args)
+        if ("mim" in protocols || "gool" in protocols || "gool-classic" in protocols) {
+            return true
+        }
+        // Hand-written args may name the hops without naming the
+        // protocol: hop flags alone still mean two hops.
+        return args.any {
+            it == "--mim-outer" || it == "--mim-inner" || it == "--mim-peers" ||
+                it == "--wiw-outer" || it == "--wiw-inner" || it == "--wiw-peers" ||
+                it == "--gool-peer"
+        }
+    }
+
+    /**
+     * Whether an h2/h3 flip can change anything for these args: only
+     * MASQUE-family profiles (MASQUE, MIM, modern Gool) have a
+     * transport the --h2 flag selects. WireGuard-only and classic
+     * gool profiles ignore --h2, so flipping them would only churn
+     * restarts for nothing.
+     */
+    private fun aetherFlipEligible(args: List<String>): Boolean {
+        val protocols = aetherArgProtocols(args)
+        return "masque" in protocols || "mim" in protocols || "gool" in protocols
+    }
+
+    /**
+     * Connect-time arguments for an Aether profile.
+     *
+     * The service must NOT re-scan. The probe already verified a
+     * gateway, and a fresh scan here can land on a different,
+     * unverified gateway that hangs (port accepts, SOCKS never
+     * answers) — the connect-then-drop the user sees, and the exact
+     * difference from PattNG: it scans once, pins the found gateway
+     * with --peer, and connects with --quick-reconnect, never
+     * re-scanning at connect time. So this strips --scan (+ its
+     * value), drops any --no-quick-reconnect, pins the probe's
+     * verified gateway with --peer when one was captured (a fixed
+     * --peer the profile already carried, cdn_worker_ff's or an
+     * imported link's, is kept when nothing was pinned), and always
+     * adds --quick-reconnect. Two-hop profiles (MIM/WIW/Gool) keep
+     * their stored --peer: it IS their outer hop, and a pinned
+     * gateway must never override it.
+     *
+     * [flipH2] is the monitor's h2/h3 flip after a real drop (null =
+     * as stored): true forces HTTP/2, false forces HTTP/3. Only
+     * applied to MASQUE-family profiles.
+     *
+     * The bind is service-owned: the planner-supplied socksPort
+     * (LocalPorts.AETHER_SOCKS) is 1819, and the bind and the bridge
+     * use AetherBinary.SOCKS_PORT, the same 1819, so a stale intent
+     * cannot split them — except for a Psiphon-chained profile (an
+     * imported aether:// link with --psiphon): there the app must dial
+     * the Psiphon listener on 1819, so the tunnel itself binds 1820
+     * and Psiphon is told to listen on 1819. Readiness, the bridge
+     * and activeSocksPort stay on 1819 in both cases.
+     */
+    private fun buildAetherConnectArgs(
+        profile: dev.cluvex.zedsecure.domain.config.AetherProfile,
+        flipH2: Boolean?,
+    ): List<String> {
+        val isTwoHop = aetherIsTwoHop(profile.args)
+        val eligible = aetherFlipEligible(profile.args)
+        val effectiveFlip = if (eligible) flipH2 else null
+        val connectArgs = buildList {
+            var i = 0
+            var storedPeer: String? = null
+            while (i < profile.args.size) {
+                val token = profile.args[i]
+                val flag = token.substringBefore('=')
+                when (flag) {
+                    // --scan balanced and --scan=balanced alike: skip
+                    // the flag and its value, so connect never re-scans.
+                    "--scan" -> i += if ('=' in token) 1 else 2
+                    "--no-quick-reconnect", "--quick-reconnect" -> i += 1
+                    "--peer" -> {
+                        storedPeer = if ('=' in token) {
+                            token.substringAfter('=')
+                        } else {
+                            profile.args.getOrNull(i + 1)
+                        }
+                        i += if ('=' in token) 1 else 2
+                    }
+                    "--h2" -> {
+                        // Flipping to HTTP/3 drops the flag; every other
+                        // case keeps it as stored.
+                        if (effectiveFlip == false) i += 1 else { add("--h2"); i += 1 }
+                    }
+                    else -> { add(token); i += 1 }
+                }
+            }
+            if (effectiveFlip == true && "--h2" !in this) add("--h2")
+            // The pinned gateway replaces a stored --peer only on
+            // single-hop profiles. Two-hop profiles (gool/mim) carry
+            // their outer hop in --peer itself, so the stored value is
+            // always kept there — a pin must never override it.
+            if (!isTwoHop && profile.pinnedPeer.isNotBlank()) {
+                add("--peer"); add(profile.pinnedPeer)
+            } else if (storedPeer != null) {
+                add("--peer"); add(storedPeer)
+            }
+            add("--quick-reconnect")
+        }
+        val chained = profile.args.contains("--psiphon")
+        val tunnelPort =
+            if (chained) AetherBinary.SOCKS_PORT + 1 else AetherBinary.SOCKS_PORT
+        return connectArgs + listOf(
+            "--bind", "127.0.0.1:$tunnelPort",
+        ) + if (chained && "--psiphon-bind" !in connectArgs) {
+            listOf("--psiphon-bind", "127.0.0.1:${AetherBinary.SOCKS_PORT}")
+        } else {
+            emptyList()
+        }
+    }
+
     private fun startAether(
         configJson: String,
         socksPort: Int,
@@ -834,64 +1005,18 @@ class ZedVpnService : VpnService() {
                 stopEverything(); return@launch
             }
             if (userStop) return@launch
+            // A crashed or force-stopped earlier session can leave an
+            // Aether/Psiphon process holding port 1819 or the Psiphon
+            // datastore; clear those leftovers before starting, so the
+            // new session can bind. Guarded inside; never blocks a start.
+            AetherBinary.killOrphans(this@ZedVpnService)
+            aetherProfile = profile
+            aetherFlipH2 = null
             val dir = AetherBinary.configDir(this@ZedVpnService)
-            // The service must NOT re-scan. The probe already verified a
-            // gateway, and a fresh scan here can land on a different,
-            // unverified gateway that hangs (port accepts, SOCKS never
-            // answers) — the connect-then-drop the user sees, and the
-            // exact difference from PattNG: it scans once, pins the
-            // found gateway with --peer, and connects with
-            // --quick-reconnect, never re-scanning at connect time.
-            // So this builds connect args from the profile: strip --scan
-            // (+ its value), drop any --no-quick-reconnect, pin the
-            // probe's verified gateway with --peer when one was
-            // captured (a fixed --peer the profile already carried,
-            // cdn_worker_ff's or an imported link's, is kept when
-            // nothing was pinned), and always --quick-reconnect to
-            // reuse that gateway. The probe itself still scans fresh
-            // — its path is untouched — and it runs in this same work
-            // dir, so identities resolve there without explicit config
-            // flags (profile.args carries neither --bind nor any
-            // config-path flag).
-            // socksPort is the planner-supplied port (LocalPorts
-            // .AETHER_SOCKS); the bind and the bridge below use
-            // AetherBinary.SOCKS_PORT, the same 1819, so a stale intent
-            // cannot split the bind from the bridge — except for a
-            // Psiphon-chained profile (an imported aether:// link with
-            // --psiphon): there the app must dial the Psiphon listener
-            // on 1819, so the tunnel itself binds 1820 and Psiphon is
-            // told to listen on 1819. Readiness, the bridge and
-            // activeSocksPort stay on 1819 in both cases.
-            val connectArgs = buildList {
-                var i = 0
-                while (i < profile.args.size) {
-                    when (profile.args[i]) {
-                        "--scan" -> i += 2 // skip --scan + its value
-                        "--no-quick-reconnect", "--quick-reconnect" -> i += 1
-                        "--peer" -> i += 2 // re-added below, pinned or fixed
-                        else -> { add(profile.args[i]); i += 1 }
-                    }
-                }
-                if (profile.pinnedPeer.isNotBlank()) {
-                    add("--peer"); add(profile.pinnedPeer)
-                } else {
-                    val peerIdx = profile.args.indexOf("--peer")
-                    if (peerIdx >= 0 && peerIdx + 1 < profile.args.size) {
-                        add("--peer"); add(profile.args[peerIdx + 1])
-                    }
-                }
-                add("--quick-reconnect")
-            }
-            val chained = profile.args.contains("--psiphon")
-            val tunnelPort =
-                if (chained) AetherBinary.SOCKS_PORT + 1 else AetherBinary.SOCKS_PORT
-            val fullArgs = connectArgs + listOf(
-                "--bind", "127.0.0.1:$tunnelPort",
-            ) + if (chained && "--psiphon-bind" !in connectArgs) {
-                listOf("--psiphon-bind", "127.0.0.1:${AetherBinary.SOCKS_PORT}")
-            } else {
-                emptyList()
-            }
+            // Connect args are built by buildAetherConnectArgs (no
+            // re-scan, pinned peer, --quick-reconnect, service-owned
+            // binds); see that function for the full rationale.
+            val fullArgs = buildAetherConnectArgs(profile, flipH2 = null)
             val process = try {
                 AetherBinary.start(this@ZedVpnService, fullArgs, dir)
             } catch (e: Exception) {
@@ -931,10 +1056,27 @@ class ZedVpnService : VpnService() {
 
     private suspend fun waitForAetherReady(timeoutMs: Long): Boolean {
         val deadline = System.currentTimeMillis() + timeoutMs
+        // The core announces readiness in its own log before the tunnel
+        // is provable over HTTPS: "tunnel validated" once the tunnel
+        // carries traffic, and for Psiphon-chained profiles "psiphon is
+        // ready" once the chain is up. The bare "socks5 server
+        // listening" line is NOT enough on its own — the port can open
+        // before traffic flows — so it is deliberately not trusted
+        // here. The HTTPS verify below stays as the final arbiter, so a
+        // log line only ever wins the race, never replaces the check.
+        val psiphonArgs = aetherProfile?.args.orEmpty()
+        val chained = psiphonArgs.contains("--psiphon") ||
+            psiphonArgs.contains("--psiphon-reverse") ||
+            psiphonArgs.contains("--psiphon-only")
+        val dir = aetherWorkDir
         while (System.currentTimeMillis() < deadline) {
             if (userStop || !scope.isActive) return false
             val proc = aetherProcess ?: return false
             if (!proc.isAlive) return false
+            if (dir != null) {
+                if (AetherBinary.logContains(dir, "tunnel validated")) return true
+                if (chained && AetherBinary.logContains(dir, "psiphon is ready")) return true
+            }
             if (TunnelReadiness.verify(AetherBinary.SOCKS_PORT, timeoutMs = 10_000, attempts = 1)) return true
             delay(2_000)
         }
@@ -963,30 +1105,73 @@ class ZedVpnService : VpnService() {
     private fun startAetherMonitor() {
         aetherMonitorJob?.cancel()
         val generation = aetherGeneration
+        registerAetherNetworkCallback()
         aetherMonitorJob = scope.launch(Dispatchers.IO) {
             var restarts = 0
             while (isActive && generation == aetherGeneration && !userStop) {
                 val proc = aetherProcess ?: return@launch
-                runCatching { proc.waitFor() }
+                val exitCode = runCatching { proc.waitFor() }.getOrNull()
                 if (!isActive || generation != aetherGeneration || userStop) return@launch
                 if (aetherProcess !== proc) return@launch
                 // Tunnel already torn down (the stop path raced us):
                 // nothing to restart.
                 if (!connected) return@launch
+                // An expected exit is one the network-change handler
+                // asked for (a network switch): relaunch with the SAME
+                // args — pinned peer, no fresh scan, no transport flip —
+                // and do not consume restart budget.
+                val expected = aetherExpectExit
+                aetherExpectExit = false
+                if (expected) {
+                    restarts = 0
+                    LogBus.append(
+                        "I/Aether: شبکه عوض شد — وصل دوباره با همان نقطه، بدون اسکن تازه (کد خروج $exitCode)",
+                    )
+                    delay(500)
+                    if (!isActive || generation != aetherGeneration || userStop) return@launch
+                    val dir = aetherWorkDir
+                    val relaunched = if (dir != null) {
+                        runCatching { AetherBinary.start(this@ZedVpnService, aetherArgs, dir) }.getOrNull()
+                    } else null
+                    if (relaunched == null) {
+                        Log.w(TAG, "Aether network-change restart failed to launch")
+                        continue
+                    }
+                    aetherProcess = relaunched
+                    waitForAetherPortUp(AETHER_RESTART_READY_TIMEOUT_MS)
+                    continue
+                }
                 if (restarts >= AETHER_MAX_RESTARTS) {
-                    val exit = runCatching { proc.exitValue() }.getOrNull()
                     val tail = aetherWorkDir?.let { AetherBinary.logTail(it) }.orEmpty()
-                    Log.w(TAG, "Aether exited unexpectedly; $AETHER_MAX_RESTARTS restarts exhausted; last exit=$exit; log tail:\n$tail")
+                    Log.w(TAG, "Aether exited unexpectedly; $AETHER_MAX_RESTARTS restarts exhausted; last exit=$exitCode; log tail:\n$tail")
+                    LogBus.append(
+                        "I/Aether: موتور بسته شد و وصل دوباره هم جواب نداد (کد خروج $exitCode)",
+                    )
                     VpnManager.onError(getString(R.string.engine_failed_tunnel))
                     stopEverything(); return@launch
                 }
                 restarts++
-                Log.w(TAG, "Aether exited unexpectedly; restart $restarts/$AETHER_MAX_RESTARTS")
+                // A real drop: flip the transport once (HTTP/2 <-> HTTP/3)
+                // for MASQUE-family profiles — one side or the other is
+                // often what the firewall is throttling right now — and
+                // rebuild from the stored profile, pinned peer included.
+                // Other profiles relaunch with the same args.
+                val profile = aetherProfile
+                var newArgs = aetherArgs
+                if (profile != null && aetherFlipEligible(profile.args)) {
+                    aetherFlipH2 = !aetherArgs.contains("--h2")
+                    newArgs = buildAetherConnectArgs(profile, aetherFlipH2)
+                }
+                Log.w(TAG, "Aether exited unexpectedly; restart $restarts/$AETHER_MAX_RESTARTS; exit=$exitCode")
+                LogBus.append(
+                    "I/Aether: موتور بسته شد (کد خروج $exitCode) — وصل دوباره با " +
+                        if (aetherFlipH2 == true) "HTTP/2" else if (aetherFlipH2 == false) "HTTP/3" else "همان تنظیم",
+                )
                 delay(1_000)
                 if (!isActive || generation != aetherGeneration || userStop) return@launch
                 val dir = aetherWorkDir
                 val relaunched = if (dir != null) {
-                    runCatching { AetherBinary.start(this@ZedVpnService, aetherArgs, dir) }.getOrNull()
+                    runCatching { AetherBinary.start(this@ZedVpnService, newArgs, dir) }.getOrNull()
                 } else null
                 if (relaunched == null) {
                     Log.w(TAG, "Aether restart $restarts failed to launch")
@@ -995,6 +1180,7 @@ class ZedVpnService : VpnService() {
                     // next restart; bounded by AETHER_MAX_RESTARTS above.
                     continue
                 }
+                aetherArgs = newArgs
                 aetherProcess = relaunched
                 // The TUN bridge is bound to the port, not the process,
                 // so no re-bridge is needed; just wait for the listener
@@ -1004,10 +1190,74 @@ class ZedVpnService : VpnService() {
         }
     }
 
+    /**
+     * Watches the default network while an Aether session runs, so a
+     * Wi-Fi <-> mobile switch reconnects at once instead of waiting
+     * for the tunnel to time out. Only active while the monitor runs
+     * (registered by [startAetherMonitor], removed by [stopAether]).
+     */
+    private fun registerAetherNetworkCallback() {
+        unregisterAetherNetworkCallback()
+        val cm = getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
+            ?: return
+        val callback = object : ConnectivityManager.NetworkCallback() {
+            override fun onAvailable(network: Network) {
+                onAetherNetworkChanged()
+            }
+
+            override fun onLost(network: Network) {
+                onAetherNetworkChanged()
+            }
+        }
+        val registered = runCatching {
+            cm.registerDefaultNetworkCallback(callback)
+        }.isSuccess
+        if (registered) aetherNetworkCallback = callback
+    }
+
+    private fun unregisterAetherNetworkCallback() {
+        val callback = aetherNetworkCallback ?: return
+        aetherNetworkCallback = null
+        val cm = getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
+            ?: return
+        runCatching { cm.unregisterNetworkCallback(callback) }
+    }
+
+    /**
+     * A network switch while an Aether session is up: stop the process
+     * (marked expected) so the monitor relaunches it at once with the
+     * pinned peer — no fresh scan, no flip, no restart budget. Debounced
+     * (a switch fires several callbacks) and capped at one restart per
+     * 15 seconds, so a flapping network cannot restart-loop. Ignored
+     * unless the monitor is actually watching a live session.
+     */
+    private fun onAetherNetworkChanged() {
+        if (aetherMonitorJob?.isActive != true) return
+        if (aetherProcess == null || userStop) return
+        val now = System.currentTimeMillis()
+        if (now - aetherLastNetworkRestartMs < NETWORK_MIN_INTERVAL_MS) return
+        aetherLastNetworkRestartMs = now
+        val generation = aetherGeneration
+        scope.launch(Dispatchers.IO) {
+            delay(NETWORK_SETTLE_MS)
+            if (userStop || generation != aetherGeneration) return@launch
+            if (aetherMonitorJob?.isActive != true) return@launch
+            val proc = aetherProcess ?: return@launch
+            if (!proc.isAlive) return@launch
+            aetherExpectExit = true
+            runCatching { AetherBinary.stop(proc) }
+        }
+    }
+
     private fun stopAether() {
         aetherGeneration++
         aetherMonitorJob?.cancel()
         aetherMonitorJob = null
+        unregisterAetherNetworkCallback()
+        aetherExpectExit = false
+        aetherProfile = null
+        aetherFlipH2 = null
+        aetherLastNetworkRestartMs = 0L
         val proc = aetherProcess
         aetherProcess = null
         aetherArgs = emptyList()
@@ -2080,6 +2330,13 @@ class ZedVpnService : VpnService() {
         private const val AETHER_RESTART_READY_TIMEOUT_MS = 60_000L
 
         private const val AETHER_MAX_RESTARTS = 3
+
+        /** Settle delay after a network switch before restarting Aether:
+         * a switch fires several callbacks; one restart is enough. */
+        private const val NETWORK_SETTLE_MS = 2_000L
+
+        /** Minimum gap between network-change restarts (anti-flap). */
+        private const val NETWORK_MIN_INTERVAL_MS = 15_000L
 
         private const val SNISPOOF_PORT = LocalPorts.SNI_SPOOF
         private const val MTU = 1500

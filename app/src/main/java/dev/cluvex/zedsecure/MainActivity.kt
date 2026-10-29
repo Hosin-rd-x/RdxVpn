@@ -465,6 +465,9 @@ class MainActivity : ComponentActivity() {
                         onAetherAuto = { onProgress ->
                             AetherAutoConfig.runAuto(applicationContext, onProgress)
                         },
+                        onAetherScan = { args, onProgress ->
+                            AetherAutoConfig.scanEndpoint(applicationContext, args, onProgress)
+                        },
                         onAetherConnect = {
                             // Only start when idle: when a tunnel is already
                             // running, onServerActivated's restart path owns

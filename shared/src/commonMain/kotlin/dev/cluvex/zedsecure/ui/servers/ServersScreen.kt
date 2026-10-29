@@ -150,6 +150,9 @@ fun ServersScreen(
     // App-layer auto-config runner (AetherAutoConfig). Null when unwired
     // (e.g. desktop): the sheet then shows its unavailable note.
     onAetherAuto: (suspend (onProgress: (String) -> Unit) -> Result<AetherProfile>)? = null,
+    // App-layer endpoint scanner for the manual Aether editor
+    // (AetherAutoConfig.scanEndpoint). Null hides the scan button.
+    onAetherScan: (suspend (args: List<String>, onProgress: (String) -> Unit) -> Result<String>)? = null,
     // App-layer one-tap start: with no tunnel running, onServerActivated
     // alone would only arm Aether for the Home connect button, so the app
     // layer supplies a start-when-idle hook that makes the sheet's single
@@ -434,6 +437,7 @@ fun ServersScreen(
     var showProxyChain by rememberSaveable { mutableStateOf(false) }
     var showCrossChain by rememberSaveable { mutableStateOf(false) }
     var showAether by rememberSaveable { mutableStateOf(false) }
+    var showAetherManual by rememberSaveable { mutableStateOf(false) }
 
     val servers = profiles.filterNot { it.isLocked }
 
@@ -1495,6 +1499,26 @@ fun ServersScreen(
                 onServerActivated()
                 onAetherConnect?.invoke()
             },
+            onManualClick = {
+                showAether = false
+                showAetherManual = true
+            },
+        )
+    }
+
+    if (showAetherManual) {
+        AetherManualSheet(
+            onDismiss = { showAetherManual = false },
+            onScan = onAetherScan,
+            onSave = { name, settings ->
+                showAetherManual = false
+                // Same one-tap finish as the automatic sheet: save, make
+                // active, and start right away.
+                val saved = repository.addAether(settings, name)
+                repository.setActive(saved.id)
+                onServerActivated()
+                onAetherConnect?.invoke()
+            },
         )
     }
 
@@ -1652,6 +1676,22 @@ fun ServersScreen(
                 )
             }
 
+            target.isAether -> {
+                AetherManualSheet(
+                    initial = target.aetherSettings(),
+                    initialName = target.name,
+                    onDismiss = { editTarget = null },
+                    onScan = onAetherScan,
+                    onSave = { name, settings ->
+                        // Edit in place: addAether with the same id keeps
+                        // the profile's place, history and pinned peer
+                        // (unless the editor cleared it).
+                        repository.addAether(settings, name, id = target.id)
+                        toastRes(Res.string.saved)
+                        editTarget = null
+                    },
+                )
+            }
             target.isPsiphon -> {
                 PsiphonSheet(
                     initial = target.psiphonSettings(),

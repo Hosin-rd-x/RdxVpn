@@ -705,5 +705,6 @@
     <string name="aether_err_timeout">Automatic setup took too long. Try again when the network is better.</string>
     <string name="aether_err_all_failed">None of the methods worked on this network right now. Try again later, or when you are on another network.</string>
     <string name="aether_err_port_busy">Another tunnel is already using the test connection. Disconnect it first, then try again.</string>
+    <string name="aether_err_scan">The scan found no working endpoint with these settings. Try another scan mode.</string>
     <string name="aether_chain_unsupported">Aether cannot be used inside a proxy chain.</string>
 </resources>

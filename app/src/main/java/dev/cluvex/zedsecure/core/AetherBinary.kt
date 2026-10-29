@@ -101,6 +101,60 @@ object AetherBinary {
         return builder.start()
     }
 
+    /**
+     * True when the binary's own log (stdout+stderr) already contains
+     * [needle]. Used for log-line readiness: the core announces
+     * "tunnel validated" once the tunnel carries traffic, and
+     * "psiphon is ready" once a chained tunnel is up — both earlier and
+     * more precise than polling the port and then probing HTTPS. The
+     * log is truncated on every start, so a hit always belongs to the
+     * current run.
+     */
+    fun logContains(workDir: File, needle: String): Boolean {
+        val log = File(workDir, "aether.log")
+        if (!log.exists()) return false
+        return runCatching {
+            log.useLines { lines -> lines.any { it.contains(needle) } }
+        }.getOrDefault(false)
+    }
+
+    /**
+     * Kills leftover Aether/Psiphon processes from earlier sessions that
+     * are still holding the SOCKS port or the Psiphon datastore. A
+     * crashed or force-stopped session can leave them behind (the
+     * process outlives the app), and the next start then fails to bind
+     * or to lock its datastore. Only processes of this app's own user
+     * whose command line names one of the shipped libraries are killed,
+     * and never this process itself. Fully guarded: any failure here
+     * must not stop a session from starting.
+     */
+    fun killOrphans(context: Context) {
+        runCatching {
+            val myPid = android.os.Process.myPid()
+            val myUid = android.os.Process.myUid()
+            val markers = listOf("libaether.so", "libpsiphon-tunnel-core.so")
+            val procDir = File("/proc")
+            val entries = procDir.listFiles() ?: return@runCatching
+            for (entry in entries) {
+                val pid = entry.name.toIntOrNull() ?: continue
+                if (pid == myPid) continue
+                val statusUid = runCatching {
+                    File(entry, "status").useLines { lines ->
+                        lines.firstOrNull { it.startsWith("Uid:") }
+                            ?.split(Regex("\\s+"))?.getOrNull(1)?.toIntOrNull()
+                    }
+                }.getOrNull() ?: continue
+                if (statusUid != myUid) continue
+                val cmdline = runCatching {
+                    File(entry, "cmdline").readBytes()
+                        .toString(Charsets.UTF_8)
+                }.getOrDefault("")
+                if (markers.none { cmdline.contains(it) }) continue
+                runCatching { android.os.Process.killProcess(pid) }
+            }
+        }
+    }
+
     /** Stops [process]: destroy, wait up to 3 seconds, then force-kill. */
     fun stop(process: Process?) {
         if (process == null) return

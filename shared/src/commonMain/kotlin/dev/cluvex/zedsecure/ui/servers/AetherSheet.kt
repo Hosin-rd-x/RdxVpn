@@ -15,6 +15,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.SheetValue
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberBottomSheetState
@@ -51,6 +52,7 @@ fun AetherSheet(
     onDismiss: () -> Unit,
     onAutoConnect: (suspend (onProgress: (String) -> Unit) -> Result<AetherProfile>)?,
     onSave: (name: String, AetherProfile) -> Unit,
+    onManualClick: () -> Unit = {},
 ) {
     val scope = rememberCoroutineScope()
     var running by remember { mutableStateOf(false) }
@@ -151,6 +153,25 @@ fun AetherSheet(
                 Text(
                     if (running && progress.isNotBlank()) progress
                     else stringResource(Res.string.aether_connect_button),
+                    fontWeight = FontWeight.SemiBold,
+                )
+            }
+
+            // The manual editor is a separate sheet: every Aether setting,
+            // for users who want to choose (PattNG-style). The automatic
+            // one-tap flow above stays untouched.
+            OutlinedButton(
+                onClick = {
+                    autoJob?.cancel()
+                    autoJob = null
+                    onManualClick()
+                },
+                enabled = !running,
+                shape = RoundedCornerShape(18.dp),
+                modifier = Modifier.fillMaxWidth().height(54.dp),
+            ) {
+                Text(
+                    stringResource(Res.string.aether_manual_button),
                     fontWeight = FontWeight.SemiBold,
                 )
             }
