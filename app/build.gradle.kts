@@ -8,6 +8,7 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
+    alias(libs.plugins.google.services)
 }
 
 // --- FoxyVPN engine: hev-socks5-tunnel native build (fetched at build time) ---
@@ -207,8 +208,14 @@ dependencies {
 
     implementation(libs.androidx.datastore.preferences)
     implementation(libs.kotlinx.coroutines.android)
+    implementation(libs.kotlinx.coroutines.play.services)
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.bouncycastle)
+
+    // Push notifications (FCM): token fetch + receive only. Every call is
+    // guarded at runtime, so devices without Play Services are unaffected.
+    implementation(platform(libs.firebase.bom))
+    implementation(libs.firebase.messaging)
 
     // Firefox tunnel (ported FoxyVPN control plane / H2 upstream stack)
     implementation("com.squareup.okhttp3:okhttp:4.12.0")

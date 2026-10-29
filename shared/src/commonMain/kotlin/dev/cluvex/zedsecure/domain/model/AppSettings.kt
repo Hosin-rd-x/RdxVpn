@@ -392,6 +392,7 @@ data class AppSettings(
     val dismissedUpdateVersion: String = "",
     val dismissedUpdateAtMs: Long = 0L,
     val pendingUpdateVersion: String = "",
+    val fcmUploadedToken: String = "",
 
     val successfulConnections: Int = 0,
     val ratePromptLastShownMs: Long = 0L,

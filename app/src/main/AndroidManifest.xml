@@ -241,6 +241,21 @@
                 android:value="true" />
         </service>
 
+        <service
+            android:name=".push.RdxMessagingService"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
+
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_icon"
+            android:resource="@drawable/ic_stat_x" />
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_channel_id"
+            android:value="rdx_announcements" />
+
         <activity
             android:name=".qr.QrScanActivity"
             android:exported="false"

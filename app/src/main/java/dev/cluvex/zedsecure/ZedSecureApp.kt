@@ -30,6 +30,9 @@ class ZedSecureApp : Application(), SingletonImageLoader.Factory {
 
         container = AppContainer(this)
 
+        // FCM token sync: best-effort, background-only, never blocks startup.
+        runCatching { dev.cluvex.zedsecure.push.FcmRegistrar.sync(this, container.settingsRepository) }
+
         XrayController.warmUp(this)
     }
 
