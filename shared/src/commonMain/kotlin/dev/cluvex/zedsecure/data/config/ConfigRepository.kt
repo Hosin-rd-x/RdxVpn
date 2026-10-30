@@ -83,6 +83,17 @@ class ConfigRepository(private val store: KeyValueStore) {
     val activeId: StateFlow<String?> = _activeId.asStateFlow()
 
     /**
+     * Display markers fetched from Hossein's own server (see
+     * [RemoteMarkers]): small marks shown before config names that the app
+     * cannot derive itself, such as the cloud for the Cloudflare list.
+     * Loaded from the last-good cached copy so they show offline; refreshed
+     * best-effort at startup and after subscription refreshes, never
+     * failing a refresh.
+     */
+    private val _markers = MutableStateFlow(loadMarkers())
+    val markers: StateFlow<RemoteMarkers> = _markers.asStateFlow()
+
+    /**
      * Server endpoints this user's own network could not reach on the first
      * test. They are skipped when the subscription re-imports so neither the
      * UI nor the ping pass ever spends time on them again.
@@ -140,6 +151,30 @@ class ConfigRepository(private val store: KeyValueStore) {
         // the remote list holds, so new servers need no app update.
         runCatching { importText(BUNDLED_SSTP_LINK, subscriptionId = sub.id) }
         store.putBoolean(KEY_SSTP_SEEDED, true)
+    }
+
+    private fun loadMarkers(): RemoteMarkers =
+        store.getString(KEY_MARKERS)?.let { RemoteMarkers.parse(it) } ?: RemoteMarkers()
+
+    /**
+     * Best-effort refresh of the remote display markers. Never throws and
+     * never touches profiles or subscriptions: on a failed fetch, invalid
+     * JSON, or an unknown file version the last-good markers stay in place.
+     * Called at startup and after successful subscription refreshes.
+     */
+    suspend fun refreshMarkers() {
+        withContext(Dispatchers.IO) {
+            runCatching {
+                val body = fetch(
+                    MARKERS_URL,
+                    connectTimeoutMs = 5_000,
+                    readTimeoutMs = 8_000,
+                ).body
+                val parsed = RemoteMarkers.parse(body) ?: return@runCatching
+                _markers.value = parsed
+                store.putString(KEY_MARKERS, body)
+            }
+        }
     }
 
     fun activeProfile(): VpnProfile? = _activeId.value?.let { profile(it) }
@@ -1696,6 +1731,8 @@ class ConfigRepository(private val store: KeyValueStore) {
                 }
             }
             persistSubscriptions()
+            // Best-effort: markers never fail or block a subscription refresh.
+            runCatching { refreshMarkers() }
             added
         }
     }
@@ -1755,16 +1792,34 @@ class ConfigRepository(private val store: KeyValueStore) {
         return total
     }
 
-    private fun fetch(url: String, userAgent: String? = null): HttpTextResponse {
+    private fun fetch(
+        url: String,
+        userAgent: String? = null,
+        connectTimeoutMs: Int = 15_000,
+        readTimeoutMs: Int = 20_000,
+    ): HttpTextResponse {
         val ua = resolveUa(userAgent)
         val tunnelPort = dev.cluvex.zedsecure.core.VpnManager.activeSocksPort?.takeIf {
             it > 0 && dev.cluvex.zedsecure.core.VpnManager.status.value.state ==
                 dev.cluvex.zedsecure.domain.model.ConnectionState.Connected
         }
         if (tunnelPort != null) {
-            runCatching { return httpGetResponse(url, userAgent = ua, socksPort = tunnelPort) }
+            runCatching {
+                return httpGetResponse(
+                    url,
+                    userAgent = ua,
+                    socksPort = tunnelPort,
+                    connectTimeoutMs = connectTimeoutMs,
+                    readTimeoutMs = readTimeoutMs,
+                )
+            }
         }
-        return httpGetResponse(url, userAgent = ua)
+        return httpGetResponse(
+            url,
+            userAgent = ua,
+            connectTimeoutMs = connectTimeoutMs,
+            readTimeoutMs = readTimeoutMs,
+        )
     }
 
     private fun resolveUa(userAgent: String?): String =
@@ -1872,6 +1927,10 @@ class ConfigRepository(private val store: KeyValueStore) {
         private const val KEY_SUBS = "subscriptions"
         private const val KEY_ACTIVE = "active_id"
         private const val KEY_DEAD = "dead_servers"
+        private const val KEY_MARKERS = "remote_markers"
+
+        /** Remote display markers (see [RemoteMarkers]); edited on Hossein's server, never in a release. */
+        private const val MARKERS_URL = "https://shop.hosinrdx.ir/rdx-markers.json"
         private const val MAX_DEAD_KEYS = 1000
         private const val KEY_AUTO_PICK = "auto_pick:"
 
