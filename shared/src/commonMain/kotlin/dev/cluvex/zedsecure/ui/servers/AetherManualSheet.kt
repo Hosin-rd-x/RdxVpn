@@ -335,9 +335,11 @@ fun AetherManualSheet(
             F(settings.dns, Res.string.aether_m_dns, "1.1.1.1,1.0.0.1") {
                 settings = settings.copy(dns = it)
             }
-            F(settings.exitLoc, Res.string.aether_m_exit_loc, "DE") {
-                settings = settings.copy(exitLoc = it)
-            }
+            PsiphonCountryField(
+                selected = settings.exitLoc,
+                onSelect = { settings = settings.copy(exitLoc = it) },
+                label = stringResource(Res.string.aether_m_exit_loc),
+            )
 
             if (settings.isOverMasque) {
                 F(settings.masqueSni, Res.string.aether_m_masque_sni, "www.cloudflare.com") {
@@ -419,9 +421,11 @@ fun AetherManualSheet(
                     selected = settings.psiphonMode,
                     onSelect = { settings = settings.copy(psiphonMode = it) },
                 )
-                F(settings.psiphonRegion, Res.string.aether_m_psiphon_region, "DE") {
-                    settings = settings.copy(psiphonRegion = it)
-                }
+                PsiphonCountryField(
+                    selected = settings.psiphonRegion,
+                    onSelect = { settings = settings.copy(psiphonRegion = it) },
+                    label = stringResource(Res.string.aether_m_psiphon_region),
+                )
                 if (settings.psiphonMode != AetherManualSettings.PSIPHON_MODE_DIRECT) {
                     F(settings.psiphonCdnIps, Res.string.aether_m_psiphon_cdn_ips) {
                         settings = settings.copy(psiphonCdnIps = it)

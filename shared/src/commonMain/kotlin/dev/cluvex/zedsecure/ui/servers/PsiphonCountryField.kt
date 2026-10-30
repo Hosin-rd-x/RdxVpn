@@ -43,6 +43,7 @@ import java.util.Locale
 fun PsiphonCountryField(
     selected: String,
     onSelect: (String) -> Unit,
+    label: String? = null,
     modifier: Modifier = Modifier,
 ) {
     var open by remember { mutableStateOf(false) }
@@ -70,7 +71,7 @@ fun PsiphonCountryField(
             }
             Column(Modifier.weight(1f)) {
                 Text(
-                    stringResource(Res.string.psiphon_country),
+                    label ?: stringResource(Res.string.psiphon_country),
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
