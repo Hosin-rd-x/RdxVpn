@@ -4,42 +4,64 @@
 
 <h1 align="center">Rdx VPN</h1>
 
-<p align="center">Every way through, in one app — the Android build of ZedSecure.</p>
+<p align="center">Every way through, in one app — an Android VPN and proxy client for networks where the usual routes are blocked.</p>
 
 <p align="center">
   <a href="https://github.com/Hosin-rd-x/RdxVpn/releases/latest"><img src="https://img.shields.io/github/v/release/Hosin-rd-x/RdxVpn?style=flat-square&color=C7F24E&labelColor=15170B&label=release" alt="Latest release"></a>
-  <img src="https://img.shields.io/badge/Android-APK%20%C2%B7%204%20ABIs-C7F24E?style=flat-square&labelColor=15170B" alt="Android">
+  <img src="https://img.shields.io/badge/Android-APK%20%C2%B7%20arm64%20%26%20armeabi--v7a-C7F24E?style=flat-square&labelColor=15170B" alt="Android">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-C7F24E?style=flat-square&labelColor=15170B" alt="AGPL-3.0"></a>
 </p>
 
 <p align="center"><b>English</b> · <a href="README.fa.md">فارسی</a></p>
 
+## Download
+
+**Android:** get the APK from
+[Releases](https://github.com/Hosin-rd-x/RdxVpn/releases/latest) — `arm64-v8a` for almost every
+phone, `armeabi-v7a` for older ones.
+
+Fast mirror of the latest APK:
+https://shop.hosinrdx.ir/RdxVpn-3.8.7-arm64-v8a.apk
+
 ## What is Rdx VPN?
 
 Rdx VPN is an Android VPN and proxy client built on
-[ZedSecure](https://github.com/CluvexStudio/ZedSecure) (ZedSource) by CluvexStudio, and it ships with
-more than one engine. When one route is blocked, the next one is already installed: Xray and sing-box for the
-usual protocols, DNS tunnels for networks that let
-little more than DNS through, and WireGuard, AmneziaWG, OpenConnect and IKEv2 for servers you
-already run. Engines can be chained through each other, and one tap tests every server and moves
-the connection to the fastest one.
+[ZedSecure](https://github.com/CluvexStudio/ZedSecure) (ZedSource) by CluvexStudio. Instead of
+one engine, it ships with several. When one route is blocked, the next one is already installed —
+and one tap tests the servers and moves the connection to the fastest one.
 
 <p align="center">
   <img src="docs/assets/showcase.png" width="100%" alt="Rdx VPN: home, servers and settings">
 </p>
 
+## Highlights
+
+- **Aether, one tap:** add an Aether config and connect with the best settings for your
+  network, automatically. A manual editor is included for advanced users, with an exit-location
+  and Psiphon-region picker.
+- **Foxy relays with country flags:** Foxy servers show their real country flag next to the
+  name, so you can pick a location at a glance.
+- **Built-in server groups:** RDX - CF (Cloudflare configs), RDX - SERVER, and SSTP servers,
+  each with its country flag where the country is known. Cloudflare configs carry a ☁️ marker.
+- **Real push notifications:** the app can notify you when a new version is out, even when
+  it is closed.
+- **Auto-select:** keeps the tunnel on the fastest server and fails over on its own.
+- **Imports:** share links, subscriptions, Xray and sing-box JSON, `.ovpn` files,
+  Amnezia `vpn://` links and QR codes.
+
 ## Engines
 
 | Engine | Carries |
 |---|---|
+| Aether | WARP / MASQUE-based routes, with a one-tap auto mode and a full manual editor |
 | Xray | VLESS with Reality, Vision and XHTTP, VMess, Trojan, Shadowsocks, Hysteria2, WireGuard, AmneziaWG |
 | sing-box | TUIC, Naive, AnyTLS, ShadowTLS, OpenVPN `.ovpn` files, and plain sing-box JSON |
+| Foxy / Psiphon | Mozilla Foxy relays and Psiphon tunnels, with country flags |
+| SSTP | SSTP servers, with per-server country flags |
 | DNS tunnels | DNSTT, VayDNS and MasterDNS, over UDP, TCP, DoT or DoH |
 | OpenConnect | Cisco AnyConnect and compatible gateways |
 | IKEv2 | the IPsec client built into Android |
 | SSH | on its own, or through any of the above |
-
-Android has all of them. Linux, Windows and macOS carry Xray, sing-box, the DNS tunnels and SSH.
 
 ## Features
 
@@ -51,26 +73,14 @@ Android has all of them. Linux, Windows and macOS carry Xray, sing-box, the DNS 
 - Speed test, MTU finder, DNS resolver scanner and a live log
 - Material 3 Expressive, light and dark, in English and Persian
 
-## Download
-
-**Android:** the APK for your device from
-[Releases](https://github.com/Hosin-rd-x/RdxVpn/releases/latest) — `arm64-v8a` for almost every
-phone, `armeabi-v7a` for older ones; each release also carries the ABIs it is built for.
-
-Google Play, the desktop installers and the other platforms come from the upstream
-[ZedSecure](https://github.com/CluvexStudio/ZedSecure) project.
-
 ## Building
 
 ```sh
-./tools/fetch-cores.sh           # every engine at its pinned commit
-./tools/build-zedcore.sh         # the Android core; needs Go 1.26.3 and NDK 28 or newer
-./gradlew :app:assembleRelease   # one APK per ABI
+./tools/get-cores.sh            # engines at their pinned commits
+./gradlew :app:assembleRelease  # one APK per ABI
 ```
 
-The engines we patched are published as forks; [`tools/core-sources.txt`](tools/core-sources.txt)
-lists each one with the exact commit a release is built from. Pushing a `v*` tag builds every Android
-ABI in CI and attaches the APKs to the release.
+Pushing a `v*` tag builds every Android ABI in CI and attaches the APKs to the release.
 
 ## Credits
 

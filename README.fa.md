@@ -6,42 +6,61 @@
 
 <h1 align="center">Rdx VPN</h1>
 
-<p align="center">همهٔ راه‌های عبور، در یک برنامه — بیلد اندرویدِ ZedSecure.</p>
+<p align="center">همهٔ راه‌های عبور، در یک برنامه — کلاینت VPN و پروکسی برای اندروید، برای شبکه‌هایی که راه‌های معمول در آن‌ها بسته است.</p>
 
 <p align="center">
   <a href="https://github.com/Hosin-rd-x/RdxVpn/releases/latest"><img src="https://img.shields.io/github/v/release/Hosin-rd-x/RdxVpn?style=flat-square&color=C7F24E&labelColor=15170B&label=release" alt="آخرین نسخه"></a>
-  <img src="https://img.shields.io/badge/Android-APK%20%C2%B7%204%20ABIs-C7F24E?style=flat-square&labelColor=15170B" alt="اندروید">
+  <img src="https://img.shields.io/badge/Android-APK%20%C2%B7%20arm64%20%26%20armeabi--v7a-C7F24E?style=flat-square&labelColor=15170B" alt="اندروید">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-C7F24E?style=flat-square&labelColor=15170B" alt="AGPL-3.0"></a>
 </p>
 
 <p align="center"><a href="README.md">English</a> · <b>فارسی</b></p>
 
+## دانلود
+
+**اندروید:** APK را از
+[Releases](https://github.com/Hosin-rd-x/RdxVpn/releases/latest) بگیرید — `arm64-v8a` برای تقریباً همهٔ
+گوشی‌ها و `armeabi-v7a` برای گوشی‌های قدیمی‌تر.
+
+لینک سریع آخرین APK:
+https://shop.hosinrdx.ir/RdxVpn-3.8.7-arm64-v8a.apk
+
 ## Rdx VPN چیست؟
 
 Rdx VPN کلاینت VPN و پروکسی برای اندروید است که روی
-[ZedSecure](https://github.com/CluvexStudio/ZedSecure) (ZedSource) ساختهٔ CluvexStudio ساخته شده و
-به‌جای یک هسته، چند هسته را با هم دارد. وقتی یک مسیر بسته شود، مسیر بعدی از قبل نصب است: Xray و sing-box برای پروتکل‌های
-رایج، تونل DNS برای شبکه‌هایی که جز DNS
-تقریباً چیزی رد نمی‌کنند، و WireGuard و AmneziaWG و OpenConnect و IKEv2 برای سرورهایی که خودتان
-دارید. هسته‌ها را می‌شود از داخل هم عبور داد، و با یک لمس همهٔ سرورها تست می‌شوند و اتصال روی
-سریع‌ترینشان می‌رود.
+[ZedSecure](https://github.com/CluvexStudio/ZedSecure) (ZedSource) ساختهٔ CluvexStudio ساخته شده.
+به‌جای یک هسته، چند هسته را با هم دارد. وقتی یک مسیر بسته شود، مسیر بعدی از قبل نصب است، و با یک
+لمس همهٔ سرورها تست می‌شوند و اتصال روی سریع‌ترینشان می‌رود.
 
 <p align="center">
   <img src="docs/assets/showcase.png" width="100%" alt="Rdx VPN: خانه، سرورها و تنظیمات">
 </p>
 
+## چیزهای تازه و مهم
+
+- **ایثر، با یک لمس:** یک کانفیگ ایثر اضافه کنید و با بهترین تنظیماتِ همان اینترنت، خودکار وصل
+  شوید. ویرایشگر دستی کامل هم هست، با انتخاب محل خروج و منطقه سایفون از روی فهرست پرچم‌دار.
+- **فاکسی با پرچم کشور:** سرورهای فاکسی پرچم واقعی کشورشان را کنار اسمشان نشان می‌دهند، تا با یک
+  نگاه کشور را انتخاب کنید.
+- **گروه‌های سرور آماده:** RDX - CF (کانفیگ‌های کلادفلر)، RDX - SERVER و سرورهای SSTP؛ هر کدام
+  هرجا کشورشان معلوم است پرچم دارند و کانفیگ‌های کلادفلر علامت ☁️ دارند.
+- **پیام اطلاع‌رسانی واقعی:** برنامه حتی وقتی بسته است، خبر نسخه تازه را به شما می‌رساند.
+- **انتخاب خودکار:** تونل را روی سریع‌ترین سرور نگه می‌دارد و اگر قطع شد خودش جابه‌جا می‌کند.
+- **وارد کردن:** لینک، اشتراک، JSON خودِ Xray و sing-box، فایل `.ovpn`، لینک `vpn://` امنزیا و کد QR.
+
 ## هسته‌ها
 
 | هسته | چه چیزی را حمل می‌کند |
 |---|---|
+| ایثر | مسیرهای بر پایه WARP و MASQUE، با حالت خودکار یک‌لمسی و ویرایشگر دستی کامل |
 | Xray | VLESS با Reality و Vision و XHTTP، VMess، Trojan، Shadowsocks، Hysteria2، WireGuard، AmneziaWG |
 | sing-box | TUIC، Naive، AnyTLS، ShadowTLS، فایل‌های OpenVPN (`.ovpn`) و JSON خودِ sing-box |
+| فاکسی / سایفون | رله‌های فاکسی موزیلا و تونل‌های سایفون، با پرچم کشور |
+| SSTP | سرورهای SSTP، با پرچم کشور هر سرور |
 | تونل DNS | DNSTT، VayDNS و MasterDNS، روی UDP یا TCP یا DoT یا DoH |
 | OpenConnect | سرورهای Cisco AnyConnect و سازگارها |
 | IKEv2 | کلاینت IPsec داخلی خودِ اندروید |
 | SSH | به‌تنهایی، یا از داخل هر کدام از بالایی‌ها |
-
-اندروید همه را دارد. لینوکس و ویندوز و مک، Xray و sing-box و تونل‌های DNS و SSH را دارند.
 
 ## امکانات
 
@@ -53,30 +72,18 @@ Rdx VPN کلاینت VPN و پروکسی برای اندروید است که ر�
 - تست سرعت، یافتن MTU، اسکنر DNS و لاگ زنده
 - طراحی Material 3 Expressive، روشن و تاریک، به فارسی و انگلیسی
 
-## دانلود
-
-**اندروید:** APK مخصوص دستگاهتان از
-[Releases](https://github.com/Hosin-rd-x/RdxVpn/releases/latest) — `arm64-v8a` برای تقریباً همهٔ
-گوشی‌ها و `armeabi-v7a` برای گوشی‌های قدیمی‌تر.
-
-گوگل پلی، نصب‌کننده‌های دسکتاپ و بقیهٔ پلتفرم‌ها از پروژهٔ اصلی
-[ZedSecure](https://github.com/CluvexStudio/ZedSecure) عرضه می‌شوند.
-
 ## ساخت از سورس
 
 <div dir="ltr">
 
 ```sh
-./tools/fetch-cores.sh           # every engine at its pinned commit
-./tools/build-zedcore.sh         # the Android core; needs Go 1.26.3 and NDK 28 or newer
-./gradlew :app:assembleRelease   # one APK per ABI
+./tools/get-cores.sh            # engines at their pinned commits
+./gradlew :app:assembleRelease  # one APK per ABI
 ```
 
 </div>
 
-هسته‌هایی که تغییر داده‌ایم به‌صورت فورک منتشر شده‌اند؛ در
-[`tools/core-sources.txt`](tools/core-sources.txt) هر کدام با کامیت دقیقی که هر نسخه از آن ساخته
-می‌شود آمده است. زدن تگ `v*` همهٔ ABIهای اندروید را در CI می‌سازد و APKها را به ریلیز می‌چسباند.
+زدن تگ `v*` همهٔ ABIهای اندروید را در CI می‌سازد و APKها را به ریلیز می‌چسباند.
 
 ## سپاسگزاری
 
