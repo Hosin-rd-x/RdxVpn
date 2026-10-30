@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1041671595433",
+    "project_id": "rdx-vpn",
+    "storage_bucket": "rdx-vpn.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1041671595433:android:aa4902eb488e2dcb8190b8",
+        "android_client_info": {
+          "package_name": "com.rdx.vpn"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD5KYR6CBvUBocEwh2-I185zdnZnH5Ob1o"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

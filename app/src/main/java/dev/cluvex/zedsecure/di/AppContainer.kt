@@ -35,6 +35,11 @@ class AppContainer(context: Context) {
         // itself stays tap-only: see [ConfigRepository.ensureBundledSstp].
         runCatching { configRepository.migrateSstpSubscriptionUrl() }
 
+        // Best-effort refresh of the remote display markers in the
+        // background; the cached copy already loaded, and a failed fetch
+        // changes nothing.
+        scope.launch { runCatching { configRepository.refreshMarkers() } }
+
         AppInfo.versionName = BuildConfig.VERSION_NAME
 
         DeviceIdentity.id = runCatching {

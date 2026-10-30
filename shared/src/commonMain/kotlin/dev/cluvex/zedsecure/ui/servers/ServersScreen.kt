@@ -108,6 +108,7 @@ import dev.cluvex.zedsecure.ui.onboarding.tourTarget
 import dev.cluvex.zedsecure.ui.onboarding.tourTargetInPage
 import dev.cluvex.zedsecure.ui.platform.LocalPlatform
 import dev.cluvex.zedsecure.ui.format.formatBytes
+import dev.cluvex.zedsecure.ui.components.FlagBadge
 import dev.cluvex.zedsecure.ui.components.MorphingBlob
 import dev.cluvex.zedsecure.ui.components.PageHeader
 import dev.cluvex.zedsecure.ui.theme.Personalization
@@ -333,6 +334,7 @@ fun ServersScreen(
     val profiles by repository.profiles.collectAsStateWithLifecycle()
     val subscriptions by repository.subscriptions.collectAsStateWithLifecycle()
     val activeId by repository.activeId.collectAsStateWithLifecycle()
+    val markers by repository.markers.collectAsStateWithLifecycle()
 
     var foxyImporting by remember { mutableStateOf(false) }
 
@@ -1010,13 +1012,19 @@ fun ServersScreen(
                 )
 
                 val card: @Composable (VpnProfile) -> Unit = { profile ->
+                    val subscription = subscriptions
+                        .firstOrNull { it.id == profile.subscriptionId }
                     ServerCard(
                         modifier = if (twoColumns) Modifier.fillMaxHeight() else Modifier,
                         profile = profile,
                         active = profile.id == activeId,
                         personalization = personalization,
-                        subscriptionName = subscriptions
-                            .firstOrNull { it.id == profile.subscriptionId }?.name,
+                        subscriptionName = subscription?.name,
+                        marker = markers.resolveMarker(
+                            profile.name,
+                            profile.countryCode,
+                            subscription?.url,
+                        ),
                         selecting = selecting,
                         isSelected = profile.id in selected,
                         onClick = {
@@ -2111,6 +2119,7 @@ private fun ServerCard(
     profile: VpnProfile,
     active: Boolean,
     subscriptionName: String?,
+    marker: String? = null,
     onClick: () -> Unit,
     onLongClick: () -> Unit = {},
     onShare: () -> Unit,
@@ -2164,14 +2173,33 @@ private fun ServerCard(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Column(Modifier.weight(1f)) {
-                Text(
-                    text = profile.name,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    color = onContainer,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
+                Row(
+                    Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    if (!marker.isNullOrBlank() && profile.countryCode == null) {
+                        Text(
+                            text = marker,
+                            style = MaterialTheme.typography.titleMedium,
+                            color = onContainer,
+                            maxLines = 1,
+                        )
+                        Spacer(Modifier.width(6.dp))
+                    }
+                    Text(
+                        text = profile.name,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = onContainer,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false),
+                    )
+                    profile.countryCode?.let { code ->
+                        Spacer(Modifier.width(6.dp))
+                        FlagBadge(countryCode = code, size = 18.dp)
+                    }
+                }
                 val subtle = onContainer.copy(alpha = 0.72f)
 
                 val typeLabel = if (profile.isCustom) {

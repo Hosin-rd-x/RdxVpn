@@ -213,6 +213,7 @@ class SettingsRepository(context: Context) {
             dismissedUpdateVersion = prefs.str("dismissed_update_version", d.dismissedUpdateVersion),
             dismissedUpdateAtMs = prefs.getLong("dismissed_update_at", d.dismissedUpdateAtMs),
             pendingUpdateVersion = prefs.str("pending_update_version", d.pendingUpdateVersion),
+            fcmUploadedToken = prefs.str("fcm_uploaded_token", d.fcmUploadedToken),
             successfulConnections = prefs.getInt("successful_connections", d.successfulConnections),
             ratePromptLastShownMs = prefs.getLong("rate_prompt_last", d.ratePromptLastShownMs),
             rateNeverAsk = prefs.getBoolean("rate_never_ask", d.rateNeverAsk),
@@ -426,6 +427,7 @@ class SettingsRepository(context: Context) {
             putString("dismissed_update_version", s.dismissedUpdateVersion)
             putLong("dismissed_update_at", s.dismissedUpdateAtMs)
             putString("pending_update_version", s.pendingUpdateVersion)
+            putString("fcm_uploaded_token", s.fcmUploadedToken)
             putInt("successful_connections", s.successfulConnections)
             putLong("rate_prompt_last", s.ratePromptLastShownMs)
             putBoolean("rate_never_ask", s.rateNeverAsk)
