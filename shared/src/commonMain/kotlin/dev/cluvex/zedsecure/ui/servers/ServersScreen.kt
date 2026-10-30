@@ -108,6 +108,7 @@ import dev.cluvex.zedsecure.ui.onboarding.tourTarget
 import dev.cluvex.zedsecure.ui.onboarding.tourTargetInPage
 import dev.cluvex.zedsecure.ui.platform.LocalPlatform
 import dev.cluvex.zedsecure.ui.format.formatBytes
+import dev.cluvex.zedsecure.ui.components.FlagBadge
 import dev.cluvex.zedsecure.ui.components.MorphingBlob
 import dev.cluvex.zedsecure.ui.components.PageHeader
 import dev.cluvex.zedsecure.ui.theme.Personalization
@@ -2164,14 +2165,24 @@ private fun ServerCard(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Column(Modifier.weight(1f)) {
-                Text(
-                    text = profile.name,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    color = onContainer,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
+                Row(
+                    Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = profile.name,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = onContainer,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false),
+                    )
+                    profile.countryCode?.let { code ->
+                        Spacer(Modifier.width(6.dp))
+                        FlagBadge(countryCode = code, size = 18.dp)
+                    }
+                }
                 val subtle = onContainer.copy(alpha = 0.72f)
 
                 val typeLabel = if (profile.isCustom) {
