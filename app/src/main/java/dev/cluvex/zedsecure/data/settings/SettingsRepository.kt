@@ -2,6 +2,7 @@ package dev.cluvex.zedsecure.data.settings
 
 import android.content.Context
 import android.content.SharedPreferences
+import dev.cluvex.zedsecure.domain.model.AppDesign
 import dev.cluvex.zedsecure.domain.model.AppLanguage
 import dev.cluvex.zedsecure.domain.ai.AiSettings
 import dev.cluvex.zedsecure.domain.model.AppSettings
@@ -60,6 +61,19 @@ class SettingsRepository(context: Context) {
                 .putBoolean("auto_sort_after_test", true)
                 .putBoolean("rdx_defaults_v5", true)
                 .apply()
+        }
+        /** One-time switch to the Portal home design and single-column layout:
+         *  phones that still run the old Pixel design move to Portal once, and
+         *  the two-column layout turns off once. The marker stops re-forcing
+         *  them, so a later manual choice by the user always sticks. */
+        if (!prefs.contains("rdx_defaults_v6")) {
+            val edit = prefs.edit()
+            if (prefs.getString("app_design", null) == AppDesign.Pixel.name) {
+                edit.putString("app_design", AppDesign.Portal.name)
+            }
+            edit.putBoolean("double_column", false)
+            edit.putBoolean("rdx_defaults_v6", true)
+            edit.apply()
         }
     }
 

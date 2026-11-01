@@ -232,7 +232,7 @@ data class AppSettings(
     val customConfigCardColor: Long? = null,
     val customConfigCardTextColor: Long? = null,
 
-    val appDesign: AppDesign = AppDesign.Pixel,
+    val appDesign: AppDesign = AppDesign.Portal,
 
     val connectButtonStyle: ConnectButtonStyle = ConnectButtonStyle.Hero,
 
@@ -266,7 +266,7 @@ data class AppSettings(
 
     val uiFontScale: UiFontScale = UiFontScale.Normal,
     val trafficCardStyle: TrafficCardStyle = TrafficCardStyle.Cards,
-    val doubleColumnDisplay: Boolean = true,
+    val doubleColumnDisplay: Boolean = false,
     val groupAllDisplay: Boolean = true,
     val reduceMotion: Boolean = false,
     val renderingMode: RenderingMode = RenderingMode.Auto,
