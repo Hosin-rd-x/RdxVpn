@@ -5,6 +5,7 @@ import okhttp3.Cookie
 import okhttp3.CookieJar
 import okhttp3.HttpUrl
 import okhttp3.OkHttpClient
+import okhttp3.Protocol
 import okhttp3.Request
 import java.net.InetAddress
 import java.net.InetSocketAddress
@@ -20,6 +21,19 @@ const val MOZILLA_VPN_USER_AGENT = "MozillaVPN/2.35.0 (sys:linux; iap:true)"
 fun Request.Builder.applyMozillaVpnHeaders(): Request.Builder {
     header("User-Agent", MOZILLA_VPN_USER_AGENT)
     header("Accept", "application/json")
+    return this
+}
+
+// FxA calls ONLY (used by FxaAuthRepository). Presents the request as a real
+// desktop Firefox, like Vauth does. applyMozillaVpnHeaders above is left
+// untouched so Guardian and the server-list client keep their exact old
+// headers; nothing outside the Foxy module uses either helper.
+const val FIREFOX_DESKTOP_USER_AGENT =
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:135.0) Gecko/20100101 Firefox/135.0"
+
+fun Request.Builder.applyFirefoxHeaders(): Request.Builder {
+    header("User-Agent", FIREFOX_DESKTOP_USER_AGENT)
+    header("Accept", "*/*")
     return this
 }
 
@@ -149,6 +163,11 @@ object ControlPlaneHttp {
 
     val client: OkHttpClient by lazy {
         OkHttpClient.Builder()
+            // Vauth parity: the control-plane client speaks HTTP/1.1 only, like
+            // a plain browser stack. This client is used solely inside the Foxy
+            // module (FxA, Guardian, server list); no other engine (Aether,
+            // Xray, SSTP, ...) ever touches it.
+            .protocols(listOf(Protocol.HTTP_1_1))
             .cookieJar(cookieJar)
             .socketFactory(ProtectingSocketFactory())
             .connectTimeout(30, TimeUnit.SECONDS)

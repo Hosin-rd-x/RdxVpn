@@ -40,7 +40,7 @@ class FastlyChallengeSolver(private val cookieJar: SimpleCookieJar) {
         val synced = runCatching { cookieJar.syncFromWebView() }.getOrDefault(0)
         AppLogger.i(TAG, "HTTP solver started (synced $synced WebView cookies first)")
         var lastError: Exception? = null
-        for (base in listOf("https://api.accounts.firefox.com", "https://accounts.firefox.com")) {
+        for (base in listOf("https://api.accounts.firefox.com", "https://accounts.firefox.com", "https://oauth.accounts.firefox.com")) {
             AppLogger.i(TAG, "HTTP solver trying host $base")
             try {
                 solveOnHost(base)

@@ -39,6 +39,12 @@ class FxaRefreshFailure(
 ) : Exception(message, cause)
 
 private const val FXA_AUTH_SERVER = "https://api.accounts.firefox.com/v1"
+// The OAuth server is the correct host for refresh grants (Vauth parity):
+// the auth server's /oauth/token route is behind the strictest bot wall,
+// while token refreshes on the OAuth server are accepted. Only the refresh
+// grant uses this host; login, 2FA, and the fxa-credentials mint keep
+// FXA_AUTH_SERVER exactly as before.
+private const val FXA_OAUTH_SERVER = "https://oauth.accounts.firefox.com/v1"
 private const val FIREFOX_CLIENT_ID = "5882386c6d801776"
 private const val OAUTH_SCOPE = "profile https://identity.mozilla.com/apps/vpn"
 private const val PROTOCOL_VERSION = "identity.mozilla.com/picl/v1/"
@@ -149,7 +155,7 @@ class FxaAuthRepository(
         }
 
         val tokenData = try {
-            fxaDo("POST", "/oauth/token", jsonBody = body)
+            fxaDo("POST", "/oauth/token", baseUrl = FXA_OAUTH_SERVER, jsonBody = body)
         } catch (rejected: FxaApiError) {
             throw FxaRefreshFailure(
                 rejected.message ?: "FxA rejected the refresh token",
@@ -251,10 +257,11 @@ class FxaAuthRepository(
     private suspend fun fxaDo(
         method: String,
         path: String,
+        baseUrl: String = FXA_AUTH_SERVER,
         sessionToken: String? = null,
         jsonBody: JSONObject,
     ): JSONObject = withContext(Dispatchers.IO) {
-        val url = "$FXA_AUTH_SERVER$path".toHttpUrl()
+        val url = "$baseUrl$path".toHttpUrl()
         val bodyBytes = jsonBody.toString().toByteArray(Charsets.UTF_8)
         var tokenId: String? = null
         var hmacKey: ByteArray? = null
@@ -265,7 +272,10 @@ class FxaAuthRepository(
         }
 
         fun buildRequest(): Request {
-            val builder = Request.Builder().url(url).applyMozillaVpnHeaders()
+            // FxA calls only: present as a real desktop Firefox (Vauth parity).
+            // applyMozillaVpnHeaders is deliberately left alone so Guardian and
+            // the server-list client keep their exact old headers.
+            val builder = Request.Builder().url(url).applyFirefoxHeaders()
             builder.header("Content-Type", "application/json")
             if (sessionToken != null) {
                 builder.header("Authorization", hawkHeader(method, url, tokenId!!, hmacKey!!, bodyBytes))
@@ -279,7 +289,7 @@ class FxaAuthRepository(
         var webViewTried = false
         while (response.code == 406 && attempts < FXA_MAX_CHALLENGE_ATTEMPTS) {
             response.close()
-            AppLogger.i(TAG, "fxaDo $path got HTTP 406 (attempt $attempts/$FXA_MAX_CHALLENGE_ATTEMPTS)")
+            AppLogger.i(TAG, "fxaDo ${url.host}$path got HTTP 406 (attempt $attempts/$FXA_MAX_CHALLENGE_ATTEMPTS)")
             // A real browser engine passes the Fastly challenge where plain HTTP
             // calls cannot (their challenge-script fetch is rejected). Try the
             // headless WebView solver first; fall back to the HTTP solver.
@@ -302,7 +312,7 @@ class FxaAuthRepository(
                     .onFailure { AppLogger.w(TAG, "HTTP challenge solver failed", it) }
             }
             response = ControlPlaneHttp.client.newCall(buildRequest()).execute()
-            AppLogger.i(TAG, "fxaDo $path retry got HTTP ${response.code}")
+            AppLogger.i(TAG, "fxaDo ${url.host}$path retry got HTTP ${response.code}")
             attempts++
         }
 
