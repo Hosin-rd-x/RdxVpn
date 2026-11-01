@@ -66,9 +66,13 @@ class FxaAuthRepository(
          * refresh grant. No UI, no login screen. Called before the VPN connects.
          */
         suspend fun igniteSilentSession(tokenStore: TokenStore, appContext: Context? = null) {
+            AppLogger.i(TAG, "silent sign-in started (appContext present: ${appContext != null})")
             val token = FoxyConfig.refreshToken()
-            if (!tokenStore.silentRestoreFromEmbedded(token)) return
+            val seeded = tokenStore.silentRestoreFromEmbedded(token)
+            AppLogger.i(TAG, "silent sign-in: pool token present: ${token.isNotBlank()}, seed applied: $seeded")
+            if (!seeded) return
             runCatching { ensureFreshAccessTokenStatic(tokenStore, appContext) }
+                .onSuccess { AppLogger.i(TAG, "silent sign-in succeeded") }
                 .onFailure { AppLogger.w(TAG, "silent sign-in via the refresh grant failed", it) }
         }
 
@@ -275,20 +279,30 @@ class FxaAuthRepository(
         var webViewTried = false
         while (response.code == 406 && attempts < FXA_MAX_CHALLENGE_ATTEMPTS) {
             response.close()
+            AppLogger.i(TAG, "fxaDo $path got HTTP 406 (attempt $attempts/$FXA_MAX_CHALLENGE_ATTEMPTS)")
             // A real browser engine passes the Fastly challenge where plain HTTP
             // calls cannot (their challenge-script fetch is rejected). Try the
             // headless WebView solver first; fall back to the HTTP solver.
-            val webViewOk = if (!webViewTried && appContext != null) {
+            val webViewOk = if (appContext != null && !webViewTried) {
                 webViewTried = true
+                AppLogger.i(TAG, "trying headless WebView challenge solve")
                 runCatching { WebViewChallengeSolver.solveAndSync(appContext, ControlPlaneHttp.cookieJar) }
+                    .onFailure { AppLogger.w(TAG, "WebView solve threw", it) }
                     .getOrDefault(false)
             } else {
+                if (appContext == null) AppLogger.i(TAG, "no appContext, skipping WebView solve")
                 false
             }
+            AppLogger.i(TAG, "WebView solve result: $webViewOk")
             if (!webViewOk) {
-                challengeSolver.solveAndInstall()
+                // Log the HTTP solver failure but keep retrying: the retry itself
+                // is diagnostic data, and a later attempt may succeed.
+                runCatching { challengeSolver.solveAndInstall() }
+                    .onSuccess { AppLogger.i(TAG, "HTTP challenge solver succeeded") }
+                    .onFailure { AppLogger.w(TAG, "HTTP challenge solver failed", it) }
             }
             response = ControlPlaneHttp.client.newCall(buildRequest()).execute()
+            AppLogger.i(TAG, "fxaDo $path retry got HTTP ${response.code}")
             attempts++
         }
 

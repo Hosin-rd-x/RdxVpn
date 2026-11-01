@@ -14,6 +14,8 @@ import java.util.concurrent.TimeUnit
 
 class FastlyChallengeError(message: String) : Exception(message)
 
+private const val TAG = "FastlyChallengeSolver"
+
 private const val SOLVE_TIMEOUT_SECONDS = 60L
 
 private const val MAX_POST_BACK_ROUNDS = 3
@@ -35,15 +37,20 @@ class FastlyChallengeSolver(private val cookieJar: SimpleCookieJar) {
 
     suspend fun solveAndInstall() = withContext(Dispatchers.IO) {
         // Pick up any cookies a real browser already earned (see WebViewChallengeSolver).
-        runCatching { cookieJar.syncFromWebView() }
+        val synced = runCatching { cookieJar.syncFromWebView() }.getOrDefault(0)
+        AppLogger.i(TAG, "HTTP solver started (synced $synced WebView cookies first)")
         var lastError: Exception? = null
         for (base in listOf("https://api.accounts.firefox.com", "https://accounts.firefox.com")) {
+            AppLogger.i(TAG, "HTTP solver trying host $base")
             try {
                 solveOnHost(base)
+                AppLogger.i(TAG, "HTTP solver succeeded on host $base")
                 return@withContext
             } catch (_: NoChallengePage) {
+                AppLogger.i(TAG, "host $base: no challenge page, trying next host")
                 continue
             } catch (e: FastlyChallengeError) {
+                AppLogger.w(TAG, "HTTP solver failed on host $base", e)
                 lastError = e
             }
         }
@@ -179,6 +186,7 @@ class FastlyChallengeSolver(private val cookieJar: SimpleCookieJar) {
     private fun installChallengeCookies(solverJar: SimpleCookieJar) {
         val cookies = solverJar.snapshotAll()
         if (cookies.isEmpty()) throw FastlyChallengeError("challenge completed but no cookies were issued")
+        AppLogger.i(TAG, "installing ${cookies.size} challenge cookies")
         for (cookie in cookies) {
             cookieJar.set(cookie.name, cookie.value, "firefox.com")
         }
@@ -194,16 +202,22 @@ class FastlyChallengeSolver(private val cookieJar: SimpleCookieJar) {
 
         val pageUrl = "$base/"
         val (page, isChallenge) = fetchChallengePage(solver, pageUrl)
+        AppLogger.i(TAG, "host $base: page fetched (${page.length} bytes), isChallenge=$isChallenge")
         if (!isChallenge) throw NoChallengePage()
 
         val prefixMatch = CHALLENGE_PREFIX_REGEX.find(page)
             ?: throw FastlyChallengeError("challenge asset prefix not found on $base")
         val prefixUrl = base + prefixMatch.value
+        AppLogger.i(TAG, "host $base: challenge prefix ${prefixMatch.value}")
 
         val script = fetchText(solver, "$prefixUrl/script.js?reload=true")
+        AppLogger.i(TAG, "host $base: script.js fetched (${script.length} bytes)")
         var (challenges, token) = parseChallengeInit(script)
+        AppLogger.i(TAG, "host $base: ${challenges.length()} challenges to answer")
 
-        repeat(MAX_POST_BACK_ROUNDS) {
+        repeat(MAX_POST_BACK_ROUNDS) { round ->
+            val types = (0 until challenges.length()).map { challenges.getJSONObject(it).optString("ty") }
+            AppLogger.i(TAG, "host $base: post-back round ${round + 1}, answering types=$types")
             val answers = JSONArray()
             for (i in 0 until challenges.length()) {
                 answers.put(answerChallenge(solver, prefixUrl, token, challenges.getJSONObject(i)))
@@ -223,8 +237,10 @@ class FastlyChallengeSolver(private val cookieJar: SimpleCookieJar) {
             solver.newCall(request).execute().use { response ->
                 if (!response.isSuccessful) throw FastlyChallengeError("challenge post-back returned HTTP ${response.code}")
                 val body = JSONObject(response.body?.string().orEmpty())
+                AppLogger.i(TAG, "host $base: post-back status=${body.optString("status")}")
                 if (body.optString("status") == "success") {
                     val (_, stillChallenged) = fetchChallengePage(solver, pageUrl)
+                    AppLogger.i(TAG, "host $base: verification page stillChallenged=$stillChallenged")
                     if (stillChallenged) throw FastlyChallengeError("challenge cookie not accepted on this exit IP")
                     installChallengeCookies(solverJar)
                     return
@@ -234,6 +250,7 @@ class FastlyChallengeSolver(private val cookieJar: SimpleCookieJar) {
                 if (nextChallenges == null || nextChallenges.length() == 0 || nextToken.isEmpty()) {
                     throw FastlyChallengeError("unexpected post-back response: $body")
                 }
+                AppLogger.i(TAG, "host $base: next round has ${nextChallenges.length()} challenges")
                 challenges = nextChallenges
                 token = nextToken
             }

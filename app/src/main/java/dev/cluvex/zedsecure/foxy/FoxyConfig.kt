@@ -69,6 +69,7 @@ object FoxyConfig {
 
         val embedded = FoxyCredentials.refreshToken().trim()
         val combined = (remoteList.orEmpty() + listOf(embedded)).filter { it.isNotBlank() }.distinct()
+        AppLogger.i(TAG, "foxy pool: remote=${remoteList?.size ?: 0} tokens, total=${combined.size} tokens (values never logged)")
         val result = if (combined.isNotEmpty()) combined else listOf(embedded)
         if (remoteList != null && remoteList.isNotEmpty()) {
             cachedTokens = result
