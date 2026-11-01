@@ -1,5 +1,6 @@
 package dev.cluvex.zedsecure.foxy.data
 
+import android.webkit.CookieManager
 import okhttp3.Cookie
 import okhttp3.CookieJar
 import okhttp3.HttpUrl
@@ -65,6 +66,39 @@ class SimpleCookieJar : CookieJar {
     }
 
     fun snapshotAll(): List<Cookie> = byDomain.values.flatten()
+
+    /**
+     * Copies cookies a real browser (WebView) received into this jar. A browser
+     * passes the Fastly bot challenge where plain HTTP calls cannot, so its
+     * cookies are what lets the FxA API calls through. Returns how many cookies
+     * were copied. Never throws.
+     */
+    fun syncFromWebView(): Int {
+        val manager = runCatching { CookieManager.getInstance() }.getOrNull() ?: return 0
+        var count = 0
+        for (urlStr in listOf(
+            "https://accounts.firefox.com",
+            "https://api.accounts.firefox.com",
+            "https://oauth.accounts.firefox.com",
+            "https://vpn.mozilla.org",
+        )) {
+            val header = runCatching { manager.getCookie(urlStr) }.getOrNull() ?: continue
+            for (raw in header.split(";")) {
+                val trimmed = raw.trim()
+                if (trimmed.isEmpty()) continue
+                val eq = trimmed.indexOf('=')
+                if (eq <= 0) continue
+                val name = trimmed.substring(0, eq).trim()
+                val value = trimmed.substring(eq + 1).trim()
+                if (name.isEmpty() || value.isEmpty()) continue
+                // Stored under firefox.com so it matches every FxA subdomain,
+                // the same way the challenge solver's own cookies are stored.
+                set(name, value, "firefox.com")
+                count++
+            }
+        }
+        return count
+    }
 }
 
 private class ProtectingSocketFactory : SocketFactory() {

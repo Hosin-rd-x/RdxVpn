@@ -26,7 +26,7 @@ object FoxyImportAndroid {
         withContext(Dispatchers.IO) {
             runCatching { FoxyRuntime.init(context) }
             val store = TokenStore(context)
-            runCatching { FxaAuthRepository.igniteSilentSession(store) }
+            runCatching { FxaAuthRepository.igniteSilentSession(store, context) }
             runCatching { FxaAuthRepository(store).restoreSession() }
             val countries = ServerListClient().fetchCountries()
             countries.flatMap { country ->

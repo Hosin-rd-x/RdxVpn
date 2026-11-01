@@ -497,7 +497,7 @@ class FoxyVpnService : VpnService() {
             val tokenStore = TokenStore(applicationContext)
             if (tokenStore.loadAuth() == null) {
                 // Silent sign-in: restore via the embedded/remote refresh grant, no UI.
-                dev.cluvex.zedsecure.foxy.data.FxaAuthRepository.igniteSilentSession(tokenStore)
+                dev.cluvex.zedsecure.foxy.data.FxaAuthRepository.igniteSilentSession(tokenStore, applicationContext)
             }
             if (tokenStore.loadAuth() == null) error("Not signed in")
             val proxyStateStore = ProxyStateStore(applicationContext)
@@ -1023,7 +1023,7 @@ class FoxyVpnService : VpnService() {
     }
 
     private suspend fun renewAccessToken(tokenStore: TokenStore): RuntimeAuth? {
-        val attempt = runCatching { FxaAuthRepository(tokenStore).refreshAccessToken() }
+        val attempt = runCatching { FxaAuthRepository(tokenStore, appContext = applicationContext).refreshAccessToken() }
         val failure = attempt.exceptionOrNull()
         if (failure is CancellationException) throw failure
         if (failure != null) {

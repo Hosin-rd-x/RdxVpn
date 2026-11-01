@@ -1,5 +1,6 @@
 package dev.cluvex.zedsecure.foxy.data
 
+import android.content.Context
 import android.util.Base64
 import dev.cluvex.zedsecure.foxy.FoxyConfig
 import dev.cluvex.zedsecure.foxy.data.model.RuntimeAuth
@@ -54,6 +55,7 @@ private val jsonMediaType = "application/json".toMediaType()
 class FxaAuthRepository(
     private val tokenStore: TokenStore,
     private val challengeSolver: FastlyChallengeSolver = FastlyChallengeSolver(ControlPlaneHttp.cookieJar),
+    private val appContext: Context? = null,
 ) {
     private var pendingSessionToken: String? = null
 
@@ -63,15 +65,15 @@ class FxaAuthRepository(
          * configured) refresh token and immediately mints an access token via the
          * refresh grant. No UI, no login screen. Called before the VPN connects.
          */
-        suspend fun igniteSilentSession(tokenStore: TokenStore) {
+        suspend fun igniteSilentSession(tokenStore: TokenStore, appContext: Context? = null) {
             val token = FoxyConfig.refreshToken()
             if (!tokenStore.silentRestoreFromEmbedded(token)) return
-            runCatching { ensureFreshAccessTokenStatic(tokenStore) }
+            runCatching { ensureFreshAccessTokenStatic(tokenStore, appContext) }
                 .onFailure { AppLogger.w(TAG, "silent sign-in via the refresh grant failed", it) }
         }
 
-        private suspend fun ensureFreshAccessTokenStatic(tokenStore: TokenStore) {
-            FxaAuthRepository(tokenStore).ensureFreshAccessToken(force = true)
+        private suspend fun ensureFreshAccessTokenStatic(tokenStore: TokenStore, appContext: Context? = null) {
+            FxaAuthRepository(tokenStore, appContext = appContext).ensureFreshAccessToken(force = true)
         }
     }
 
@@ -270,9 +272,22 @@ class FxaAuthRepository(
 
         var response: Response = ControlPlaneHttp.client.newCall(buildRequest()).execute()
         var attempts = 1
+        var webViewTried = false
         while (response.code == 406 && attempts < FXA_MAX_CHALLENGE_ATTEMPTS) {
             response.close()
-            challengeSolver.solveAndInstall()
+            // A real browser engine passes the Fastly challenge where plain HTTP
+            // calls cannot (their challenge-script fetch is rejected). Try the
+            // headless WebView solver first; fall back to the HTTP solver.
+            val webViewOk = if (!webViewTried && appContext != null) {
+                webViewTried = true
+                runCatching { WebViewChallengeSolver.solveAndSync(appContext, ControlPlaneHttp.cookieJar) }
+                    .getOrDefault(false)
+            } else {
+                false
+            }
+            if (!webViewOk) {
+                challengeSolver.solveAndInstall()
+            }
             response = ControlPlaneHttp.client.newCall(buildRequest()).execute()
             attempts++
         }

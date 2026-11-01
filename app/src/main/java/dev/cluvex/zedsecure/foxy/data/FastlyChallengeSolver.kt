@@ -34,6 +34,8 @@ class FastlyChallengeSolver(private val cookieJar: SimpleCookieJar) {
     private class NoChallengePage : Exception()
 
     suspend fun solveAndInstall() = withContext(Dispatchers.IO) {
+        // Pick up any cookies a real browser already earned (see WebViewChallengeSolver).
+        runCatching { cookieJar.syncFromWebView() }
         var lastError: Exception? = null
         for (base in listOf("https://api.accounts.firefox.com", "https://accounts.firefox.com")) {
             try {
