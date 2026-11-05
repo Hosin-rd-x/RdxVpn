@@ -3,6 +3,7 @@ package dev.cluvex.zedsecure.ui.map
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -26,6 +27,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -56,8 +58,12 @@ import dev.cluvex.zedsecure.shared.resources.map_title
 import dev.cluvex.zedsecure.shared.resources.map_unknown
 import dev.cluvex.zedsecure.shared.resources.map_vpn_warning
 import dev.cluvex.zedsecure.shared.resources.map_you
+import dev.cluvex.zedsecure.shared.resources.ipd_open
+import dev.cluvex.zedsecure.shared.resources.ipd_open_sum
 import dev.cluvex.zedsecure.shared.resources.map_you_saved
+import dev.cluvex.zedsecure.ui.components.ProvidePageBack
 import dev.cluvex.zedsecure.ui.format.ltrIsolate
+import dev.cluvex.zedsecure.ui.platform.BackHandler
 import dev.cluvex.zedsecure.ui.theme.Personalization
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -106,6 +112,29 @@ fun MapScreen(
         if (!vpnOn && !info.underVpn && !info.loading && !code.isNullOrBlank()) {
             onRealLocation(code.uppercase(), locationLabel(info.city, info.country))
         }
+    }
+
+    var showDetails by rememberSaveable { mutableStateOf(false) }
+    if (showDetails) {
+        val details by vm.details.collectAsStateWithLifecycle()
+        LaunchedEffect(connected, status.sessionId, exitGeneration) { vm.loadDetails() }
+        BackHandler { showDetails = false }
+        ProvidePageBack({ showDetails = false }) {
+            IpDetailsPage(
+                contentPadding = contentPadding,
+                details = details,
+                originCode = originCode,
+                connected = connected,
+                serverName = status.serverName,
+                pingMs = info.pingMs,
+                onRefresh = {
+                    vm.loadDetails(force = true)
+                    vm.refresh()
+                },
+                modifier = modifier,
+            )
+        }
+        return
     }
 
     val accent = personalization.connectedColor ?: MaterialTheme.colorScheme.primary
@@ -253,6 +282,33 @@ fun MapScreen(
                             stringResource(it),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .clickable { showDetails = true }
+                            .padding(vertical = 4.dp),
+                    ) {
+                        Column(Modifier.weight(1f)) {
+                            Text(
+                                stringResource(Res.string.ipd_open),
+                                style = MaterialTheme.typography.labelLarge,
+                                fontWeight = FontWeight.SemiBold,
+                            )
+                            Text(
+                                stringResource(Res.string.ipd_open_sum),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        Icon(
+                            painterResource(Res.drawable.ic_open_in_full),
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(18.dp),
                         )
                     }
                 }

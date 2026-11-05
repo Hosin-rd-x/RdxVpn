@@ -51,7 +51,6 @@ object SettingsArts {
     val Appearance = SettingsArt("appearance", Res.drawable.ic_fill_palette, MaterialShapes.Flower, 0)
     val Mode = SettingsArt("mode", Res.drawable.ic_fill_toggle_on, MaterialShapes.Pill, 2)
     val Monitor = SettingsArt("monitor", Res.drawable.ic_fill_monitor_heart, MaterialShapes.Sunny, 3)
-    val Ai = SettingsArt("ai", Res.drawable.ic_fill_auto_awesome, MaterialShapes.SoftBurst, 4)
     val Tour = SettingsArt("tour", Res.drawable.ic_fill_explore, MaterialShapes.Arch, 5)
     val Routing = SettingsArt("routing", Res.drawable.ic_fill_alt_route, MaterialShapes.Diamond, 3)
     val PerApp = SettingsArt("per-app", Res.drawable.ic_fill_apps, MaterialShapes.Cookie4Sided, 0)

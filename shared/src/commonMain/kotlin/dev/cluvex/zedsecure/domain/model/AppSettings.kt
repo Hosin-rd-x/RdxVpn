@@ -8,7 +8,7 @@ enum class ColorStyle { ZedSecure, TonalSpot, Vibrant, Expressive, Rainbow, Frui
 
 enum class ColorContrast(val level: Double) { Standard(0.0), Medium(0.5), High(1.0) }
 
-enum class AppDesign { Pixel, Portal, Old }
+enum class AppDesign { Bento, Pixel, Portal, Old }
 
 enum class ScreenTransition {
     Fade,
@@ -202,8 +202,6 @@ enum class GeoFilesSource(val repo: String) {
 @Serializable
 data class AppSettings(
 
-    val ai: dev.cluvex.zedsecure.domain.ai.AiSettings = dev.cluvex.zedsecure.domain.ai.AiSettings(),
-
     val themeMode: ThemeMode = ThemeMode.System,
     val dynamicColor: Boolean = false,
 
@@ -233,6 +231,8 @@ data class AppSettings(
     val customConfigCardTextColor: Long? = null,
 
     val appDesign: AppDesign = AppDesign.Portal,
+
+    val bento: BentoPrefs = BentoPrefs(),
 
     val connectButtonStyle: ConnectButtonStyle = ConnectButtonStyle.Hero,
 
@@ -281,6 +281,8 @@ data class AppSettings(
 
     val enableIpv6: Boolean = false,
     val preferIpv6: Boolean = false,
+
+    val useSystemCa: Boolean = false,
     val localDnsEnabled: Boolean = false,
     val fakeDnsEnabled: Boolean = false,
     val vpnDns: String = "1.1.1.1",
@@ -317,6 +319,10 @@ data class AppSettings(
     val domainStrategy: DomainStrategy = DomainStrategy.AsIs,
     val routingMode: RoutingMode = RoutingMode.BypassLan,
     val blockAds: Boolean = false,
+
+    // Country whose routing preset applies (IR = Iran whitelist by
+    // default; the setup wizard is not shown, this is the default).
+    val country: String = "IR",
 
     val customProxyRules: String = "",
     val customDirectRules: String = "",
@@ -380,6 +386,8 @@ data class AppSettings(
     val autoSelectSwitchMargin: Int = 30,
 
     val autoSelectRetry: Boolean = true,
+
+    val autoSelectExcludedCountries: List<String> = emptyList(),
 
     val autoConnectOnBoot: Boolean = true,
     val delayTestUrl: String = "https://www.gstatic.com/generate_204",
@@ -466,6 +474,12 @@ data class AppSettings(
 
     val torFakeSniEnabled: Boolean = false,
     val torFakeSniHosts: String = "",
+
+    val detectServerLocation: Boolean = false,
+
+    val localProxyAuth: Boolean = true,
+
+    val reconnectOnNetworkChange: Boolean = true,
 ) {
     val useHevTun: Boolean get() = true
 

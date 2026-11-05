@@ -159,6 +159,8 @@ fun HomeScreen(
 
     activeConfigDetail: String? = null,
 
+    activeSubscription: dev.cluvex.zedsecure.domain.config.Subscription? = null,
+
     exitGeneration: Int = 0,
     onToggleConnection: () -> Unit,
     onBrowseConfigs: () -> Unit,
@@ -178,8 +180,14 @@ fun HomeScreen(
     personalization: Personalization = Personalization.Default,
 
     connectStyle: ConnectButtonStyle = ConnectButtonStyle.Pill,
-    design: AppDesign = AppDesign.Pixel,
+    design: AppDesign = AppDesign.Bento,
     homeVm: HomeViewModel = viewModel { HomeViewModel() },
+    bentoActive: dev.cluvex.zedsecure.ui.bento.BentoActiveServer? = null,
+    bentoPicks: List<dev.cluvex.zedsecure.ui.bento.BentoServerPick> = emptyList(),
+    onPickServer: (String) -> Unit = {},
+    onAddServer: () -> Unit = onBrowseConfigs,
+    onOpenSpeedTest: (() -> Unit)? = null,
+    onOpenMap: (() -> Unit)? = null,
 ) {
     val ui by connectionVm.ui.collectAsStateWithLifecycle()
     val live = ui.state == ConnectionState.Connected
@@ -204,7 +212,43 @@ fun HomeScreen(
 
     if (design != AppDesign.Old) {
         Box(modifier.fillMaxSize()) {
-            if (design == AppDesign.Pixel) {
+            if (design == AppDesign.Bento) {
+                val budget = dev.cluvex.zedsecure.ui.theme.LocalMotionBudget.current
+                dev.cluvex.zedsecure.ui.bento.BentoHome(
+                    ui = ui,
+                    info = info,
+                    active = bentoActive,
+                    picks = bentoPicks,
+                    lockedNote = lockedNote,
+                    localProxyAddress = localProxyAddress,
+                    showConnectionInfo = showConnectionInfo,
+                    animate = !reduceMotion && budget != dev.cluvex.zedsecure.ui.theme.MotionBudget.Paused,
+                    contentPadding = contentPadding,
+                    onToggleConnection = onToggleConnection,
+                    onBrowseConfigs = onBrowseConfigs,
+                    onPickServer = onPickServer,
+                    onAddServer = onAddServer,
+                    onOpenSpeedTest = onOpenSpeedTest,
+                    onOpenMap = onOpenMap,
+                    onRefreshInfo = { homeVm.refresh(force = true) },
+                    onSecretUnlocked = onSecretUnlocked,
+                    onShowLogs = { showLogs = true },
+                    onBurst = {
+                        burst++
+                        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                    },
+                    onStatusTap = {
+                        val now = System.currentTimeMillis()
+                        statusTaps = if (now - statusLastTap < TAP_WINDOW_MS) statusTaps + 1 else 1
+                        statusLastTap = now
+                        if (statusTaps >= 3) {
+                            statusTaps = 0
+                            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                            laser++
+                        }
+                    },
+                )
+            } else if (design == AppDesign.Pixel) {
                 PixelHome(
                     ui = ui,
                     info = info,
@@ -219,6 +263,7 @@ fun HomeScreen(
                     activeConfigName = activeConfigName,
                     activeConfigDetail = activeConfigDetail,
                     activeLocked = activeLocked,
+                    activeSubscription = activeSubscription,
                     lockedNote = lockedNote,
                     localProxyAddress = localProxyAddress,
                     showConnectionInfo = showConnectionInfo,

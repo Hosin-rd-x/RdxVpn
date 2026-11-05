@@ -49,9 +49,9 @@ import dev.cluvex.zedsecure.domain.model.AppDesign
 import dev.cluvex.zedsecure.shared.resources.Res
 import dev.cluvex.zedsecure.shared.resources.*
 import dev.cluvex.zedsecure.ui.theme.ZedGradients
+import kotlin.math.sqrt
 import org.jetbrains.compose.resources.painterResource
 import org.jetbrains.compose.resources.stringResource
-import kotlin.math.sqrt
 
 @Composable
 fun AppDesignPicker(selected: AppDesign, onSelect: (AppDesign) -> Unit) {
@@ -76,6 +76,12 @@ fun AppDesignPicker(selected: AppDesign, onSelect: (AppDesign) -> Unit) {
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 DesignCard(
+                    name = stringResource(Res.string.home_design_bento),
+                    selected = selected == AppDesign.Bento,
+                    modifier = Modifier.weight(1f),
+                    onClick = { onSelect(AppDesign.Bento) },
+                ) { BentoPreviewCard() }
+                DesignCard(
                     name = stringResource(Res.string.home_design_pixel),
                     selected = selected == AppDesign.Pixel,
                     modifier = Modifier.weight(1f),
@@ -95,6 +101,56 @@ fun AppDesignPicker(selected: AppDesign, onSelect: (AppDesign) -> Unit) {
                 ) { OldPreview() }
             }
         }
+    }
+}
+
+@Composable
+private fun PortalPreview() {
+    val cs = MaterialTheme.colorScheme
+    val dot = cs.onSurface
+    val glowA = cs.primary
+    val glowB = cs.tertiary
+    val ring = cs.primary
+    val ticket = cs.primaryContainer
+    val meter = cs.surfaceContainerHigh
+    Canvas(Modifier.fillMaxSize()) {
+        val c = Offset(size.width / 2f, size.height * 0.40f)
+        val r = size.width * 0.17f
+        val far = sqrt(c.x * c.x + c.y * c.y)
+        val step = 9.dp.toPx()
+        var y = step / 2f
+        var row = 0
+        while (y < size.height * 0.74f) {
+            var x = if (row % 2 == 0) step / 2f else step
+            while (x < size.width) {
+                val dx = x - c.x
+                val dy = y - c.y
+                val d = sqrt(dx * dx + dy * dy)
+                if (d > r * 1.25f) {
+                    val q = d / r
+                    val nd = d + r * 0.78f / (1f + q * q * q)
+                    val fade = (1f - nd / far).coerceIn(0f, 1f)
+                    drawCircle(dot.copy(alpha = 0.32f * fade * fade + 0.03f), 1.1.dp.toPx(), Offset(c.x + dx / d * nd, c.y + dy / d * nd))
+                }
+                x += step
+            }
+            y += step
+            row++
+        }
+        drawCircle(
+            Brush.radialGradient(listOf(glowA.copy(alpha = 0.45f), glowB.copy(alpha = 0.15f), Color.Transparent), c, r * 2.6f),
+            r * 2.6f,
+            c,
+        )
+        drawCircle(ring.copy(alpha = 0.35f), r * 1.35f, c, style = Stroke(1.dp.toPx()))
+        drawCircle(Brush.radialGradient(listOf(cs.primaryContainer, glowA, glowB), c, r), r, c)
+        drawCircle(glowB, 2.6.dp.toPx(), Offset(c.x + r * 1.35f * 0.7f, c.y - r * 1.35f * 0.71f))
+        val pad = 10.dp.toPx()
+        val meterTop = size.height * 0.76f
+        val half = (size.width - pad * 2 - 3.dp.toPx()) / 2f
+        drawRoundRect(meter, Offset(pad, meterTop), Size(half, 14.dp.toPx()), androidx.compose.ui.geometry.CornerRadius(7.dp.toPx()))
+        drawRoundRect(meter, Offset(pad + half + 3.dp.toPx(), meterTop), Size(half, 14.dp.toPx()), androidx.compose.ui.geometry.CornerRadius(7.dp.toPx()))
+        drawRoundRect(ticket, Offset(pad, meterTop + 18.dp.toPx()), Size(size.width - pad * 2, 18.dp.toPx()), androidx.compose.ui.geometry.CornerRadius(9.dp.toPx()))
     }
 }
 
@@ -190,52 +246,9 @@ private fun DesignCard(
 }
 
 @Composable
-private fun PortalPreview() {
-    val cs = MaterialTheme.colorScheme
-    val dot = cs.onSurface
-    val glowA = cs.primary
-    val glowB = cs.tertiary
-    val ring = cs.primary
-    val ticket = cs.primaryContainer
-    val meter = cs.surfaceContainerHigh
-    Canvas(Modifier.fillMaxSize()) {
-        val c = Offset(size.width / 2f, size.height * 0.40f)
-        val r = size.width * 0.17f
-        val far = sqrt(c.x * c.x + c.y * c.y)
-        val step = 9.dp.toPx()
-        var y = step / 2f
-        var row = 0
-        while (y < size.height * 0.74f) {
-            var x = if (row % 2 == 0) step / 2f else step
-            while (x < size.width) {
-                val dx = x - c.x
-                val dy = y - c.y
-                val d = sqrt(dx * dx + dy * dy)
-                if (d > r * 1.25f) {
-                    val q = d / r
-                    val nd = d + r * 0.78f / (1f + q * q * q)
-                    val fade = (1f - nd / far).coerceIn(0f, 1f)
-                    drawCircle(dot.copy(alpha = 0.32f * fade * fade + 0.03f), 1.1.dp.toPx(), Offset(c.x + dx / d * nd, c.y + dy / d * nd))
-                }
-                x += step
-            }
-            y += step
-            row++
-        }
-        drawCircle(
-            Brush.radialGradient(listOf(glowA.copy(alpha = 0.45f), glowB.copy(alpha = 0.15f), Color.Transparent), c, r * 2.6f),
-            r * 2.6f,
-            c,
-        )
-        drawCircle(ring.copy(alpha = 0.35f), r * 1.35f, c, style = Stroke(1.dp.toPx()))
-        drawCircle(Brush.radialGradient(listOf(cs.primaryContainer, glowA, glowB), c, r), r, c)
-        drawCircle(glowB, 2.6.dp.toPx(), Offset(c.x + r * 1.35f * 0.7f, c.y - r * 1.35f * 0.71f))
-        val pad = 10.dp.toPx()
-        val meterTop = size.height * 0.76f
-        val half = (size.width - pad * 2 - 3.dp.toPx()) / 2f
-        drawRoundRect(meter, Offset(pad, meterTop), Size(half, 14.dp.toPx()), androidx.compose.ui.geometry.CornerRadius(7.dp.toPx()))
-        drawRoundRect(meter, Offset(pad + half + 3.dp.toPx(), meterTop), Size(half, 14.dp.toPx()), androidx.compose.ui.geometry.CornerRadius(7.dp.toPx()))
-        drawRoundRect(ticket, Offset(pad, meterTop + 18.dp.toPx()), Size(size.width - pad * 2, 18.dp.toPx()), androidx.compose.ui.geometry.CornerRadius(9.dp.toPx()))
+private fun BentoPreviewCard() {
+    Box(Modifier.fillMaxSize().background(dev.cluvex.zedsecure.ui.bento.Bento.colors.ground)) {
+        dev.cluvex.zedsecure.ui.bento.BentoDesignPreview()
     }
 }
 

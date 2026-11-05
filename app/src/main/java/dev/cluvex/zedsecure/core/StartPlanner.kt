@@ -5,7 +5,6 @@ import dev.cluvex.zedsecure.R
 import dev.cluvex.zedsecure.ZedSecureApp
 import dev.cluvex.zedsecure.data.assets.GeoAssetsRepository
 import dev.cluvex.zedsecure.data.assets.GeoCodeReader
-import dev.cluvex.zedsecure.domain.config.ConfigParser
 import dev.cluvex.zedsecure.domain.config.Ikev2Profile
 import dev.cluvex.zedsecure.domain.config.LocalPorts
 import dev.cluvex.zedsecure.domain.config.LocalProxy
@@ -85,7 +84,8 @@ class StartPlanner(context: Context) {
         }
         val settings = settingsRepository.settings.value
 
-        val proxyOnly = allowProxyOnly && settings.runMode == RunMode.ProxyOnly && kind == VpnManager.KIND_XRAY
+        val proxyOnly = allowProxyOnly && settings.runMode == RunMode.ProxyOnly &&
+            (kind == VpnManager.KIND_XRAY || kind in PROXY_ENGINES)
         return Plan.Start(
             configJson = configJson,
             remark = if (profile.isAutoSelect) autoSelectRemark(profile) else profile.name,
@@ -132,7 +132,7 @@ class StartPlanner(context: Context) {
             },
         )
         is dev.cluvex.zedsecure.domain.config.AutoSelectNoMembersException ->
-            appContext.getString(R.string.auto_no_members)
+            appContext.getString(if (e.excluded > 0) R.string.auto_all_excluded else R.string.auto_no_members)
         else -> appContext.getString(R.string.config_invalid)
     }
 
@@ -282,7 +282,7 @@ class StartPlanner(context: Context) {
     ): XrayJsonBuilder.BuildOptions {
         val rulesets = RoutingMigration.effectiveRulesets(this)
         val ruleOutbounds = configRepository.resolveRuleOutbounds(rulesets)
-        val ruleGroups = if (carrier) emptyMap() else configRepository.resolveRuleGroups(rulesets)
+        val ruleGroups = if (carrier) emptyMap() else configRepository.resolveRuleGroups(rulesets, autoSelectExcludedCountries.toSet())
         val hosts = if (resolveFor != null && outboundDomainResolve != OutboundDomainResolve.DoNotResolve) {
             resolveServerHosts(physicalServersOf(resolveFor) + ruleOutbounds.values, preferIpv6)
         } else emptyMap()
@@ -298,15 +298,13 @@ class StartPlanner(context: Context) {
     }
 
     private fun physicalServersOf(profile: VpnProfile): List<ServerConfig> {
-        val link = when (val src = profile.source) {
-            is ProfileSource.Link -> src.link
-            is ProfileSource.ProxyChain -> src.memberIds.firstOrNull()
+        val server = when (profile.source) {
+            is ProfileSource.ProxyChain -> profile.proxyChainSettings()?.firstOrNull()
                 ?.let { configRepository.profile(it) }
-                ?.takeIf { it.source is ProfileSource.Link }
-                ?.rawPayload()
-            else -> null
-        } ?: return emptyList()
-        return listOfNotNull(runCatching { ConfigParser.parse(link) }.getOrNull())
+                ?.linkServer
+            else -> profile.linkServer
+        }
+        return listOfNotNull(server)
     }
 
     private fun resolveServerHosts(servers: Collection<ServerConfig>, preferIpv6: Boolean): Map<String, List<String>> {
@@ -317,7 +315,7 @@ class StartPlanner(context: Context) {
         val pool = Executors.newFixedThreadPool(hosts.size.coerceAtMost(4))
         return try {
             val pending = hosts.associateWith { host ->
-                pool.submit(Callable { InetAddress.getAllByName(host).toList() })
+                pool.submit(Callable { guardedLookup(host) })
             }
             val deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(RESOLVE_BUDGET_MS)
             pending.mapNotNull { (host, future) ->
@@ -331,6 +329,22 @@ class StartPlanner(context: Context) {
         }
     }
 
+    private fun guardedLookup(host: String): List<InetAddress> {
+        val found = InetAddress.getAllByName(host).toList()
+        val clean = found.filterNot { dev.cluvex.zedsecure.domain.config.DnsGuard.isPoisoned(it.hostAddress.orEmpty()) }
+        if (clean.isNotEmpty() || found.isEmpty()) return clean
+        dev.cluvex.zedsecure.core.LogBus.append(
+            "W/DNS: $host resolved to ${found.joinToString { it.hostAddress.orEmpty() }}, a filtering block page; asking DNS over HTTPS instead",
+        )
+        val real = kotlinx.coroutines.runBlocking { dev.cluvex.zedsecure.domain.config.DnsGuard.lookup(host) }
+        if (real == null) {
+            dev.cluvex.zedsecure.core.LogBus.append("W/DNS: no clean address for $host; the core resolves it on its own")
+            return emptyList()
+        }
+        dev.cluvex.zedsecure.core.LogBus.append("I/DNS: $host is $real by DNS over HTTPS")
+        return listOf(InetAddress.getByName(real))
+    }
+
     private fun orderAddresses(addresses: List<InetAddress>, preferIpv6: Boolean): List<String> {
         val v4 = addresses.filterIsInstance<Inet4Address>().mapNotNull { it.hostAddress }
         if (!preferIpv6) return v4.distinct()
@@ -338,7 +352,15 @@ class StartPlanner(context: Context) {
         return (v6 + v4).distinct()
     }
 
-    private companion object {
-        const val RESOLVE_BUDGET_MS = 2_500L
+    companion object {
+        private const val RESOLVE_BUDGET_MS = 2_500L
+
+        // NOTE: Tor is deliberately NOT here — Tor stays removed on Android.
+        val PROXY_ENGINES = setOf(
+            VpnManager.KIND_PSIPHON,
+            VpnManager.KIND_DNS_TUNNEL,
+            VpnManager.KIND_MASTERDNS,
+            VpnManager.KIND_SSH,
+        )
     }
 }

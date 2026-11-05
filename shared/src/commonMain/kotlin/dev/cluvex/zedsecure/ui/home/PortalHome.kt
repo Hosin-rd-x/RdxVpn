@@ -50,6 +50,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialShapes
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -153,6 +154,7 @@ internal fun PortalHome(
     activeConfigName: String?,
     activeConfigDetail: String?,
     activeLocked: Boolean,
+    activeSubscription: dev.cluvex.zedsecure.domain.config.Subscription? = null,
     lockedNote: String?,
     localProxyAddress: String?,
     showConnectionInfo: Boolean,
@@ -308,6 +310,14 @@ internal fun PortalHome(
                     modifier = Modifier.padding(horizontal = 20.dp).tourTarget(TourTargets.CONFIG_CARD),
                 )
                 Spacer(Modifier.height(12.dp))
+                activeSubscription?.let { sub ->
+                    PortalSubscriptionStrip(
+                        sub = sub,
+                        onClick = onBrowseConfigs,
+                        modifier = Modifier.padding(horizontal = 20.dp),
+                    )
+                    Spacer(Modifier.height(12.dp))
+                }
             }
         }
     }
@@ -1138,6 +1148,78 @@ private fun PortalTicket(
                     tint = cs.onPrimaryContainer,
                     modifier = Modifier.size(20.dp),
                 )
+            }
+        }
+    }
+}
+
+@Composable
+private fun PortalSubscriptionStrip(
+    sub: dev.cluvex.zedsecure.domain.config.Subscription,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val now = dev.cluvex.zedsecure.platform.currentTimeMillis()
+    val used = sub.used
+    val total = sub.total
+    val fraction = if (used != null && total != null && total > 0) (used.toDouble() / total).toFloat().coerceIn(0f, 1f) else null
+    val expireAt = sub.expireAt
+    val expired = expireAt != null && expireAt <= now
+    val daysLeft = expireAt?.let { ((it - now) / 86_400_000L).toInt() }
+    val exhausted = fraction != null && fraction >= 1f
+    val usageText = when {
+        used != null && total != null -> stringResource(Res.string.subs_usage, dev.cluvex.zedsecure.ui.format.ltrIsolate(dev.cluvex.zedsecure.ui.format.formatBytes(used)), dev.cluvex.zedsecure.ui.format.ltrIsolate(dev.cluvex.zedsecure.ui.format.formatBytes(total)))
+        used != null -> stringResource(Res.string.subs_usage_unlimited, dev.cluvex.zedsecure.ui.format.ltrIsolate(dev.cluvex.zedsecure.ui.format.formatBytes(used)))
+        else -> null
+    }
+    val expiryText = when {
+        expired -> stringResource(Res.string.subs_expired)
+        exhausted -> stringResource(Res.string.subs_quota_exhausted)
+        daysLeft == null -> null
+        daysLeft <= 0 -> stringResource(Res.string.subs_expires_today)
+        daysLeft == 1 -> stringResource(Res.string.subs_one_day_left)
+        else -> stringResource(Res.string.subs_days_left, daysLeft)
+    }
+    if (usageText == null && expiryText == null) return
+    val alert = expired || exhausted || (daysLeft != null && daysLeft <= 3) || (fraction != null && fraction >= 0.9f)
+    val cs = MaterialTheme.colorScheme
+    Surface(
+        shape = RoundedCornerShape(20.dp),
+        color = cs.surfaceContainer,
+        modifier = modifier.fillMaxWidth().clickable { onClick() },
+    ) {
+        Column(Modifier.padding(horizontal = 16.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    sub.title?.takeIf { it.isNotBlank() } ?: sub.name,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    color = cs.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f),
+                )
+                if (expiryText != null) {
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        expiryText,
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = if (alert) cs.error else cs.onSurfaceVariant,
+                        maxLines = 1,
+                    )
+                }
+            }
+            if (fraction != null) {
+                LinearProgressIndicator(
+                    progress = { fraction },
+                    modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)),
+                    color = if (exhausted || fraction >= 0.9f) cs.error else cs.primary,
+                    trackColor = cs.surfaceContainerHighest,
+                )
+            }
+            if (usageText != null) {
+                Text(usageText, style = MaterialTheme.typography.bodySmall, color = cs.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
     }

@@ -26,6 +26,9 @@ import dev.cluvex.zedsecure.domain.config.XrayJsonBuilder
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
@@ -37,6 +40,11 @@ class ZedVpnService : VpnService() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private var tun: ParcelFileDescriptor? = null
     private var statsJob: Job? = null
+    private var notifSettingsJob: Job? = null
+    private var lastDownBps = 0L
+    private var lastUpBps = 0L
+    private var lastTotalDown = 0L
+    private var lastTotalUp = 0L
     private var remark: String = ""
     private val notifications by lazy { VpnNotifications(this) }
 
@@ -152,10 +160,14 @@ class ZedVpnService : VpnService() {
     private var connected = false
 
     private var proxyOnly = false
+    private var localAuth: dev.cluvex.zedsecure.domain.config.LocalProxyAuth.Credentials? = null
 
     private var autoSelectSession = false
     private var networkWatch: android.net.ConnectivityManager.NetworkCallback? = null
     private var networkTypeWatch: android.net.ConnectivityManager.NetworkCallback? = null
+    private var underlyingWatch: android.net.ConnectivityManager.NetworkCallback? = null
+    @Volatile private var underlyingNetwork: android.net.Network? = null
+    private var underlyingJob: kotlinx.coroutines.Job? = null
     private var networkTypeJob: Job? = null
     @Volatile private var builtNetworkType: String? = null
     @Volatile private var swappingCore = false
@@ -309,12 +321,19 @@ class ZedVpnService : VpnService() {
         val iface = settings.vpnInterfaceAddress
         hevIpv4 = iface.ipv4Client
         hevIpv6 = if (settings.enableIpv6) iface.ipv6Client else null
-        useZepTun = settings.useZepTun
+        useZepTun = settings.useZepTun && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q
         hevLogLevel = settings.hevTunLogLevel.value
         hevRwTimeout = settings.hevTunRwTimeout
+        localAuth = if (!proxyOnly && settings.localProxyAuth) {
+            localAuth ?: dev.cluvex.zedsecure.domain.config.LocalProxyAuth.begin()
+        } else {
+            dev.cluvex.zedsecure.domain.config.LocalProxyAuth.end()
+            null
+        }
 
         if (proxyOnly) {
             if (kind == VpnManager.KIND_XRAY) { startProxyOnly(configJson, socksPort); return }
+            if (kind in StartPlanner.PROXY_ENGINES) { startEngineProxyOnly(configJson, settings); return }
             proxyOnly = false
         }
 
@@ -422,7 +441,8 @@ class ZedVpnService : VpnService() {
                 }
                 writeProxyOutbound(xray, "127.0.0.1", listenPort)
 
-                if (!XrayController.start(xray.toString())) {
+                val port = freePairFor(socksPort)
+                if (!XrayController.start(ported(xray.toString(), port))) {
                     VpnManager.onError(coreStartError())
                     stopEverything(); return@launch
                 }
@@ -477,7 +497,7 @@ class ZedVpnService : VpnService() {
 
     private fun startSsh(
         configJson: String,
-        descriptor: ParcelFileDescriptor,
+        descriptor: ParcelFileDescriptor?,
         tunMtu: Int,
         appSettings: AppSettings,
     ) {
@@ -515,7 +535,7 @@ class ZedVpnService : VpnService() {
         }
     }
 
-    private fun startTor(settings: AppSettings, descriptor: ParcelFileDescriptor, tunMtu: Int) {
+    private fun startTor(settings: AppSettings, descriptor: ParcelFileDescriptor?, tunMtu: Int) {
         val bridged = java.util.concurrent.atomic.AtomicBoolean(false)
         val dns = if (settings.remoteDnsMode == "custom") settings.remoteDnsPrimary.ifBlank { "8.8.8.8" } else "8.8.8.8"
         val controller = dev.cluvex.zedsecure.core.tor.TorController(
@@ -548,7 +568,7 @@ class ZedVpnService : VpnService() {
 
     private fun startDnsTunnel(
         configJson: String,
-        descriptor: ParcelFileDescriptor,
+        descriptor: ParcelFileDescriptor?,
         tunMtu: Int,
         appSettings: AppSettings,
     ) {
@@ -628,7 +648,7 @@ class ZedVpnService : VpnService() {
 
     private fun startMasterDns(
         configJson: String,
-        descriptor: ParcelFileDescriptor,
+        descriptor: ParcelFileDescriptor?,
         tunMtu: Int,
         appSettings: AppSettings,
     ) {
@@ -731,9 +751,10 @@ class ZedVpnService : VpnService() {
         singBox = engine
         singBoxLastUp = 0L
         singBoxLastDown = 0L
+        val securedJson = localAuth?.let { dev.cluvex.zedsecure.domain.config.LocalProxyAuth.secureSingBox(configJson, it) } ?: configJson
         scope.launch(kotlinx.coroutines.Dispatchers.IO) {
             try {
-                engine.start(configJson)
+                engine.start(securedJson)
             } catch (e: Exception) {
                 Log.e(TAG, "sing-box failed to start", e)
                 VpnManager.onError(engineFailed(R.string.engine_singbox_failed, e.message))
@@ -766,11 +787,24 @@ class ZedVpnService : VpnService() {
         return getString(R.string.core_start_failed_reason, raw.take(240))
     }
 
+    private fun startEngineProxyOnly(configJson: String, settings: AppSettings) {
+        killSwitchEnabled = false
+        VpnManager.setActiveKind(kind)
+        val dns = kind == VpnManager.KIND_DNS_TUNNEL || kind == VpnManager.KIND_MASTERDNS
+        val mtu = if (dns) 1280 else settings.vpnMtu.coerceIn(1000, 9000)
+        when (kind) {
+            VpnManager.KIND_PSIPHON -> startPsiphon(configJson, null, mtu)
+            VpnManager.KIND_DNS_TUNNEL -> startDnsTunnel(configJson, null, mtu, settings)
+            VpnManager.KIND_MASTERDNS -> startMasterDns(configJson, null, mtu, settings)
+            VpnManager.KIND_SSH -> startSsh(configJson, null, mtu, settings)
+        }
+    }
+
     private fun startProxyOnly(configJson: String, socksPort: Int) {
         killSwitchEnabled = false
         VpnManager.setActiveKind(kind)
         advance(VpnNotifications.Stage.Engine)
-        if (!XrayController.start(configJson)) {
+        if (!XrayController.start(ported(configJson, socksPort))) {
             VpnManager.onError(coreStartError())
             stopEverything()
             return
@@ -787,8 +821,9 @@ class ZedVpnService : VpnService() {
             .filter { ipv6 || !it.contains(':') }
             .distinct()
 
-    private fun startXray(configJson: String, socksPort: Int, descriptor: ParcelFileDescriptor, tunMtu: Int) {
-        if (!XrayController.start(configJson)) {
+    private fun startXray(configJson: String, preferredPort: Int, descriptor: ParcelFileDescriptor, tunMtu: Int) {
+        val socksPort = freePairFor(preferredPort)
+        if (!XrayController.start(ported(configJson, socksPort))) {
             VpnManager.onError(coreStartError())
             stopEverything()
             return
@@ -799,6 +834,17 @@ class ZedVpnService : VpnService() {
         VpnManager.activeSocksPort = socksPort
         finishConnected()
     }
+
+    private fun ported(json: String, port: Int): String {
+        val moved = XrayJsonBuilder.withLocalPorts(json, LocalPorts.XRAY_SOCKS, port)
+        return localAuth?.let { dev.cluvex.zedsecure.domain.config.LocalProxyAuth.secureXray(moved, it) } ?: moved
+    }
+
+    private fun freePairFor(preferred: Int): Int =
+        if (LocalPortPicker.isFree(preferred) && LocalPortPicker.isFree(preferred + 1)) preferred
+        else LocalPortPicker.pickPair(preferred + 2).also {
+            LogBus.append("W/Engine port $preferred is taken, maybe by ZedSecure in another profile; using $it")
+        }
 
     private fun onXrayStarted() {
         autoSelectSession = AutoSelect.activate()
@@ -861,7 +907,7 @@ class ZedVpnService : VpnService() {
         autoSelectSession = false
     }
 
-    private fun startPsiphon(configJson: String, descriptor: ParcelFileDescriptor, tunMtu: Int) {
+    private fun startPsiphon(configJson: String, descriptor: ParcelFileDescriptor?, tunMtu: Int) {
         val socksPort = java.util.concurrent.atomic.AtomicInteger(0)
         val bridged = java.util.concurrent.atomic.AtomicBoolean(false)
         val controller = PsiphonController(
@@ -1764,13 +1810,16 @@ class ZedVpnService : VpnService() {
     }
 
     private fun bridge(
-        descriptor: ParcelFileDescriptor,
+        descriptor: ParcelFileDescriptor?,
         socksPort: Int,
         tunMtu: Int,
         udpOverTcp: Boolean = false,
         pipeline: Boolean = false,
     ): Boolean {
         advance(VpnNotifications.Stage.Engine)
+        // Proxy-only mode: no TUN interface exists; the engine's local SOCKS
+        // port is the whole point, so there is nothing to bridge.
+        if (descriptor == null) return true
 
         val startHev = {
             HevTunCore.start(
@@ -1782,6 +1831,8 @@ class ZedVpnService : VpnService() {
                 ipv6 = hevIpv6,
                 preferIpv6 = hevIpv6 != null,
                 udpOverTcp = udpOverTcp,
+                socksUser = localAuth?.user,
+                socksPass = localAuth?.pass,
                 pipeline = pipeline,
                 logLevel = hevLogLevel,
                 rwTimeout = hevRwTimeout,
@@ -1797,6 +1848,8 @@ class ZedVpnService : VpnService() {
                 ipv4 = hevIpv4,
                 ipv6 = hevIpv6,
                 udpOverTcp = udpOverTcp,
+                socksUser = localAuth?.user,
+                socksPass = localAuth?.pass,
                 pipeline = pipeline,
                 logLevel = hevLogLevel,
                 rwTimeout = hevRwTimeout,
@@ -1891,6 +1944,7 @@ class ZedVpnService : VpnService() {
         }
         stage = VpnNotifications.Stage.Connected
         connectWhen = System.currentTimeMillis()
+        watchNotificationSettings()
         // An Aether session that fell back from an unusable pinned peer
         // carries the one-line notice; every other engine, and an
         // Aether session that used its peer, passes null — the same
@@ -1907,6 +1961,69 @@ class ZedVpnService : VpnService() {
         ZedWidgetProvider.refresh(this, force = true)
         startStatsLoop()
         watchNetworkType()
+        watchUnderlyingNetwork()
+    }
+
+    private fun watchUnderlyingNetwork() {
+        if (underlyingWatch != null || kind != VpnManager.KIND_XRAY) return
+        if (!SettingsRepository(this).settings.value.reconnectOnNetworkChange) return
+        val cm = getSystemService(android.net.ConnectivityManager::class.java) ?: return
+        underlyingNetwork = null
+        val callback = object : android.net.ConnectivityManager.NetworkCallback() {
+            override fun onAvailable(network: android.net.Network) {
+                val previous = underlyingNetwork
+                underlyingNetwork = network
+                if (previous == null || previous == network) return
+                underlyingJob?.cancel()
+                underlyingJob = scope.launch {
+                    delay(NETWORK_SETTLE_MS)
+                    rebuildForNetworkChange()
+                }
+            }
+        }
+        runCatching { cm.registerDefaultNetworkCallback(callback) }
+            .onSuccess { underlyingWatch = callback }
+            .onFailure { Log.w(TAG, "network change watch unavailable", it) }
+    }
+
+    private fun stopUnderlyingWatch() {
+        underlyingJob?.cancel()
+        underlyingJob = null
+        underlyingWatch?.let { cb ->
+            runCatching { getSystemService(android.net.ConnectivityManager::class.java)?.unregisterNetworkCallback(cb) }
+        }
+        underlyingWatch = null
+        underlyingNetwork = null
+    }
+
+    private fun rebuildForNetworkChange() {
+        if (!connected || kind != VpnManager.KIND_XRAY || swappingCore || killSwitchActive || reconnecting) return
+        if (autoSelectSession) {
+            LogBus.append("I/Network: the network changed; auto-select keeps its own connections")
+            return
+        }
+        networkTypeJob?.cancel()
+        val plan = StartPlanner(this).planActive(allowProxyOnly = proxyOnly)
+        val sameSession = plan is StartPlanner.Plan.Start && plan.kind == VpnManager.KIND_XRAY &&
+            plan.proxyOnly == proxyOnly && plan.remark == remark &&
+            plan.socksPort == (VpnManager.activeSocksPort ?: plan.socksPort)
+        if (!sameSession) {
+            LogBus.append("W/Network: the network changed; reconnect to move the tunnel onto it")
+            return
+        }
+        swappingCore = true
+        val started = try {
+            (plan as StartPlanner.Plan.Start).let { XrayController.start(ported(it.configJson, it.socksPort)) }
+        } finally {
+            swappingCore = false
+        }
+        if (started) {
+            builtNetworkType = NetworkKind.current(this)
+            LogBus.append("I/Network: the network changed; the tunnel was rebuilt on the new one")
+        } else {
+            VpnManager.onError(coreStartError())
+            stopEverything()
+        }
     }
 
     private fun watchNetworkType() {
@@ -1944,6 +2061,7 @@ class ZedVpnService : VpnService() {
 
     private fun rebuildForNetworkType(type: String) {
         if (!connected || kind != VpnManager.KIND_XRAY || autoSelectSession) return
+        underlyingJob?.cancel()
         val plan = StartPlanner(this).planActive(allowProxyOnly = proxyOnly)
         val sameSession = plan is StartPlanner.Plan.Start && plan.kind == VpnManager.KIND_XRAY &&
             plan.proxyOnly == proxyOnly && plan.remark == remark &&
@@ -1955,7 +2073,7 @@ class ZedVpnService : VpnService() {
         }
         swappingCore = true
         val started = try {
-            XrayController.start((plan as StartPlanner.Plan.Start).configJson)
+            (plan as StartPlanner.Plan.Start).let { XrayController.start(ported(it.configJson, it.socksPort)) }
         } finally {
             swappingCore = false
         }
@@ -1984,7 +2102,7 @@ class ZedVpnService : VpnService() {
         }
         swappingCore = true
         val started = try {
-            XrayController.start((plan as StartPlanner.Plan.Start).configJson)
+            (plan as StartPlanner.Plan.Start).let { XrayController.start(ported(it.configJson, it.socksPort)) }
         } finally {
             swappingCore = false
         }
@@ -2111,6 +2229,10 @@ class ZedVpnService : VpnService() {
 
                 val seconds = (waited / 1000L).coerceAtLeast(1L)
                 VpnManager.onMetrics(elapsed, down / seconds, up / seconds, totalDown, totalUp)
+                lastDownBps = down / seconds
+                lastUpBps = up / seconds
+                lastTotalDown = totalDown
+                lastTotalUp = totalUp
 
                 val repaint = elapsed - lastNotifySec >= cadence.notifySeconds
                 if (repaint) {
@@ -2274,11 +2396,34 @@ class ZedVpnService : VpnService() {
         }
     }
 
+    private fun watchNotificationSettings() {
+        notifSettingsJob?.cancel()
+        val repository = (application as dev.cluvex.zedsecure.ZedSecureApp).container.settingsRepository
+        notifSettingsJob = scope.launch {
+            repository.settings
+                .map { s ->
+                    listOf(s.speedInNotification, s.liveNotification, s.notifChip, s.appDesign, s.bento.palette, s.accentColor, s.dynamicColor)
+                }
+                .distinctUntilChanged()
+                .drop(1)
+                .collect {
+                    val s = repository.settings.value
+                    showSpeed = s.speedInNotification
+                    livePromotion = s.liveNotification
+                    notifChip = s.notifChip
+                    if (connected) notify(connectedNotification(lastDownBps, lastUpBps, lastTotalDown, lastTotalUp))
+                }
+        }
+    }
+
     private fun stopEngines() {
         geoReloadJob?.cancel()
         geoReloadJob = null
+        notifSettingsJob?.cancel()
+        notifSettingsJob = null
         statsJob?.cancel()
         stopNetworkTypeWatch()
+        stopUnderlyingWatch()
         stopAutoSelectSession()
         psiphon?.stop(); psiphon = null
         dnsTunnel?.stop(); dnsTunnel = null
@@ -2344,6 +2489,8 @@ class ZedVpnService : VpnService() {
         // mistake this dead service for a live hold.
         killSwitchActive = false
         notificationLive = false
+        localAuth = null
+        dev.cluvex.zedsecure.domain.config.LocalProxyAuth.end()
         val tunToClose = tun
         tun = null
         connected = false
@@ -2831,7 +2978,8 @@ class ZedVpnService : VpnService() {
                 if (patched == null) {
                     VpnManager.onError(getString(R.string.config_invalid)); stopEverything(); return
                 }
-                if (!XrayController.start(patched)) {
+                val port = freePairFor(socksPort)
+                if (!XrayController.start(ported(patched, port))) {
                     VpnManager.onError(coreStartError()); stopEverything(); return
                 }
 

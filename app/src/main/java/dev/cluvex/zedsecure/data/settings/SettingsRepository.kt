@@ -4,8 +4,8 @@ import android.content.Context
 import android.content.SharedPreferences
 import dev.cluvex.zedsecure.domain.model.AppDesign
 import dev.cluvex.zedsecure.domain.model.AppLanguage
-import dev.cluvex.zedsecure.domain.ai.AiSettings
 import dev.cluvex.zedsecure.domain.model.AppSettings
+import dev.cluvex.zedsecure.domain.model.BentoPrefs
 import dev.cluvex.zedsecure.domain.model.DomainStrategy
 import dev.cluvex.zedsecure.domain.model.FragmentPackets
 import dev.cluvex.zedsecure.domain.model.GeoFilesSource
@@ -143,6 +143,7 @@ class SettingsRepository(context: Context) {
 
             enableIpv6 = prefs.getBoolean("ipv6", d.enableIpv6),
             preferIpv6 = prefs.getBoolean("prefer_ipv6", d.preferIpv6),
+            useSystemCa = prefs.getBoolean("use_system_ca", d.useSystemCa),
             localDnsEnabled = prefs.getBoolean("local_dns", d.localDnsEnabled),
             fakeDnsEnabled = prefs.getBoolean("fake_dns", d.fakeDnsEnabled),
             vpnDns = prefs.str("vpn_dns", d.vpnDns),
@@ -179,6 +180,7 @@ class SettingsRepository(context: Context) {
             rulesets = prefs.rulesets("rulesets", d.rulesets),
             routingMigrated = prefs.getBoolean("routing_migrated", d.routingMigrated),
             routingSeeded = prefs.getBoolean("routing_seeded", d.routingSeeded),
+            country = prefs.getString("country", d.country) ?: d.country,
 
             perAppProxyEnabled = prefs.getBoolean("per_app", d.perAppProxyEnabled),
             perAppBypassMode = prefs.getBoolean("per_app_bypass", d.perAppBypassMode),
@@ -216,6 +218,9 @@ class SettingsRepository(context: Context) {
             autoSelectSweepMinutes = prefs.getInt("auto_sweep_minutes", d.autoSelectSweepMinutes),
             autoSelectSwitchMargin = prefs.getInt("auto_switch_margin", d.autoSelectSwitchMargin),
             autoSelectRetry = prefs.getBoolean("auto_retry", d.autoSelectRetry),
+            autoSelectExcludedCountries = prefs.getString("auto_excluded_countries", null)
+                ?.split(',')?.map { it.trim().uppercase() }?.filter { it.length == 2 }
+                ?: d.autoSelectExcludedCountries,
 
             autoConnectOnBoot = prefs.getBoolean("auto_connect_boot", d.autoConnectOnBoot),
             delayTestUrl = prefs.str("delay_url", d.delayTestUrl),
@@ -287,13 +292,14 @@ class SettingsRepository(context: Context) {
 
             killSwitch = prefs.getBoolean("kill_switch", d.killSwitch),
 
-            ai = prefs.getString("ai_settings", null)
-                ?.let { runCatching { aiJson.decodeFromString(AiSettings.serializer(), it) }.getOrNull() }
-                ?: d.ai,
+            bento = prefs.getString("bento_prefs", null)
+                ?.let { runCatching { aiJson.decodeFromString(BentoPrefs.serializer(), it) }.getOrNull() }
+                ?: d.bento,
+            detectServerLocation = prefs.getBoolean("detect_server_location", d.detectServerLocation),
+            localProxyAuth = prefs.getBoolean("local_proxy_auth", d.localProxyAuth),
+            reconnectOnNetworkChange = prefs.getBoolean("reconnect_on_network_change", d.reconnectOnNetworkChange),
         )
     }
-
-    private val aiJson = kotlinx.serialization.json.Json { ignoreUnknownKeys = true; encodeDefaults = true }
 
     fun update(transform: (AppSettings) -> AppSettings) {
         val next = transform(_settings.value)
@@ -357,6 +363,7 @@ class SettingsRepository(context: Context) {
 
             putBoolean("ipv6", s.enableIpv6)
             putBoolean("prefer_ipv6", s.preferIpv6)
+            putBoolean("use_system_ca", s.useSystemCa)
             putBoolean("local_dns", s.localDnsEnabled)
             putBoolean("fake_dns", s.fakeDnsEnabled)
             putString("vpn_dns", s.vpnDns)
@@ -393,6 +400,7 @@ class SettingsRepository(context: Context) {
             putString("rulesets", json.encodeToString(RULESETS, s.rulesets))
             putBoolean("routing_migrated", s.routingMigrated)
             putBoolean("routing_seeded", s.routingSeeded)
+            putString("country", s.country)
 
             putBoolean("per_app", s.perAppProxyEnabled)
             putBoolean("per_app_bypass", s.perAppBypassMode)
@@ -430,6 +438,7 @@ class SettingsRepository(context: Context) {
             putInt("auto_sweep_minutes", s.autoSelectSweepMinutes)
             putInt("auto_switch_margin", s.autoSelectSwitchMargin)
             putBoolean("auto_retry", s.autoSelectRetry)
+            putString("auto_excluded_countries", s.autoSelectExcludedCountries.joinToString(","))
 
             putBoolean("auto_connect_boot", s.autoConnectOnBoot)
             putString("delay_url", s.delayTestUrl)
@@ -500,7 +509,11 @@ class SettingsRepository(context: Context) {
             putInt("ssh_max_channels", s.sshMaxChannels)
 
             putBoolean("kill_switch", s.killSwitch)
-            putString("ai_settings", aiJson.encodeToString(AiSettings.serializer(), s.ai))
+
+            putString("bento_prefs", aiJson.encodeToString(BentoPrefs.serializer(), s.bento))
+            putBoolean("detect_server_location", s.detectServerLocation)
+            putBoolean("local_proxy_auth", s.localProxyAuth)
+            putBoolean("reconnect_on_network_change", s.reconnectOnNetworkChange)
         }.apply()
     }
 
@@ -531,6 +544,7 @@ class SettingsRepository(context: Context) {
         private const val LEGACY_DIRECT_DNS = "223.5.5.5"
 
         private val json = Json { ignoreUnknownKeys = true }
+        private val aiJson = Json { ignoreUnknownKeys = true; encodeDefaults = true; coerceInputValues = true }
         private val RULESETS = ListSerializer(RulesetItem.serializer())
 
         fun readLanguageTag(context: Context): String? {

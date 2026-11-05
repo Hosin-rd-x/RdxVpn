@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
@@ -291,8 +292,7 @@ fun SubscriptionsSheet(
         SubscriptionEditDialog(
             target = target,
             repository = repository,
-            onDismiss = { renameTarget = null },
-        )
+            onDismiss = { renameTarget = null },        )
     }
 
     deleteTarget?.let { target ->

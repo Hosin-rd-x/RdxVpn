@@ -58,6 +58,7 @@ fun AppSettings.toBuildOptions(
     fakeDns = localDnsEnabled && fakeDnsEnabled,
     outboundDomainResolve = outboundDomainResolve.value,
     resolvedServerHosts = resolvedServerHosts,
+    useSystemCa = useSystemCa,
 )
 
 val AppSettings.effectiveLanSocksPort: Int get() = LocalPorts.lanSocksPort(socksPort)
@@ -83,6 +84,7 @@ fun AppSettings.autoSelectTuning(): AutoSelectTuning = AutoSelectTuning(
     sweepIntervalMin = autoSelectSweepMinutes,
     switchMarginPercent = autoSelectSwitchMargin,
     retry = autoSelectRetry,
+    excludedCountries = autoSelectExcludedCountries.toSet(),
 )
 
 fun AppSettings.singBoxTuning(): SingBoxTuning = SingBoxTuning(
