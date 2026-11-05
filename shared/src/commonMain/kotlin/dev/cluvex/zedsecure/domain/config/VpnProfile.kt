@@ -147,6 +147,7 @@ data class VpnProfile(
         get() = when (val src = source) {
             is ProfileSource.SingBox, is ProfileSource.SingBoxConfig -> "sing-box"
             is ProfileSource.Link -> if (SingBoxLinks.handles(src.link)) "sing-box" else "Xray"
+            is ProfileSource.Tor -> "Tor"
             is ProfileSource.Psiphon -> "Psiphon"
             is ProfileSource.DnsTunnel -> if (src.settings.isVaydns) "VayDNS" else "DNSTT"
             is ProfileSource.MasterDns -> "MasterDNS"
