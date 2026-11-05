@@ -304,6 +304,8 @@ data class AppSettings(
 
     val socksPort: Int = dev.cluvex.zedsecure.domain.config.LocalPorts.LAN_SOCKS,
 
+    val localProxyPort: Int = dev.cluvex.zedsecure.domain.config.LocalPorts.XRAY_SOCKS,
+
     val socksUsername: String = "",
     val socksPassword: String = "",
     val lanShareAuth: Boolean = true,

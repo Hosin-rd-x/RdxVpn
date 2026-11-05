@@ -138,6 +138,30 @@ data class VpnProfile(
     val isSstp: Boolean get() = source is ProfileSource.Sstp
     val isAether: Boolean get() = source is ProfileSource.Aether
 
+    /**
+     * Short engine label for display (widget, home). Plain source mapping
+     * only: sealed (vault-locked) configs are NOT opened to read their
+     * engine, they just show as Xray.
+     */
+    val engineLabel: String
+        get() = when (val src = source) {
+            is ProfileSource.SingBox, is ProfileSource.SingBoxConfig -> "sing-box"
+            is ProfileSource.Link -> if (SingBoxLinks.handles(src.link)) "sing-box" else "Xray"
+            is ProfileSource.Psiphon -> "Psiphon"
+            is ProfileSource.DnsTunnel -> if (src.settings.isVaydns) "VayDNS" else "DNSTT"
+            is ProfileSource.MasterDns -> "MasterDNS"
+            is ProfileSource.Ssh -> "SSH"
+            is ProfileSource.OpenConnect -> "OpenConnect"
+            is ProfileSource.Ikev2 -> "IKEv2"
+            is ProfileSource.SniSpoof -> "Xray · SNI"
+            is ProfileSource.CrossChain -> "Chain"
+            is ProfileSource.AutoSelect -> "Auto"
+            is ProfileSource.Aether -> "Aether"
+            is ProfileSource.Sstp -> "SSTP"
+            is ProfileSource.Foxy -> "Foxy"
+            is ProfileSource.Sealed, is ProfileSource.RawJson, is ProfileSource.ProxyChain -> "Xray"
+        }
+
     fun autoSelectSettings(): ProfileSource.AutoSelect? = source as? ProfileSource.AutoSelect
 
     val standardLink: String?

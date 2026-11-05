@@ -16,6 +16,7 @@ import dev.amirzr.flutter_v2ray_client.v2ray.core.HevTunCore
 import dev.cluvex.zedsecure.R
 import dev.cluvex.zedsecure.data.settings.SettingsRepository
 import dev.cluvex.zedsecure.domain.config.LocalPorts
+import dev.cluvex.zedsecure.domain.config.effectiveLocalProxyPort
 import dev.cluvex.zedsecure.domain.config.AetherPeer
 import dev.cluvex.zedsecure.domain.config.RoutingMigration
 import dev.cluvex.zedsecure.domain.model.AppSettings
@@ -46,6 +47,7 @@ class ZedVpnService : VpnService() {
     private var lastTotalDown = 0L
     private var lastTotalUp = 0L
     private var remark: String = ""
+    private var localProxyPort: Int = LocalPorts.XRAY_SOCKS
     private val notifications by lazy { VpnNotifications(this) }
 
     private var stage: VpnNotifications.Stage = VpnNotifications.Stage.Preparing
@@ -322,6 +324,7 @@ class ZedVpnService : VpnService() {
         hevIpv4 = iface.ipv4Client
         hevIpv6 = if (settings.enableIpv6) iface.ipv6Client else null
         useZepTun = settings.useZepTun && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q
+        localProxyPort = settings.effectiveLocalProxyPort
         hevLogLevel = settings.hevTunLogLevel.value
         hevRwTimeout = settings.hevTunRwTimeout
         localAuth = if (!proxyOnly && settings.localProxyAuth) {
@@ -2978,13 +2981,13 @@ class ZedVpnService : VpnService() {
                 if (patched == null) {
                     VpnManager.onError(getString(R.string.config_invalid)); stopEverything(); return
                 }
-                val port = freePairFor(socksPort)
+                val port = freePairFor(localProxyPort)
                 if (!XrayController.start(ported(patched, port))) {
                     VpnManager.onError(coreStartError()); stopEverything(); return
                 }
 
-                if (bridge(descriptor, LocalPorts.XRAY_SOCKS, tunMtu, pipeline = true)) {
-                    VpnManager.activeSocksPort = LocalPorts.XRAY_SOCKS
+                if (bridge(descriptor, port, tunMtu, pipeline = true)) {
+                    VpnManager.activeSocksPort = port
                     finishConnected()
                 } else {
                     stopEverything()

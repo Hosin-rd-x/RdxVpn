@@ -1787,6 +1787,26 @@ private fun statsPolicy() = buildJsonObject {
         putSockopt(s, options, dialerProxy)
     }
 
+    fun withSocksPort(config: String, from: Int, to: Int): String {
+        if (from == to) return config
+        val root = runCatching { leanJson.parseToJsonElement(Jsonc.strip(config)) as? JsonObject }.getOrNull() ?: return config
+        val inbounds = root["inbounds"] as? JsonArray ?: return config
+        val moved = JsonArray(
+            inbounds.map { element ->
+                val inbound = element as? JsonObject ?: return@map element
+                if ((inbound["port"] as? JsonPrimitive)?.content?.toIntOrNull() == from) {
+                    JsonObject(inbound + ("port" to JsonPrimitive(to)))
+                } else {
+                    inbound
+                }
+            },
+        )
+        return JsonObject(root + ("inbounds" to moved)).toString()
+    }
+
+    fun withLocalPorts(config: String, from: Int, to: Int): String =
+        if (from == to) config else withSocksPort(withSocksPort(config, from + 1, to + 1), from, to)
+
     fun withCarrierProxy(configJson: String, carrierPort: Int): String {
         val root = leanJson.parseToJsonElement(Jsonc.strip(configJson)) as JsonObject
 
