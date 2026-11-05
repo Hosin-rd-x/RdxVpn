@@ -525,6 +525,7 @@
     <string name="title_pref_route_only_enabled">Enable routeOnly</string>
     <string name="summary_pref_route_only_enabled">Use the sniffed domain for routing only, keep the IP as target</string>
     <string name="title_pref_enable_local_proxy">Enable local proxy</string>
+    <string name="title_pref_local_proxy_port">Local proxy port</string>
     <string name="summary_pref_enable_local_proxy">Without it there is no SOCKS inbound, so subscription updates cannot be proxied</string>
     <string name="title_pref_proxy_sharing_enabled">Allow connections from the LAN</string>
     <string name="summary_pref_proxy_sharing_enabled">Other devices on this network can use the proxy with the username and password below</string>
@@ -1065,6 +1066,7 @@
     <string name="cert_error_install_failed">This device cannot install certificates.</string>
 
     <string name="map_title">Map</string>
+    <string name="map_refresh">Check again</string>
     <string name="map_subtitle">Where you connect from, and where you come out</string>
     <string name="map_you">You are here</string>
     <string name="map_exit">Exit</string>
@@ -1756,6 +1758,7 @@
     <string name="bento_home_chips">Shortcut chips</string>
     <string name="bento_reset_look">Reset Bento look</string>
     <string name="home_design_bento">Bento</string>
+    <string name="home_design_portal">Portal</string>
     <string name="bento_search_servers">Search servers</string>
     <string name="bento_live_mode_vpn">VPN mode</string>
     <string name="bento_live_mode_proxy">Proxy only</string>

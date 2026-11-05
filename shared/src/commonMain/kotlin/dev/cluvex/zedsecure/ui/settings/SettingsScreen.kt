@@ -77,7 +77,7 @@ import dev.cluvex.zedsecure.platform.secureRandomToken
 
 enum class SettingsPage {
     Root, Ui, Vpn, Core, Routing, PerApp, Mux, Fragment, Observatory, Advanced, Mode, Assets, SingBox,
-    DnsProtocols, Tor, TorBridges, Ssh, SpeedTest, Map, Privacy, Monitor,
+    DnsProtocols, Tor, TorBridges, Ssh, Support, SpeedTest, Map, Privacy, Monitor,
 }
 
 @Composable
@@ -209,6 +209,7 @@ fun SettingsScreen(
             SettingsPage.Tor -> TorPage(settings, contentPadding, modifier, onUpdate) { page = it }
             SettingsPage.TorBridges -> TorBridgesScreen(settings, contentPadding, modifier, onUpdate)
             SettingsPage.Ssh -> SshPage(settings, contentPadding, modifier, onUpdate)
+            SettingsPage.Support -> SupportPage(contentPadding, modifier)
             SettingsPage.Privacy -> PrivacyPage(contentPadding, modifier)
             SettingsPage.Monitor -> LiveMonitorPage(contentPadding, modifier)
             SettingsPage.SpeedTest ->
@@ -484,6 +485,7 @@ private fun BentoRoot(
         when (settings.appDesign) {
             AppDesign.Bento -> Res.string.home_design_bento
             AppDesign.Pixel -> Res.string.home_design_pixel
+            AppDesign.Portal -> Res.string.home_design_portal
             AppDesign.Old -> Res.string.home_design_old
         },
     )

@@ -453,6 +453,7 @@ fun ServersScreen(
 
     var showRealDelayNote by rememberSaveable { mutableStateOf(false) }
     var overflowOpen by remember { mutableStateOf(false) }
+    var pingMenu by remember { mutableStateOf(false) }
     var confirmDeleteAll by remember { mutableStateOf(false) }
 
     var confirmDeleteInvalid by remember { mutableStateOf<Int?>(null) }
@@ -828,7 +829,7 @@ fun ServersScreen(
                         icon = Res.drawable.ic_add,
                         label = stringResource(Res.string.servers_add),
                         onClick = { showAddSheet = true },
-                        onLongClick = { importFromClipboard() },
+                        onLongClick = { importFromClipboard("") },
                         modifier = Modifier.tourTarget(TourTargets.SERVERS_ADD),
                     )
                 }

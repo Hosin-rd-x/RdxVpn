@@ -106,6 +106,7 @@ import dev.cluvex.zedsecure.ui.connection.ConnectionUiState
 import dev.cluvex.zedsecure.ui.format.formatBytes
 import dev.cluvex.zedsecure.ui.format.formatElapsed
 import dev.cluvex.zedsecure.ui.format.formatRate
+import dev.cluvex.zedsecure.ui.format.ltrIsolate
 import dev.cluvex.zedsecure.ui.home.faultHint
 import dev.cluvex.zedsecure.ui.home.faultTitle
 import dev.cluvex.zedsecure.ui.onboarding.TourTargets

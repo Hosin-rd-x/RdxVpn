@@ -612,6 +612,7 @@
     <string name="notif_title_disconnected">تونل متوقف شد</string>
     <string name="notif_kill_switch_body">تونل قطع شد. کلید محافظ جلوی ترافیک را گرفته و Rdx VPN به محض برگشتن شبکه دوباره وصل می‌شود.</string>
     <string name="widget_no_server">سروری انتخاب نشده</string>
+    <string name="widget_description">اتصال یا قطع، همراه با وضعیت و سرعت زنده.</string>
     <string name="chain_member_missing">اعضای گم‌شدهٔ زنجیره: %1$s</string>
     <string name="chain_udp_hop_unsupported">%1$s نمی‌تواند بعد از %2$s در زنجیره باشد — به UDP نیاز دارد</string>
     <string name="chain_serverless_not_first">کانفیگ سرورلس فقط می‌تواند حلقهٔ اول زنجیره باشد</string>

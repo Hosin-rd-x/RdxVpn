@@ -517,6 +517,7 @@
     <string name="title_pref_route_only_enabled">فعال‌سازی routeOnly</string>
     <string name="summary_pref_route_only_enabled">دامنهٔ sniff‌شده فقط برای مسیریابی استفاده شود و IP به‌عنوان مقصد بماند</string>
     <string name="title_pref_enable_local_proxy">فعال‌سازی پروکسی محلی</string>
+    <string name="title_pref_local_proxy_port">پورت پروکسی محلی</string>
     <string name="summary_pref_enable_local_proxy">بدون آن ورودی SOCKS وجود ندارد و به‌روزرسانی سابسکریپشن‌ها از پروکسی عبور نمی‌کند</string>
     <string name="title_pref_proxy_sharing_enabled">اجازهٔ اتصال از شبکهٔ محلی</string>
     <string name="summary_pref_proxy_sharing_enabled">دستگاه‌های دیگر در همین شبکه با نام کاربری و رمز زیر می‌توانند از پروکسی استفاده کنند</string>
@@ -1058,6 +1059,7 @@
     <string name="cert_error_install_failed">این دستگاه امکان نصب گواهی را ندارد.</string>
 
     <string name="map_title">نقشه</string>
+    <string name="map_refresh">دوباره بگیر</string>
     <string name="map_subtitle">از کجا وصل می‌شوی و از کجا بیرون می‌آیی</string>
     <string name="map_you">تو اینجایی</string>
     <string name="map_exit">خروجی</string>
@@ -1749,6 +1751,7 @@
     <string name="bento_home_chips">میانبرها</string>
     <string name="bento_reset_look">بازنشانی ظاهر بنتو</string>
     <string name="home_design_bento">بنتو</string>
+    <string name="home_design_portal">پورتال</string>
     <string name="bento_search_servers">جستجوی سرورها</string>
     <string name="bento_live_mode_vpn">حالت VPN</string>
     <string name="bento_live_mode_proxy">فقط پروکسی</string>

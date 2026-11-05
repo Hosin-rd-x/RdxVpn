@@ -620,6 +620,7 @@
     <string name="notif_title_disconnected">Tunnel stopped</string>
     <string name="notif_kill_switch_body">The tunnel dropped. The kill switch is holding traffic and Rdx VPN reconnects as soon as the network is back.</string>
     <string name="widget_no_server">No server selected</string>
+    <string name="widget_description">Connect or disconnect, with live status and speed.</string>
 
     <string name="widget_preview_server" translatable="false">Frankfurt · DE</string>
     <string name="chain_member_missing">Proxy chain is missing: %1$s</string>

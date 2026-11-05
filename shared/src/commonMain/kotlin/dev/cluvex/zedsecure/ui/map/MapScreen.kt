@@ -60,6 +60,7 @@ import dev.cluvex.zedsecure.shared.resources.map_vpn_warning
 import dev.cluvex.zedsecure.shared.resources.map_you
 import dev.cluvex.zedsecure.shared.resources.ipd_open
 import dev.cluvex.zedsecure.shared.resources.ipd_open_sum
+import dev.cluvex.zedsecure.shared.resources.ic_open_in_full
 import dev.cluvex.zedsecure.shared.resources.map_you_saved
 import dev.cluvex.zedsecure.ui.components.ProvidePageBack
 import dev.cluvex.zedsecure.ui.format.ltrIsolate
@@ -115,27 +116,6 @@ fun MapScreen(
     }
 
     var showDetails by rememberSaveable { mutableStateOf(false) }
-    if (showDetails) {
-        val details by vm.details.collectAsStateWithLifecycle()
-        LaunchedEffect(connected, status.sessionId, exitGeneration) { vm.loadDetails() }
-        BackHandler { showDetails = false }
-        ProvidePageBack({ showDetails = false }) {
-            IpDetailsPage(
-                contentPadding = contentPadding,
-                details = details,
-                originCode = originCode,
-                connected = connected,
-                serverName = status.serverName,
-                pingMs = info.pingMs,
-                onRefresh = {
-                    vm.loadDetails(force = true)
-                    vm.refresh()
-                },
-                modifier = modifier,
-            )
-        }
-        return
-    }
 
     val accent = personalization.connectedColor ?: MaterialTheme.colorScheme.primary
     val originTint = MaterialTheme.colorScheme.tertiary
@@ -168,6 +148,28 @@ fun MapScreen(
             seaCaption(persianGulf, lon = 51.8f, lat = 26.8f, widthDegrees = 6.5f),
             seaCaption(caspian, lon = 50.9f, lat = 41.6f, widthDegrees = 4.0f),
         )
+    }
+
+    if (showDetails) {
+        val details by vm.details.collectAsStateWithLifecycle()
+        LaunchedEffect(connected, status.sessionId, exitGeneration) { vm.loadDetails() }
+        BackHandler { showDetails = false }
+        ProvidePageBack({ showDetails = false }) {
+            IpDetailsPage(
+                contentPadding = contentPadding,
+                details = details,
+                originCode = originCode,
+                connected = connected,
+                serverName = status.serverName,
+                pingMs = info.pingMs,
+                onRefresh = {
+                    vm.loadDetails(force = true)
+                    vm.refresh()
+                },
+                modifier = modifier,
+            )
+        }
+        return
     }
 
     Box(modifier.fillMaxSize()) {
