@@ -1515,10 +1515,9 @@ private fun UiPage(
                     NotifStyle.System to stringResource(Res.string.notif_style_system),
                 ),
                 selected = s.notifStyle,
-                enabled = !s.liveNotification,
                 onSelected = { v -> onUpdate { it.copy(notifStyle = v) } },
             )
-            if (s.liveNotification) {
+            if (s.notifStyle == NotifStyle.Bento) {
                 SettingsInfoRow(
                     title = stringResource(Res.string.notif_style_title),
                     body = stringResource(Res.string.notif_style_note),

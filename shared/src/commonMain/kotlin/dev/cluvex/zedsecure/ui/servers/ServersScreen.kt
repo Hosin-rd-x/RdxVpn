@@ -355,8 +355,15 @@ fun ServersScreen(
             toastRes(Res.string.foxy_unavailable)
             return
         }
-        if (foxyImporting) return
+        // A tap used to vanish silently here: the import ran for a long
+        // time with no feedback, and a second tap while it ran was
+        // swallowed without a word. Say so immediately, both times.
+        if (foxyImporting) {
+            toastRes(Res.string.foxy_import_busy)
+            return
+        }
         foxyImporting = true
+        toastRes(Res.string.foxy_import_started)
         scope.launch {
             runCatching { fetch() }
                 .onFailure { e ->
@@ -1404,7 +1411,13 @@ fun ServersScreen(
                         }
                         if (!bento && openSubscription != null) {
                             item(key = "provider-${openSubscription.id}", span = { GridItemSpan(maxLineSpan) }) {
-                                ProviderCard(
+                                // The Bento card itself, in every theme: the
+                                // Material3 copy looked bare next to it (no
+                                // motif, no count badge), so the themes share
+                                // the one card now instead of each having its
+                                // own. Bento.colors comes from LocalBentoStyle,
+                                // which the theme provides for all designs.
+                                dev.cluvex.zedsecure.ui.bento.BentoProviderCard(
                                     sub = openSubscription,
                                     serverCount = shown.size,
                                     updatedAgo = dev.cluvex.zedsecure.ui.bento.bentoUpdatedAgo(openSubscription.lastUpdated),
@@ -1412,7 +1425,6 @@ fun ServersScreen(
                                     onUpdate = { updateSubscription(openSubscription) },
                                     onManage = { showSubs = true },
                                     onOpenUrl = { platform.openUri(it) },
-                                    personalization = personalization,
                                     modifier = Modifier.padding(bottom = 8.dp),
                                 )
                             }
@@ -2471,129 +2483,6 @@ private fun GroupTab(
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
         )
-    }
-}
-
-@Composable
-/**
- * The big subscription card for the non-Bento themes: the same contents as
- * BentoProviderCard (name, server count, updated-ago, usage bar, expiry,
- * update button, manage/links) in the theme's own card style.
- */
-private fun ProviderCard(
-    sub: dev.cluvex.zedsecure.domain.config.Subscription,
-    serverCount: Int,
-    updatedAgo: String?,
-    updating: Boolean,
-    onUpdate: () -> Unit,
-    onManage: () -> Unit,
-    onOpenUrl: (String) -> Unit,
-    personalization: Personalization,
-    modifier: Modifier = Modifier,
-) {
-    val now = dev.cluvex.zedsecure.platform.currentTimeMillis()
-    val used = sub.used
-    val total = sub.total
-    val fraction = if (used != null && total != null && total > 0) (used.toDouble() / total).toFloat().coerceIn(0f, 1f) else null
-    val expireAt = sub.expireAt
-    val expired = expireAt != null && expireAt <= now
-    val daysLeft = expireAt?.let { ((it - now) / 86_400_000L).toInt() }
-    val exhausted = fraction != null && fraction >= 1f
-    val scheme = MaterialTheme.colorScheme
-    Surface(
-        shape = RoundedCornerShape(personalization.cornerStyle.serverCardDp.dp),
-        color = scheme.primaryContainer,
-        contentColor = scheme.onPrimaryContainer,
-        modifier = modifier.fillMaxWidth().combinedClickable(onClick = onManage),
-    ) {
-        Column(
-            Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text(
-                        sub.title?.takeIf { it.isNotBlank() } ?: sub.name,
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    Text(
-                        stringResource(Res.string.bento_sub_meta, serverCount) + (updatedAgo?.let { " · $it" } ?: ""),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = scheme.onPrimaryContainer.copy(alpha = 0.8f),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-                if (updating) {
-                    Box(Modifier.size(48.dp), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.5.dp)
-                    }
-                } else {
-                    IconButton(onClick = onUpdate) {
-                        Icon(
-                            painterResource(Res.drawable.ic_sync),
-                            contentDescription = stringResource(Res.string.subs_update),
-                        )
-                    }
-                }
-            }
-            if (fraction != null) {
-                LinearProgressIndicator(
-                    progress = { fraction },
-                    modifier = Modifier.fillMaxWidth(),
-                    color = if (exhausted) scheme.error else scheme.primary,
-                    trackColor = scheme.onPrimaryContainer.copy(alpha = 0.2f),
-                )
-            }
-            val usageText = when {
-                used != null && total != null -> stringResource(Res.string.subs_usage, formatBytes(used), formatBytes(total))
-                used != null -> stringResource(Res.string.subs_usage_unlimited, formatBytes(used))
-                else -> null
-            }
-            val expiryText = when {
-                expired -> stringResource(Res.string.subs_expired)
-                exhausted -> stringResource(Res.string.subs_quota_exhausted)
-                daysLeft == null -> null
-                daysLeft <= 0 -> stringResource(Res.string.subs_expires_today)
-                daysLeft == 1 -> stringResource(Res.string.subs_one_day_left)
-                else -> stringResource(Res.string.subs_days_left, daysLeft)
-            }
-            if (usageText != null || expiryText != null) {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text(
-                        usageText.orEmpty(),
-                        style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f, fill = false),
-                    )
-                    if (expiryText != null) {
-                        Text(
-                            expiryText,
-                            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
-                            color = if (expired || exhausted || (daysLeft != null && daysLeft <= 3)) scheme.error else scheme.onPrimaryContainer,
-                            maxLines = 1,
-                        )
-                    }
-                }
-            }
-            val links = listOfNotNull(
-                sub.supportUrl?.let { stringResource(Res.string.subs_support) to it },
-                sub.webPageUrl?.let { stringResource(Res.string.subs_website) to it },
-            )
-            androidx.compose.foundation.layout.FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp),
-            ) {
-                links.forEach { (label, url) ->
-                    AssistChip(onClick = { onOpenUrl(url) }, label = { Text(label) })
-                }
-                AssistChip(onClick = onManage, label = { Text(stringResource(Res.string.subs_title)) })
-            }
-        }
     }
 }
 

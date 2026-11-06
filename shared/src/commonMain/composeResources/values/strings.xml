@@ -746,6 +746,8 @@
     <string name="foxy_import_failed">Could not fetch the Firefox server list</string>
     <string name="foxy_import_failed_code">Could not fetch the Firefox server list (HTTP %1$d). Mozilla is blocking this network right now — try again later, or connect another VPN first and retry.</string>
     <string name="foxy_import_empty">The Firefox server list came back empty — try again later</string>
+    <string name="foxy_import_started">Fetching the Firefox configs…</string>
+    <string name="foxy_import_busy">The Firefox configs are already being fetched — please wait a moment</string>
     <string name="foxy_unavailable">Firefox tunnel is not available in this build</string>
     <string name="snispoof_root_warn">⚠ Requires a ROOTED device. This injects raw packets (fake TLS ClientHello), which needs root — it will not work on an unrooted phone.</string>
     <string name="snispoof_link">Underlying config (link or full JSON)</string>
@@ -1169,7 +1171,7 @@
     <string name="notif_style_title">Notification look</string>
     <string name="notif_style_bento">Bento card</string>
     <string name="notif_style_system">System</string>
-    <string name="notif_style_note">Android draws Live Update notifications itself, so the Bento card appears once Live Update is off.</string>
+    <string name="notif_style_note">The Bento card replaces the Live Update look; pick System to get Live Update back.</string>
     <string name="notif_chip_opt_speed">Download speed</string>
     <string name="notif_chip_opt_name">Config name</string>
     <string name="notif_chip_opt_duration">Time connected</string>
@@ -1350,6 +1352,19 @@
     <string name="onb_lang_body">The whole app switches over straight away.</string>
     <string name="onb_traffic_title">The speed cards</string>
     <string name="onb_traffic_body">Download and upload on Home: where they sit, and how big they are.</string>
+    <string name="onb_rules_title">Traffic rules</string>
+    <string name="onb_rules_body">Built for your country. You can change every rule later in Settings → Routing.</string>
+    <string name="onb_rules_proxy_all">Send everything through the tunnel</string>
+    <string name="onb_rules_proxy_all_sum">Ignore country rules; only local network stays direct</string>
+    <string name="onb_rules_local">%1$s directly</string>
+    <string name="onb_rules_local_sum">Domestic sites and addresses skip the tunnel</string>
+    <string name="onb_rules_ads">Block ads</string>
+    <string name="onb_rules_ads_sum">Uses the ad domain list from the routing data</string>
+    <string name="onb_rules_quic">Block QUIC (UDP 443)</string>
+    <string name="onb_rules_quic_sum">Apps fall back to TCP, which most tunnels carry better</string>
+    <string name="onb_rules_torrent">BitTorrent directly</string>
+    <string name="onb_rules_torrent_sum">Keeps torrent traffic off your server</string>
+    <string name="onb_rules_preview">%1$d rules</string>
     <string name="onb_tour_title">Want the tour?</string>
     <string name="onb_tour_body">A short walk through the app, pointing at the real buttons.</string>
     <string name="onb_tour_note">Adding servers, testing them, subscriptions, editing a config and where the settings live — about a minute.</string>

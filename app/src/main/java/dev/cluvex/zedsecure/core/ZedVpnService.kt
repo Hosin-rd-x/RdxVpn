@@ -321,7 +321,12 @@ class ZedVpnService : VpnService() {
         showSpeed = settings.speedInNotification
         livePromotion = settings.liveNotification
         notifChip = settings.notifChip
-        bentoCard = !settings.liveNotification && settings.notifStyle == dev.cluvex.zedsecure.domain.model.NotifStyle.Bento
+        // The style the user picked decides the card: Live Update used to
+        // veto it (liveNotification defaults to true), so the Bento card
+        // never rendered even though Bento is the default style. Promoted
+        // ongoing is already suppressed for the card in build()
+        // (livePromotion && !bentoCard), so nothing else has to change.
+        bentoCard = settings.notifStyle == dev.cluvex.zedsecure.domain.model.NotifStyle.Bento
         val iface = settings.vpnInterfaceAddress
         hevIpv4 = iface.ipv4Client
         hevIpv6 = if (settings.enableIpv6) iface.ipv6Client else null
@@ -2417,7 +2422,7 @@ class ZedVpnService : VpnService() {
                     showSpeed = s.speedInNotification
                     livePromotion = s.liveNotification
                     notifChip = s.notifChip
-                    bentoCard = !s.liveNotification && s.notifStyle == dev.cluvex.zedsecure.domain.model.NotifStyle.Bento
+                    bentoCard = s.notifStyle == dev.cluvex.zedsecure.domain.model.NotifStyle.Bento
                     if (connected) notify(connectedNotification(lastDownBps, lastUpBps, lastTotalDown, lastTotalUp))
                 }
         }

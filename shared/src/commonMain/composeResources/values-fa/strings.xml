@@ -739,6 +739,8 @@
     <string name="foxy_import_failed">دریافت فهرست سرورهای فایرفاکس ممکن نشد</string>
     <string name="foxy_import_failed_code">دریافت فهرست سرورهای فایرفاکس ممکن نشد (خطای %1$d). موزیلا فعلاً این شبکه را رد می‌کند — بعداً دوباره امتحان کنید، یا اول با یک VPN دیگر وصل شوید و دوباره بزنید.</string>
     <string name="foxy_import_empty">فهرست سرورهای فایرفاکس خالی برگشت — بعداً دوباره امتحان کنید</string>
+    <string name="foxy_import_started">در حال گرفتن کانفیگ‌های فایرفاکس…</string>
+    <string name="foxy_import_busy">گرفتن کانفیگ‌های فایرفاکس در جریان است؛ کمی صبر کنید</string>
     <string name="foxy_unavailable">تونل فایرفاکس در این نسخه در دسترس نیست</string>
     <string name="snispoof_root_warn">⚠ به گوشیِ روت‌شده نیاز دارد. این روش پکت خام تزریق می‌کند (ClientHello جعلی) که روت لازم دارد — روی گوشی بدون روت کار نمی‌کند.</string>
     <string name="snispoof_link">کانفیگ زیرین (لینک یا JSON کامل)</string>
@@ -1162,7 +1164,7 @@
     <string name="notif_style_title">ظاهر نوتیفیکیشن</string>
     <string name="notif_style_bento">کارت بنتو</string>
     <string name="notif_style_system">سیستمی</string>
-    <string name="notif_style_note">اندروید نوتیفیکیشن Live Update را خودش می‌کشد؛ کارت بنتو وقتی Live Update خاموش باشد نمایش داده می‌شود.</string>
+    <string name="notif_style_note">کارت بنتو جای نمای Live Update را می‌گیرد؛ اگر سبک سیستم را انتخاب کنید، نمای Live Update برمی‌گردد.</string>
     <string name="notif_chip_opt_speed">سرعت دانلود</string>
     <string name="notif_chip_opt_name">نام کانفیگ</string>
     <string name="notif_chip_opt_duration">مدت اتصال</string>
@@ -1343,6 +1345,19 @@
     <string name="onb_lang_body">کل برنامه همان لحظه عوض می‌شود.</string>
     <string name="onb_traffic_title">کارت‌های سرعت</string>
     <string name="onb_traffic_body">دانلود و آپلود در صفحهٔ اصلی: کجا باشند و چه اندازه‌ای.</string>
+    <string name="onb_rules_title">قانون‌های ترافیک</string>
+    <string name="onb_rules_body">برای کشور شما ساخته شده. بعداً همه را در تنظیمات ← مسیریابی می‌توانید عوض کنید.</string>
+    <string name="onb_rules_proxy_all">همه‌چیز از تونل</string>
+    <string name="onb_rules_proxy_all_sum">قانون کشور نادیده گرفته می‌شود؛ فقط شبکهٔ محلی مستقیم می‌ماند</string>
+    <string name="onb_rules_local">%1$s مستقیم</string>
+    <string name="onb_rules_local_sum">سایت‌ها و آدرس‌های داخلی بدون تونل باز می‌شوند</string>
+    <string name="onb_rules_ads">مسدود کردن تبلیغات</string>
+    <string name="onb_rules_ads_sum">از فهرست دامنه‌های تبلیغاتی دادهٔ مسیریابی استفاده می‌کند</string>
+    <string name="onb_rules_quic">مسدود کردن QUIC (UDP 443)</string>
+    <string name="onb_rules_quic_sum">برنامه‌ها به TCP برمی‌گردند که بیشتر تونل‌ها بهتر حملش می‌کنند</string>
+    <string name="onb_rules_torrent">بیت‌تورنت مستقیم</string>
+    <string name="onb_rules_torrent_sum">ترافیک تورنت از سرور شما رد نمی‌شود</string>
+    <string name="onb_rules_preview">%1$d قانون</string>
     <string name="onb_tour_title">آموزش را ببینیم؟</string>
     <string name="onb_tour_body">یک گشت کوتاه در برنامه، با اشاره به خود دکمه‌ها.</string>
     <string name="onb_tour_note">افزودن سرور، تست کردن، اشتراک‌ها، ویرایش کانفیگ و جای تنظیمات — حدود یک دقیقه.</string>
