@@ -162,11 +162,39 @@ class FxaAuthRepository(
         val tokenData = try {
             fxaDo("POST", "/oauth/token", baseUrl = FXA_OAUTH_SERVER, jsonBody = body)
         } catch (rejected: FxaApiError) {
-            throw FxaRefreshFailure(
-                rejected.message ?: "FxA rejected the refresh token",
-                permanent = rejected.isPermanentRefreshRejection(),
-                cause = rejected,
-            )
+            // 3.8.18: the direct refresh already ran the challenge solvers
+            // inside fxaDo and still got 406 — Mozilla's bot wall is blocking
+            // the phone's exit IP, not our code. Only in that case, fall back
+            // to the server-side proxy (same body, same headers, plus the
+            // proxy secret) and treat its response exactly like a direct one.
+            if (rejected.statusCode == 406) {
+                AppLogger.i(TAG, "direct refresh got HTTP 406 after solver attempts; trying server proxy")
+                try {
+                    refreshViaProxy(body).also { AppLogger.i(TAG, "refresh via server proxy succeeded") }
+                } catch (proxyFailure: FxaApiError) {
+                    AppLogger.w(TAG, "refresh via server proxy failed", proxyFailure)
+                    throw FxaRefreshFailure(
+                        proxyFailure.message ?: "FxA rejected the refresh token",
+                        permanent = proxyFailure.isPermanentRefreshRejection(),
+                        cause = proxyFailure,
+                    )
+                } catch (proxyFailure: CancellationException) {
+                    throw proxyFailure
+                } catch (proxyFailure: Exception) {
+                    AppLogger.w(TAG, "refresh via server proxy failed", proxyFailure)
+                    throw FxaRefreshFailure(
+                        proxyFailure.message ?: "Could not reach the refresh proxy",
+                        permanent = false,
+                        cause = proxyFailure,
+                    )
+                }
+            } else {
+                throw FxaRefreshFailure(
+                    rejected.message ?: "FxA rejected the refresh token",
+                    permanent = rejected.isPermanentRefreshRejection(),
+                    cause = rejected,
+                )
+            }
         } catch (cancellation: CancellationException) {
             throw cancellation
         } catch (transport: Exception) {
@@ -208,6 +236,38 @@ class FxaAuthRepository(
     } catch (failure: FxaRefreshFailure) {
         AppLogger.w(TAG, "access token renewal failed", failure)
         null
+    }
+
+    /**
+     * Server-side refresh fallback (3.8.18): POSTs the identical refresh
+     * body to the Foxy proxy on our own server, which forwards it to the
+     * fixed FxA OAuth token endpoint and returns Mozilla's response
+     * verbatim. One attempt only — the server IP is not bot-blocked, so no
+     * challenge solving is needed or attempted here. Never logs the body.
+     */
+    private suspend fun refreshViaProxy(jsonBody: JSONObject): JSONObject = withContext(Dispatchers.IO) {
+        val url = FoxyProxyConfig.REFRESH_URL.toHttpUrl()
+        val bodyBytes = jsonBody.toString().toByteArray(Charsets.UTF_8)
+        val request = Request.Builder().url(url).applyChromeHeaders()
+            .header("Content-Type", "application/json")
+            .header(FoxyProxyConfig.SECRET_HEADER, FoxyProxyConfig.SECRET)
+            .method("POST", bodyBytes.toRequestBody(jsonMediaType))
+            .build()
+        ControlPlaneHttp.client.newCall(request).execute().use { resp ->
+            val text = resp.body?.string().orEmpty()
+            if (resp.code >= 400) {
+                val errorBody = try {
+                    JSONObject(text)
+                } catch (e: Exception) {
+                    JSONObject()
+                }
+                val errno = if (errorBody.has("errno")) errorBody.optInt("errno") else null
+                val message = errorBody.optString("message", text.ifEmpty { "HTTP ${resp.code}" })
+                throw FxaApiError(message, errno, resp.code)
+            }
+            if (text.isEmpty()) return@withContext JSONObject()
+            return@withContext JSONObject(text)
+        }
     }
 
     private fun FxaApiError.isPermanentRefreshRejection(): Boolean {
