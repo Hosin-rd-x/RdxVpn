@@ -16,6 +16,7 @@ import dev.cluvex.zedsecure.crypto.ZsxSealRequest
 import dev.cluvex.zedsecure.domain.config.AetherLink
 import dev.cluvex.zedsecure.domain.config.AmneziaLink
 import dev.cluvex.zedsecure.domain.config.AutoMember
+import dev.cluvex.zedsecure.domain.config.AutoSelectNoMembersException
 import dev.cluvex.zedsecure.domain.config.AutoSelectBuild
 import dev.cluvex.zedsecure.domain.config.AutoSelectIds
 import dev.cluvex.zedsecure.domain.config.AutoSelectTuning
@@ -312,20 +313,12 @@ class ConfigRepository(private val store: KeyValueStore) {
         val current = _profiles.value
         val fresh = mutableListOf<VpnProfile>()
         var duplicates = 0
-        links.forEach { link ->
+        val preset = subscriptionId.takeIf { it.isNotBlank() }
+            ?.let { id -> _subscriptions.value.firstOrNull { it.id == id }?.preset }
+            ?.takeUnless { it.isEmpty }
+        links.map { preset?.apply(it) ?: it }.forEach { link ->
             runCatching {
-                if (SingBoxLinks.handles(link)) {
-                    val parsed = SingBoxLinks.parse(link)
-                    val server = SingBoxJson.servers(parsed.fragment).first()
-                    VpnProfile.fromSingBox(
-                        server = server,
-                        id = newId(),
-                        addedAt = currentTimeMillis(),
-                        subscriptionId = subscriptionId,
-                        name = parsed.name,
-                        link = link,
-                    )
-                } else if (SstpLink.isSstpLink(link)) {
+                if (SstpLink.isSstpLink(link)) {
                     val (name, settings) = SstpLink.parse(link)
                         ?: throw IllegalArgumentException("invalid sstp:// link")
                     VpnProfile(
@@ -348,7 +341,7 @@ class ConfigRepository(private val store: KeyValueStore) {
                         name = parsed.name,
                     ).copy(subscriptionId = subscriptionId)
                 } else {
-                    VpnProfile.fromLink(
+                    VpnProfile.fromAnyLink(
                         link = link,
                         id = newId(),
                         addedAt = currentTimeMillis(),
@@ -810,7 +803,7 @@ class ConfigRepository(private val store: KeyValueStore) {
 
     private fun udpProtocolsOf(profile: VpnProfile): String? {
         fun offending(c: ServerConfig): String? {
-            val udpProtocol = c.protocol.isWireguardFamily || c.protocol == Protocol.HYSTERIA
+            val udpProtocol = c.protocol.isUdpBased
             val udpTransport = c.transport.network.lowercase() in setOf("kcp", "mkcp")
             return when {
                 udpProtocol -> c.protocol.label
@@ -901,9 +894,7 @@ class ConfigRepository(private val store: KeyValueStore) {
         .mapNotNull { rule ->
             val id = dev.cluvex.zedsecure.domain.model.RulesetItem.profileIdOf(rule.outboundTag)
                 ?: return@mapNotNull null
-            val payload = profile(id)?.takeIf { it.source is ProfileSource.Link }?.rawPayload()
-                ?: return@mapNotNull null
-            runCatching { ConfigParser.parse(payload) }.getOrNull()?.let { rule.outboundTag to it }
+            profile(id)?.linkServer?.let { rule.outboundTag to it }
         }
         .toMap()
 
@@ -924,6 +915,7 @@ class ConfigRepository(private val store: KeyValueStore) {
             val obfuscated = parsed.copy(
                 protocol = Protocol.AMNEZIAWG,
                 awg = AwgConfig.amneziaDefaults(),
+                runOnSingBox = false,
             )
             changed++
             p.copy(
@@ -992,10 +984,11 @@ class ConfigRepository(private val store: KeyValueStore) {
         return VpnProfile.fromAutoSelect(subscriptionId, groupName, autoSelectMembers(subscriptionId).size)
     }
 
-    fun autoSelectMembers(subscriptionId: String?): List<VpnProfile> = _profiles.value.filter { p ->
+    fun autoSelectMembers(subscriptionId: String?, excluded: Set<String> = emptySet()): List<VpnProfile> = _profiles.value.filter { p ->
         !p.isLocked &&
             (subscriptionId == null || p.subscriptionId == subscriptionId) &&
-            (p.source is ProfileSource.Link || p.source is ProfileSource.RawJson || p.source is ProfileSource.SingBox)
+            (p.source is ProfileSource.Link || p.source is ProfileSource.RawJson || p.source is ProfileSource.SingBox) &&
+            (excluded.isEmpty() || dev.cluvex.zedsecure.domain.config.ProfileCountry.of(p) !in excluded)
     }
 
     /**
@@ -1054,6 +1047,7 @@ class ConfigRepository(private val store: KeyValueStore) {
 
     fun resolveRuleGroups(
         rulesets: List<dev.cluvex.zedsecure.domain.model.RulesetItem>,
+        excluded: Set<String> = emptySet(),
     ): Map<String, RuleGroup> = rulesets
         .asSequence()
         .filter { it.enabled && AutoSelectIds.isAuto(it.outboundTag) }
@@ -1062,7 +1056,7 @@ class ConfigRepository(private val store: KeyValueStore) {
         .mapNotNull { tag ->
             val subscriptionId = AutoSelectIds.subscriptionOf(tag)
             if (!subscriptionId.isNullOrEmpty() && _subscriptions.value.none { it.id == subscriptionId }) return@mapNotNull null
-            val members = autoSelectMembers(subscriptionId)
+            val members = autoSelectMembers(subscriptionId, excluded)
             val built = autoMembersOf(members)
             if (built.isEmpty()) return@mapNotNull null
             tag to RuleGroup(built, fastestOf(members))
@@ -1075,7 +1069,11 @@ class ConfigRepository(private val store: KeyValueStore) {
         tuning: AutoSelectTuning,
     ): AutoSelectBuild {
         val group = profile.autoSelectSettings() ?: throw IllegalStateException("not an auto-select profile")
-        val members = autoSelectMembers(group.subscriptionId)
+        val members = autoSelectMembers(group.subscriptionId, tuning.excludedCountries)
+        if (members.isEmpty() && tuning.excludedCountries.isNotEmpty()) {
+            val all = autoSelectMembers(group.subscriptionId).size
+            if (all > 0) throw AutoSelectNoMembersException(skipped = 0, excluded = all)
+        }
         val built = autoMembersOf(members)
         val remembered = lastAutoSelectPick(profile.id)?.takeIf { id -> members.any { it.id == id } }
         val fastest = fastestOf(members)
@@ -1572,7 +1570,13 @@ class ConfigRepository(private val store: KeyValueStore) {
         persistSubscriptions()
     }
 
-    fun editSubscription(id: String, newName: String, userAgent: String?, newUrl: String? = null) {
+    fun editSubscription(
+        id: String,
+        newName: String,
+        userAgent: String?,
+        newUrl: String? = null,
+        preset: dev.cluvex.zedsecure.domain.config.SubscriptionPreset? = null,
+    ) {
         val trimmedName = newName.trim()
         val trimmedUa = userAgent?.trim()?.takeIf { it.isNotBlank() }
         val trimmedUrl = newUrl?.trim()?.takeIf { it.isNotBlank() }
@@ -1582,6 +1586,7 @@ class ConfigRepository(private val store: KeyValueStore) {
                 name = trimmedName.ifEmpty { it.name },
                 url = trimmedUrl ?: it.url,
                 userAgent = trimmedUa,
+                preset = preset ?: it.preset,
             )
         }
         persistSubscriptions()

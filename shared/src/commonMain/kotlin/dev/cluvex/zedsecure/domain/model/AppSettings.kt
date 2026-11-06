@@ -8,7 +8,7 @@ enum class ColorStyle { ZedSecure, TonalSpot, Vibrant, Expressive, Rainbow, Frui
 
 enum class ColorContrast(val level: Double) { Standard(0.0), Medium(0.5), High(1.0) }
 
-enum class AppDesign { Pixel, Portal, Old }
+enum class AppDesign { Bento, Pixel, Portal, Old }
 
 enum class ScreenTransition {
     Fade,
@@ -87,6 +87,8 @@ enum class NavBarStyle {
     Underline,
 
     Minimal,
+
+    Dock,
 }
 
 enum class NotifChip {
@@ -100,6 +102,8 @@ enum class NotifChip {
 
     None,
 }
+
+enum class NotifStyle { System, Bento }
 
 enum class ConnectButtonStyle {
     Pill,
@@ -121,6 +125,16 @@ enum class UiFontScale(val scale: Float) {
     Normal(1.00f),
     Larger(1.12f),
     Largest(1.25f),
+}
+
+enum class UiFont { Auto, GoogleSans, Inter, Vazirmatn, Estedad, Nunito, System }
+
+object UiScale {
+    const val MIN = 0.5f
+    const val MAX = 2f
+    const val DEFAULT = 1f
+
+    fun clamp(value: Float): Float = if (value.isNaN()) DEFAULT else value.coerceIn(MIN, MAX)
 }
 
 enum class TrafficTileSize(val paddingDp: Int, val gapDp: Int) {
@@ -202,8 +216,6 @@ enum class GeoFilesSource(val repo: String) {
 @Serializable
 data class AppSettings(
 
-    val ai: dev.cluvex.zedsecure.domain.ai.AiSettings = dev.cluvex.zedsecure.domain.ai.AiSettings(),
-
     val themeMode: ThemeMode = ThemeMode.System,
     val dynamicColor: Boolean = false,
 
@@ -234,9 +246,13 @@ data class AppSettings(
 
     val appDesign: AppDesign = AppDesign.Portal,
 
+    val bento: BentoPrefs = BentoPrefs(),
+
     val connectButtonStyle: ConnectButtonStyle = ConnectButtonStyle.Hero,
 
     val navBarStyle: NavBarStyle = NavBarStyle.ExpressivePill,
+
+    val navTabs: String = "",
 
     val themeProfileId: String? = null,
 
@@ -253,6 +269,8 @@ data class AppSettings(
 
     val notifChip: NotifChip = NotifChip.Speed,
 
+    val notifStyle: NotifStyle = NotifStyle.Bento,
+
     val onboardingVersion: Int = 0,
 
     val screenTransition: ScreenTransition = ScreenTransition.Push,
@@ -265,6 +283,10 @@ data class AppSettings(
     val trafficTileSize: TrafficTileSize = TrafficTileSize.Normal,
 
     val uiFontScale: UiFontScale = UiFontScale.Normal,
+
+    val uiFont: UiFont = UiFont.Auto,
+
+    val uiScale: Float = UiScale.DEFAULT,
     val trafficCardStyle: TrafficCardStyle = TrafficCardStyle.Cards,
     val doubleColumnDisplay: Boolean = false,
     val groupAllDisplay: Boolean = true,
@@ -281,6 +303,8 @@ data class AppSettings(
 
     val enableIpv6: Boolean = false,
     val preferIpv6: Boolean = false,
+
+    val useSystemCa: Boolean = false,
     val localDnsEnabled: Boolean = false,
     val fakeDnsEnabled: Boolean = false,
     val vpnDns: String = "1.1.1.1",
@@ -302,6 +326,8 @@ data class AppSettings(
 
     val socksPort: Int = dev.cluvex.zedsecure.domain.config.LocalPorts.LAN_SOCKS,
 
+    val localProxyPort: Int = dev.cluvex.zedsecure.domain.config.LocalPorts.XRAY_SOCKS,
+
     val socksUsername: String = "",
     val socksPassword: String = "",
     val lanShareAuth: Boolean = true,
@@ -317,6 +343,10 @@ data class AppSettings(
     val domainStrategy: DomainStrategy = DomainStrategy.AsIs,
     val routingMode: RoutingMode = RoutingMode.BypassLan,
     val blockAds: Boolean = false,
+
+    // Country whose routing preset applies (IR = Iran whitelist by
+    // default; the setup wizard is not shown, this is the default).
+    val country: String = "IR",
 
     val customProxyRules: String = "",
     val customDirectRules: String = "",
@@ -380,6 +410,8 @@ data class AppSettings(
     val autoSelectSwitchMargin: Int = 30,
 
     val autoSelectRetry: Boolean = true,
+
+    val autoSelectExcludedCountries: List<String> = emptyList(),
 
     val autoConnectOnBoot: Boolean = true,
     val delayTestUrl: String = "https://www.gstatic.com/generate_204",
@@ -466,6 +498,12 @@ data class AppSettings(
 
     val torFakeSniEnabled: Boolean = false,
     val torFakeSniHosts: String = "",
+
+    val detectServerLocation: Boolean = false,
+
+    val localProxyAuth: Boolean = true,
+
+    val reconnectOnNetworkChange: Boolean = true,
 ) {
     val useHevTun: Boolean get() = true
 

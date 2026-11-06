@@ -1,5 +1,7 @@
 package dev.cluvex.zedsecure.domain.config
 
+const val DEFAULT_WIREGUARD_MTU = 1280
+
 enum class Protocol(val id: String, val label: String) {
     VLESS("vless", "VLESS"),
     VMESS("vmess", "VMess"),
@@ -11,11 +13,14 @@ enum class Protocol(val id: String, val label: String) {
 
     AMNEZIAWG("wireguard", "AmneziaWG"),
     HYSTERIA("hysteria", "Hysteria"),
+    MASQUE("masque", "MASQUE"),
     ;
 
     val usesUserPass: Boolean get() = this == SOCKS || this == HTTP
 
     val isWireguardFamily: Boolean get() = this == WIREGUARD || this == AMNEZIAWG
+
+    val isUdpBased: Boolean get() = isWireguardFamily || this == HYSTERIA || this == MASQUE
 
     val carriesUdp: Boolean get() = this != HTTP
 
@@ -23,6 +28,8 @@ enum class Protocol(val id: String, val label: String) {
         get() = this == VLESS || this == VMESS || this == TROJAN || this == SHADOWSOCKS
 
     val supportsMux: Boolean get() = this == VLESS || this == VMESS
+
+    val sharedWithSingBox: Boolean get() = this != MASQUE && this != AMNEZIAWG
 
     companion object {
         fun fromScheme(scheme: String): Protocol? = when (scheme.lowercase()) {
@@ -35,6 +42,7 @@ enum class Protocol(val id: String, val label: String) {
             "wireguard", "wg" -> WIREGUARD
             "awg", "amneziawg" -> AMNEZIAWG
             "hysteria", "hysteria2", "hy2" -> HYSTERIA
+            "masque" -> MASQUE
             else -> null
         }
     }
@@ -58,6 +66,10 @@ data class TransportConfig(
     val kcpTti: Int? = null,
 
     val finalMask: String? = null,
+
+    val headers: String? = null,
+
+    val xdriveSettings: String? = null,
 )
 
 data class SecurityConfig(
@@ -112,6 +124,8 @@ data class ServerConfig(
 
     val portHopping: String? = null,
 
+    val hopInterval: String? = null,
+
     val pinnedCertSha256: String? = null,
 
     val localAddresses: List<String> = emptyList(),
@@ -124,11 +138,14 @@ data class ServerConfig(
 
     val bandwidthUp: String? = null,
     val bandwidthDown: String? = null,
+
+    val runOnSingBox: Boolean = false,
 ) {
     val transportLabel: String
         get() = buildString {
             append(protocol.label)
             if (protocol == Protocol.AMNEZIAWG && !awg.isEmpty) append(" · obfs")
+            if (protocol == Protocol.MASQUE) append(if (isWarp) " · WARP" else if (tls.alpn?.trim()?.lowercase() == "h2") " · HTTP/2" else " · HTTP/3")
             if (protocol.supportsTransport) {
                 append(" · ")
                 append(transport.network.uppercase())
@@ -137,5 +154,8 @@ data class ServerConfig(
                     "tls" -> append(" / TLS")
                 }
             }
+            if (runOnSingBox) append(" · sing-box")
         }
+
+    val isWarp: Boolean get() = protocol == Protocol.MASQUE && secretKey.isNotBlank()
 }

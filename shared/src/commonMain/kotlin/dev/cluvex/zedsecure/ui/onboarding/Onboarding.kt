@@ -35,10 +35,13 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -46,10 +49,12 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import dev.cluvex.zedsecure.domain.model.AppLanguage
 import dev.cluvex.zedsecure.domain.model.AppSettings
+import dev.cluvex.zedsecure.domain.model.RoutingPresets
+import dev.cluvex.zedsecure.domain.model.RulesetItem
 import dev.cluvex.zedsecure.domain.model.ThemeMode
-import dev.cluvex.zedsecure.domain.model.TrafficTileSize
 import dev.cluvex.zedsecure.shared.resources.Res
 import dev.cluvex.zedsecure.shared.resources.*
+import dev.cluvex.zedsecure.ui.servers.countryName
 import dev.cluvex.zedsecure.ui.theme.ThemeProfiles
 import dev.cluvex.zedsecure.ui.theme.applyThemeProfile
 import org.jetbrains.compose.resources.stringResource
@@ -66,6 +71,28 @@ fun OnboardingFlow(
 ) {
     var step by rememberSaveable { mutableIntStateOf(0) }
     val last = 4
+
+    // Traffic rules (step 3), from upstream 3.1.8's RulesStep: the country
+    // comes from settings (IR by default) and the switches start on
+    // upstream's defaults, which for Iran build the IranWhitelist preset.
+    val country = settings.country
+    var directLocal by rememberSaveable { mutableStateOf(true) }
+    var blockAds by rememberSaveable { mutableStateOf(true) }
+    var blockQuic by rememberSaveable { mutableStateOf(true) }
+    var directTorrent by rememberSaveable { mutableStateOf(true) }
+    var proxyAll by rememberSaveable { mutableStateOf(false) }
+    val ruleOptions = RoutingPresets.RegionOptions(directLocal, blockAds, blockQuic, directTorrent, proxyAll)
+    val rulePreview = remember(country, ruleOptions) { RoutingPresets.forRegion(country, ruleOptions) }
+
+    fun commitRules() {
+        onUpdate {
+            it.copy(
+                rulesets = RoutingPresets.apply(it.rulesets, RoutingPresets.forRegion(country, ruleOptions)),
+                routingSeeded = true,
+                routingMigrated = true,
+            )
+        }
+    }
 
     Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         Column(
@@ -89,7 +116,20 @@ fun OnboardingFlow(
                         0 -> ThemeModeStep(settings, onUpdate)
                         1 -> ThemeProfileStep(settings, onUpdate)
                         2 -> LanguageStep(settings, onLanguage)
-                        3 -> TrafficStep(settings, onUpdate)
+                        3 -> RulesStep(
+                            country = country,
+                            preview = rulePreview,
+                            directLocal = directLocal,
+                            onDirectLocal = { directLocal = it },
+                            blockAds = blockAds,
+                            onBlockAds = { blockAds = it },
+                            blockQuic = blockQuic,
+                            onBlockQuic = { blockQuic = it },
+                            directTorrent = directTorrent,
+                            onDirectTorrent = { directTorrent = it },
+                            proxyAll = proxyAll,
+                            onProxyAll = { proxyAll = it },
+                        )
                         else -> TourOfferStep()
                     }
                 }
@@ -101,10 +141,10 @@ fun OnboardingFlow(
                 }
                 Spacer(Modifier.weight(1f))
                 if (step == last) {
-                    TextButton(onClick = onFinish) { Text(stringResource(Res.string.onb_skip_tour)) }
+                    TextButton(onClick = { commitRules(); onFinish() }) { Text(stringResource(Res.string.onb_skip_tour)) }
                     Spacer(Modifier.width(8.dp))
                     Button(
-                        onClick = onStartTour,
+                        onClick = { commitRules(); onStartTour() },
                         shape = RoundedCornerShape(18.dp),
                         modifier = Modifier.height(52.dp),
                     ) {
@@ -163,6 +203,7 @@ private fun ChoiceCard(
     selected: Boolean,
     onClick: () -> Unit,
     trailing: @Composable (() -> Unit)? = null,
+    enabled: Boolean = true,
 ) {
     val container by animateColorAsState(
         if (selected) MaterialTheme.colorScheme.primaryContainer
@@ -173,8 +214,10 @@ private fun ChoiceCard(
         onClick = onClick,
         shape = RoundedCornerShape(22.dp),
         color = container,
+        enabled = enabled,
         modifier = Modifier
             .fillMaxWidth()
+            .alpha(if (enabled) 1f else 0.45f)
             .then(
                 if (selected) {
                     Modifier.border(2.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(22.dp))
@@ -271,63 +314,94 @@ private fun LanguageStep(settings: AppSettings, onLanguage: (AppLanguage) -> Uni
 }
 
 @Composable
-private fun TrafficStep(settings: AppSettings, onUpdate: ((AppSettings) -> AppSettings) -> Unit) {
-    StepHeader(stringResource(Res.string.onb_traffic_title), stringResource(Res.string.onb_traffic_body))
-    ChoiceCard(
-        title = stringResource(Res.string.title_pref_traffic_tiles_top),
-        description = stringResource(Res.string.summary_pref_traffic_tiles_top),
-        selected = settings.trafficTilesAboveHero,
-        onClick = { onUpdate { it.copy(trafficTilesAboveHero = !it.trafficTilesAboveHero) } },
-        trailing = {
-            Switch(
-                checked = settings.trafficTilesAboveHero,
-                onCheckedChange = { v -> onUpdate { it.copy(trafficTilesAboveHero = v) } },
-            )
-        },
-    )
-    Spacer(Modifier.height(18.dp))
-    Text(
-        stringResource(Res.string.title_pref_traffic_tile_size),
-        style = MaterialTheme.typography.titleSmall,
-        fontWeight = FontWeight.SemiBold,
-        color = MaterialTheme.colorScheme.onSurface,
-    )
-    Spacer(Modifier.height(10.dp))
+private fun RulesStep(
+    country: String,
+    preview: List<RulesetItem>,
+    directLocal: Boolean,
+    onDirectLocal: (Boolean) -> Unit,
+    blockAds: Boolean,
+    onBlockAds: (Boolean) -> Unit,
+    blockQuic: Boolean,
+    onBlockQuic: (Boolean) -> Unit,
+    directTorrent: Boolean,
+    onDirectTorrent: (Boolean) -> Unit,
+    proxyAll: Boolean,
+    onProxyAll: (Boolean) -> Unit,
+) {
+    StepHeader(stringResource(Res.string.onb_rules_title), stringResource(Res.string.onb_rules_body))
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        listOf(
-            TrafficTileSize.Small to stringResource(Res.string.tile_size_small),
-            TrafficTileSize.Normal to stringResource(Res.string.tile_size_normal),
-            TrafficTileSize.Large to stringResource(Res.string.tile_size_large),
-        ).forEach { (size, label) ->
+        ChoiceCard(
+            title = stringResource(Res.string.onb_rules_proxy_all),
+            description = stringResource(Res.string.onb_rules_proxy_all_sum),
+            selected = proxyAll,
+            onClick = { onProxyAll(!proxyAll) },
+            trailing = {
+                Switch(checked = proxyAll, onCheckedChange = onProxyAll)
+            },
+        )
+        if (country.isNotBlank()) {
             ChoiceCard(
-                title = label,
-                selected = settings.trafficTileSize == size,
-                onClick = { onUpdate { it.copy(trafficTileSize = size) } },
-                trailing = { TilePreview(size) },
+                title = stringResource(Res.string.onb_rules_local, countryName(country)),
+                description = stringResource(Res.string.onb_rules_local_sum),
+                selected = directLocal && !proxyAll,
+                onClick = { onDirectLocal(!directLocal) },
+                enabled = !proxyAll,
+                trailing = {
+                    Switch(checked = directLocal && !proxyAll, onCheckedChange = onDirectLocal, enabled = !proxyAll)
+                },
             )
         }
-    }
-}
-
-@Composable
-private fun TilePreview(size: TrafficTileSize) {
-    val height = when (size) {
-        TrafficTileSize.Small -> 26.dp
-        TrafficTileSize.Normal -> 34.dp
-        TrafficTileSize.Large -> 42.dp
-    }
-    Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-        repeat(2) { i ->
-            Box(
-                Modifier
-                    .width(30.dp)
-                    .height(height)
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(
-                        if (i == 0) MaterialTheme.colorScheme.primary.copy(alpha = 0.35f)
-                        else MaterialTheme.colorScheme.tertiary.copy(alpha = 0.35f),
-                    ),
-            )
+        ChoiceCard(
+            title = stringResource(Res.string.onb_rules_ads),
+            description = stringResource(Res.string.onb_rules_ads_sum),
+            selected = blockAds,
+            onClick = { onBlockAds(!blockAds) },
+            trailing = {
+                Switch(checked = blockAds, onCheckedChange = onBlockAds)
+            },
+        )
+        ChoiceCard(
+            title = stringResource(Res.string.onb_rules_quic),
+            description = stringResource(Res.string.onb_rules_quic_sum),
+            selected = blockQuic,
+            onClick = { onBlockQuic(!blockQuic) },
+            trailing = {
+                Switch(checked = blockQuic, onCheckedChange = onBlockQuic)
+            },
+        )
+        ChoiceCard(
+            title = stringResource(Res.string.onb_rules_torrent),
+            description = stringResource(Res.string.onb_rules_torrent_sum),
+            selected = directTorrent && !proxyAll,
+            onClick = { onDirectTorrent(!directTorrent) },
+            enabled = !proxyAll,
+            trailing = {
+                Switch(checked = directTorrent && !proxyAll, onCheckedChange = onDirectTorrent, enabled = !proxyAll)
+            },
+        )
+        Surface(
+            shape = RoundedCornerShape(22.dp),
+            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Column(
+                Modifier.padding(horizontal = 18.dp, vertical = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                Text(
+                    stringResource(Res.string.onb_rules_preview, preview.size),
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+                preview.forEach { rule ->
+                    Text(
+                        "• ${rule.remarks}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
         }
     }
 }

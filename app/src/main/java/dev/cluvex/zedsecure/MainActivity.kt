@@ -415,37 +415,14 @@ class MainActivity : ComponentActivity() {
                 colorStyle = settings.colorStyle,
                 colorContrast = settings.colorContrast,
                 design = settings.appDesign,
+                bento = settings.bento,
                 animateColors = !settings.reduceMotion,
                 languageTag = langTag,
                 fontScale = settings.uiFontScale.scale,
+                font = settings.uiFont,
+                uiScale = settings.uiScale,
             ) {
                 CompositionLocalProvider(LocalPlatform provides androidPlatform) {
-                    val aiBridge = androidx.compose.runtime.remember {
-                        dev.cluvex.zedsecure.ai.AndroidAiBridge.create(
-                            repository = configRepository,
-                            settings = repo,
-                            toggleConnection = ::toggleConnection,
-                            mtuHint = {
-                                val active = configRepository.activeProfile()
-                                val link = (active?.source as? dev.cluvex.zedsecure.domain.config.ProfileSource.Link)?.link
-                                val parsed = link?.let {
-                                    runCatching { dev.cluvex.zedsecure.domain.config.ConfigParser.parse(it) }.getOrNull()
-                                }
-                                val host = parsed?.address?.takeIf { it.isNotBlank() }
-                                    ?: active?.address.orEmpty()
-                                if (host.isBlank()) {
-                                    null
-                                } else {
-                                    dev.cluvex.zedsecure.data.net.MtuServerHint(
-                                        host = host,
-                                        overhead = parsed
-                                            ?.let { dev.cluvex.zedsecure.data.net.MtuOverheads.ofServer(it) }
-                                            ?: dev.cluvex.zedsecure.data.net.MtuOverheads.worstCase(),
-                                    )
-                                }
-                            },
-                        )
-                    }
                     MainScaffold(
                         settings = settings,
                         configRepository = configRepository,
@@ -457,7 +434,6 @@ class MainActivity : ComponentActivity() {
                             repo.update { it.copy(language = lang) }
                             recreate()
                         },
-                        aiBridge = aiBridge,
                         appVersion = dev.cluvex.zedsecure.BuildConfig.VERSION_NAME,
                         onAetherAuto = { onProgress ->
                             AetherAutoConfig.runAuto(applicationContext, onProgress)

@@ -6,6 +6,13 @@ import dev.cluvex.zedsecure.domain.model.RoutingPresets
 import dev.cluvex.zedsecure.domain.model.RulesetItem
 
 object RoutingMigration {
+    /** The routing preset that belongs to a country code (IR/CN/RU). */
+    fun presetForCountry(code: String): RoutingPresetType = when (code.trim().uppercase()) {
+        "CN" -> RoutingPresetType.ChinaWhitelist
+        "RU" -> RoutingPresetType.RussiaWhitelist
+        else -> RoutingPresetType.IranWhitelist
+    }
+
     fun effectiveRulesets(settings: AppSettings): List<RulesetItem> =
         if (settings.routingMigrated) settings.rulesets
         else settings.rulesets.ifEmpty { fromLegacy(settings) }
@@ -17,7 +24,7 @@ object RoutingMigration {
             settings.customDirectRules.isBlank() &&
             settings.customBlockRules.isBlank()
         return settings.copy(
-            rulesets = if (untouched) RoutingPresets.rules(RoutingPresetType.IranWhitelist)
+            rulesets = if (untouched) RoutingPresets.rules(presetForCountry(settings.country))
             else settings.rulesets,
 
             routingSeeded = true,

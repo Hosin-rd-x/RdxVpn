@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
@@ -66,6 +67,33 @@ fun SubscriptionsSheet(
     repository: ConfigRepository,
     onDismiss: () -> Unit,
 ) {
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+
+        sheetState = rememberBottomSheetState(SheetValue.Hidden, setOf(SheetValue.Hidden, SheetValue.Expanded)),
+    ) {
+        SubscriptionsPanel(
+            repository = repository,
+            onImported = onDismiss,
+            showTitle = true,
+            modifier = Modifier
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .imePadding()
+                .padding(start = 20.dp, end = 20.dp, bottom = 26.dp),
+        )
+    }
+}
+
+/** The subscriptions manager as a plain panel, so it can also live on a tab
+ *  page (see TabPages.SubscriptionsTabPage). The sheet above is a wrapper. */
+@Composable
+fun SubscriptionsPanel(
+    repository: ConfigRepository,
+    onImported: () -> Unit,
+    showTitle: Boolean,
+    modifier: Modifier = Modifier,
+) {
     val platform = LocalPlatform.current
     val scope = rememberCoroutineScope()
     val subs by repository.subscriptions.collectAsStateWithLifecycle()
@@ -78,24 +106,17 @@ fun SubscriptionsSheet(
     var deleteTarget by remember { mutableStateOf<dev.cluvex.zedsecure.domain.config.Subscription?>(null) }
     var qrTarget by remember { mutableStateOf<Pair<String, String>?>(null) }
 
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-
-        sheetState = rememberBottomSheetState(SheetValue.Hidden, setOf(SheetValue.Hidden, SheetValue.Expanded)),
+    Column(
+        modifier,
+        verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        Column(
-            Modifier
-                .fillMaxWidth()
-                .verticalScroll(rememberScrollState())
-                .imePadding()
-                .padding(start = 20.dp, end = 20.dp, bottom = 26.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
+        if (showTitle) {
             Text(
                 stringResource(Res.string.subs_title),
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold,
             )
+        }
 
             SectionTitle(stringResource(Res.string.subs_add))
             OutlinedTextField(
@@ -115,7 +136,7 @@ fun SubscriptionsSheet(
                         .onSuccess {
                             platform.toast(getString(Res.string.servers_imported, it))
 
-                            onDismiss()
+                            onImported()
                         }
                         .onFailure {
                             platform.toast(getString(Res.string.subs_failed))
@@ -271,7 +292,6 @@ fun SubscriptionsSheet(
                 }
             }
         }
-    }
 
     qrTarget?.let { (qrTitle, qrText) ->
         dev.cluvex.zedsecure.ui.components.QrDialog(
@@ -291,8 +311,7 @@ fun SubscriptionsSheet(
         SubscriptionEditDialog(
             target = target,
             repository = repository,
-            onDismiss = { renameTarget = null },
-        )
+            onDismiss = { renameTarget = null },        )
     }
 
     deleteTarget?.let { target ->

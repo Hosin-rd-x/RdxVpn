@@ -1,5 +1,6 @@
 package dev.cluvex.zedsecure.foxy.data
 
+import dev.cluvex.zedsecure.core.FoxyImportFailure
 import dev.cluvex.zedsecure.foxy.data.model.ProxyCandidate
 import dev.cluvex.zedsecure.foxy.data.model.VpnCity
 import dev.cluvex.zedsecure.foxy.data.model.VpnCountry
@@ -11,7 +12,6 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONArray
 import org.json.JSONObject
-import java.io.IOException
 
 private const val TAG = "ServerListClient"
 
@@ -28,7 +28,16 @@ class ServerListClient(private val client: OkHttpClient = ControlPlaneHttp.clien
         val request = Request.Builder().url(REMOTE_SETTINGS_URL).applyMozillaVpnHeaders().build()
         client.newCall(request).execute().use { response ->
             if (!response.isSuccessful) {
-                throw IOException("Remote Settings fetch failed: HTTP ${response.code}")
+                // Surface the real status: a 406/403 here is the Fastly bot
+                // wall on Mozilla's public list endpoint (same wall as FxA),
+                // not a quota or a broken app, and the caller shows the code.
+                // There is no challenge retry here on purpose: the FxA
+                // solvers only cover the accounts hosts, and their cookies
+                // are not sent to this host, so retrying would just 406 again.
+                throw FoxyImportFailure(
+                    "Remote Settings fetch failed: HTTP ${response.code}",
+                    statusCode = response.code,
+                )
             }
             val body = JSONObject(response.body?.string().orEmpty())
             val records = body.optJSONArray("data") ?: JSONArray()

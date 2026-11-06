@@ -245,6 +245,34 @@ fun RoutingScreen(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(top = 6.dp),
                     )
+                    Spacer(Modifier.height(10.dp))
+                    PickerField(
+                        label = stringResource(Res.string.routing_country),
+                        options = listOf(
+                            "IR" to stringResource(Res.string.country_iran),
+                            "CN" to stringResource(Res.string.country_china),
+                            "RU" to stringResource(Res.string.country_russia),
+                        ),
+                        selected = settings.country,
+                        onSelect = { code ->
+                            onUpdate {
+                                it.copy(
+                                    country = code,
+                                    rulesets = RoutingPresets.apply(
+                                        RoutingMigration.effectiveRulesets(it),
+                                        RoutingPresets.rules(RoutingMigration.presetForCountry(code)),
+                                    ),
+                                    routingMigrated = true,
+                                )
+                            }
+                        },
+                    )
+                    Text(
+                        stringResource(Res.string.routing_country_sum),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 6.dp),
+                    )
                     Spacer(Modifier.height(6.dp))
                     ToggleRow(
                         title = stringResource(Res.string.routing_block_ads),

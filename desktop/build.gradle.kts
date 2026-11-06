@@ -79,6 +79,7 @@ compose.desktop {
         mainClass = "dev.cluvex.zedsecure.desktop.GuiKt"
         nativeDistributions {
             targetFormats(TargetFormat.Deb, TargetFormat.Rpm, TargetFormat.AppImage, TargetFormat.Msi, TargetFormat.Dmg)
+            modules("java.net.http")
             packageName = "ZedSecure"
             // Desktop package formats reject dashes (e.g. "3.8.3-beta1");
             // the Android versionName keeps the suffix, desktops use the core.

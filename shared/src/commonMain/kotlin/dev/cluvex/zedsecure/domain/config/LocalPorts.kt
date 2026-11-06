@@ -41,6 +41,10 @@ object LocalPorts {
             port in SSH..SSH_MAX || port in DNS_TUNNEL..DNS_TUNNEL_MAX ||
             port in MASTER_DNS..MASTER_DNS_MAX || port in SSH_OVER_DNS..SSH_OVER_DNS_MAX
 
+    fun localProxyPort(requested: Int): Int =
+        if (requested == XRAY_SOCKS || requested in 1024..65534 && !isInternal(requested) && !isInternal(requested + 1)) requested
+        else XRAY_SOCKS
+
     fun lanSocksPort(requested: Int): Int =
         if (requested in 1024..65534 && !isInternal(requested) && !isInternal(requested + 1)) requested
         else LAN_SOCKS

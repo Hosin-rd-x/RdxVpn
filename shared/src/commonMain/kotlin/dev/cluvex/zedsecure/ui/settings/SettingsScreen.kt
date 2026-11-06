@@ -50,8 +50,8 @@ import dev.cluvex.zedsecure.domain.model.ListDensity
 import dev.cluvex.zedsecure.domain.model.FragmentPackets
 import dev.cluvex.zedsecure.domain.model.HevLogLevel
 import dev.cluvex.zedsecure.domain.model.LogLevel
-import dev.cluvex.zedsecure.domain.model.NavBarStyle
 import dev.cluvex.zedsecure.domain.model.NotifChip
+import dev.cluvex.zedsecure.domain.model.NotifStyle
 import dev.cluvex.zedsecure.domain.model.OutboundDomainResolve
 import dev.cluvex.zedsecure.domain.model.RunMode
 import dev.cluvex.zedsecure.domain.model.ThemeMode
@@ -77,7 +77,7 @@ import dev.cluvex.zedsecure.platform.secureRandomToken
 
 enum class SettingsPage {
     Root, Ui, Vpn, Core, Routing, PerApp, Mux, Fragment, Observatory, Advanced, Mode, Assets, SingBox,
-    DnsProtocols, Tor, TorBridges, Ssh, SpeedTest, Map, Privacy, Monitor, Ai, AiChat,
+    DnsProtocols, Tor, TorBridges, Ssh, Support, SpeedTest, Map, Privacy, Monitor, NavBar,
 }
 
 @Composable
@@ -94,15 +94,17 @@ fun SettingsScreen(
 
     groupTargets: List<Pair<String, String>> = emptyList(),
 
+    autoCountries: List<String> = emptyList(),
+
     dnsTunnelActive: Boolean = false,
 
     onDeepLinkBack: (() -> Unit)? = null,
 
     onReplayTour: (() -> Unit)? = null,
 
-    mtuHint: dev.cluvex.zedsecure.data.net.MtuServerHint? = null,
+    onOpenVault: (() -> Unit)? = null,
 
-    ai: dev.cluvex.zedsecure.ui.settings.AiSection? = null,
+    mtuHint: dev.cluvex.zedsecure.data.net.MtuServerHint? = null,
 ) {
     var page by rememberSaveable { mutableStateOf(SettingsPage.Root) }
     var showAbout by rememberSaveable { mutableStateOf(false) }
@@ -126,6 +128,7 @@ fun SettingsScreen(
                 onDeepLinkBack()
             }
             page == SettingsPage.TorBridges -> page = SettingsPage.Tor
+            page == SettingsPage.NavBar -> page = SettingsPage.Ui
             else -> {
                 deepLinked = false
                 page = SettingsPage.Root
@@ -172,23 +175,36 @@ fun SettingsScreen(
     ) {
     stateHolder.SaveableStateProvider(shown) {
         when (shown) {
-            SettingsPage.Root -> RootPage(
-                settings = settings,
-                contentPadding = contentPadding,
-                modifier = modifier,
-                onOpen = { page = it },
-                onAbout = { showAbout = true },
-                onReplayTour = onReplayTour,
-                onUpdate = onUpdate,
-                hasAi = ai != null,
-            )
-            SettingsPage.Ui -> UiPage(settings, contentPadding, modifier, onUpdate, onLanguage)
+            SettingsPage.Root -> if (settings.appDesign == AppDesign.Bento) {
+                BentoRoot(
+                    settings = settings,
+                    contentPadding = contentPadding,
+                    modifier = modifier,
+                    onOpen = { page = it },
+                    onAbout = { showAbout = true },
+                    onReplayTour = onReplayTour,
+                    onUpdate = onUpdate,
+                    onOpenVault = onOpenVault,
+                )
+            } else {
+                RootPage(
+                    settings = settings,
+                    contentPadding = contentPadding,
+                    modifier = modifier,
+                    onOpen = { page = it },
+                    onAbout = { showAbout = true },
+                    onReplayTour = onReplayTour,
+                    onUpdate = onUpdate,
+                )
+            }
+            SettingsPage.Ui -> UiPage(settings, contentPadding, modifier, onUpdate, onLanguage) { page = it }
+            SettingsPage.NavBar -> NavBarSettingsPage(settings, contentPadding, modifier, onUpdate)
             SettingsPage.Vpn -> VpnPage(settings, contentPadding, modifier, onUpdate, mtuHint)
             SettingsPage.Core -> CorePage(settings, contentPadding, modifier, onUpdate)
             SettingsPage.Mux -> MuxPage(settings, contentPadding, modifier, onUpdate)
             SettingsPage.SingBox -> SingBoxPage(settings, contentPadding, modifier, onUpdate)
             SettingsPage.Fragment -> FragmentPage(settings, contentPadding, modifier, onUpdate)
-            SettingsPage.Observatory -> ObservatoryPage(settings, contentPadding, modifier, onUpdate)
+            SettingsPage.Observatory -> ObservatoryPage(settings, contentPadding, modifier, onUpdate, autoCountries)
             SettingsPage.Advanced -> AdvancedPage(settings, contentPadding, modifier, onUpdate)
             SettingsPage.Mode -> ModePage(settings, contentPadding, modifier, onUpdate)
             SettingsPage.Routing -> RoutingScreen(settings, contentPadding, onUpdate, modifier, serverTargets, groupTargets)
@@ -198,37 +214,9 @@ fun SettingsScreen(
             SettingsPage.Tor -> TorPage(settings, contentPadding, modifier, onUpdate) { page = it }
             SettingsPage.TorBridges -> TorBridgesScreen(settings, contentPadding, modifier, onUpdate)
             SettingsPage.Ssh -> SshPage(settings, contentPadding, modifier, onUpdate)
+            SettingsPage.Support -> SupportPage(contentPadding, modifier)
             SettingsPage.Privacy -> PrivacyPage(contentPadding, modifier)
             SettingsPage.Monitor -> LiveMonitorPage(contentPadding, modifier)
-            SettingsPage.Ai -> ai?.let {
-                SettingsPageScaffold(
-                    title = stringResource(Res.string.ai_title),
-                    art = SettingsArts.Ai,
-                    subtitle = stringResource(Res.string.ai_subtitle),
-                    contentPadding = contentPadding,
-                    modifier = modifier,
-                ) {
-                    AiAssistantPage(
-                        settings = it.settings,
-                        onUpdate = it.onUpdate,
-                        onOpenChat = { page = SettingsPage.AiChat },
-                        onOpenKeyPage = it.onOpenUrl,
-                    )
-                }
-            }
-
-            SettingsPage.AiChat -> ai?.let {
-                AiChatScreen(
-                    settings = it.settings,
-                    bridge = it.bridge,
-                    languageName = it.languageName,
-                    languageNative = it.languageNative,
-                    platform = it.platform,
-                    appVersion = it.appVersion,
-                    contentPadding = contentPadding,
-                    modifier = modifier,
-                )
-            }
             SettingsPage.SpeedTest ->
                 dev.cluvex.zedsecure.ui.speedtest.SpeedTestScreen(contentPadding, modifier, dnsTunnelActive)
             SettingsPage.Map -> dev.cluvex.zedsecure.ui.map.MapScreen(
@@ -288,7 +276,6 @@ private fun RootPage(
     onAbout: () -> Unit,
     onReplayTour: (() -> Unit)?,
     onUpdate: ((AppSettings) -> AppSettings) -> Unit,
-    hasAi: Boolean,
 ) {
     val platform = LocalPlatform.current
 
@@ -327,13 +314,6 @@ private fun RootPage(
                 stringResource(Res.string.monitor_subtitle),
                 art = SettingsArts.Monitor,
             ) { onOpen(SettingsPage.Monitor) }
-            if (hasAi) {
-                SettingsMenuRow(
-                    stringResource(Res.string.ai_title),
-                    stringResource(Res.string.ai_subtitle),
-                    art = SettingsArts.Ai,
-                ) { onOpen(SettingsPage.Ai) }
-            }
             if (onReplayTour != null) {
                 SettingsMenuRow(
                     stringResource(Res.string.tour_replay_title),
@@ -489,6 +469,321 @@ private fun RootPage(
         )
         Spacer(Modifier.height(28.dp))
     }
+}
+
+@Composable
+private fun BentoRoot(
+    settings: AppSettings,
+    contentPadding: PaddingValues,
+    modifier: Modifier,
+    onOpen: (SettingsPage) -> Unit,
+    onAbout: () -> Unit,
+    onReplayTour: (() -> Unit)?,
+    onUpdate: ((AppSettings) -> AppSettings) -> Unit,
+    onOpenVault: (() -> Unit)? = null,
+) {
+    val platform = LocalPlatform.current
+    var checkTrigger by androidx.compose.runtime.remember { androidx.compose.runtime.mutableIntStateOf(0) }
+    var checking by androidx.compose.runtime.remember { mutableStateOf(false) }
+    val live = settings.bento.liveTiles
+    val fromPlay = platform.distribution == Distribution.PlayStore
+    val designName = stringResource(
+        when (settings.appDesign) {
+            AppDesign.Bento -> Res.string.home_design_bento
+            AppDesign.Pixel -> Res.string.home_design_pixel
+            AppDesign.Portal -> Res.string.home_design_portal
+            AppDesign.Old -> Res.string.home_design_old
+        },
+    )
+    val paletteName = stringResource(
+        when (settings.bento.palette) {
+            dev.cluvex.zedsecure.domain.model.BentoPalette.Brand -> Res.string.bento_palette_brand
+            dev.cluvex.zedsecure.domain.model.BentoPalette.Accent -> Res.string.bento_palette_accent
+            dev.cluvex.zedsecure.domain.model.BentoPalette.Pastel -> Res.string.bento_palette_pastel
+            dev.cluvex.zedsecure.domain.model.BentoPalette.Vivid -> Res.string.bento_palette_vivid
+            dev.cluvex.zedsecure.domain.model.BentoPalette.Mono -> Res.string.bento_palette_mono
+            dev.cluvex.zedsecure.domain.model.BentoPalette.Citrus -> Res.string.bento_palette_citrus
+            dev.cluvex.zedsecure.domain.model.BentoPalette.Matcha -> Res.string.bento_palette_matcha
+            dev.cluvex.zedsecure.domain.model.BentoPalette.Neon -> Res.string.bento_palette_neon
+            dev.cluvex.zedsecure.domain.model.BentoPalette.Pistachio -> Res.string.bento_palette_pistachio
+            dev.cluvex.zedsecure.domain.model.BentoPalette.Ocean -> Res.string.bento_palette_ocean
+            dev.cluvex.zedsecure.domain.model.BentoPalette.Sunset -> Res.string.bento_palette_sunset
+            dev.cluvex.zedsecure.domain.model.BentoPalette.Berry -> Res.string.bento_palette_berry
+        },
+    )
+    val modeName = stringResource(
+        when (settings.runMode) {
+            dev.cluvex.zedsecure.domain.model.RunMode.Vpn -> Res.string.bento_live_mode_vpn
+            dev.cluvex.zedsecure.domain.model.RunMode.ProxyOnly -> Res.string.bento_live_mode_proxy
+            dev.cluvex.zedsecure.domain.model.RunMode.SystemProxy -> Res.string.bento_live_mode_system
+        },
+    )
+    val vpnLive = stringResource(Res.string.bento_live_vpn, settings.vpnMtu, if (settings.useZepTun) "zeptun" else "hev") +
+        if (settings.killSwitch) " · " + stringResource(Res.string.bento_live_kill) else ""
+    val ruleCount = dev.cluvex.zedsecure.domain.config.RoutingMigration.effectiveRulesets(settings).count { it.enabled }
+    val dnsLive = if (settings.remoteDnsMode == "custom" && settings.remoteDnsPrimary.isNotBlank()) {
+        settings.remoteDnsPrimary
+    } else {
+        stringResource(Res.string.summary_dns_protocols)
+    }
+    val torLive = stringResource(
+        when (settings.torBridgesMode) {
+            "default" -> Res.string.tor_bridges_default
+            "own" -> Res.string.tor_bridges_own
+            else -> Res.string.tor_bridges_none
+        },
+    )
+    val entries = buildList {
+        add(dev.cluvex.zedsecure.ui.bento.BentoHubEntry(
+            key = "appearance",
+            title = stringResource(Res.string.title_ui_settings),
+            summary = if (live) listOfNotNull(designName, paletteName.takeIf { settings.appDesign == AppDesign.Bento }).joinToString(" · ")
+            else stringResource(Res.string.summary_ui_settings),
+            art = SettingsArts.Appearance,
+            keywords = listOf(
+                stringResource(Res.string.home_design_title),
+                stringResource(Res.string.bento_group_look),
+                stringResource(Res.string.bento_palette_title),
+                stringResource(Res.string.title_pref_dynamic_color),
+                stringResource(Res.string.title_pref_ui_mode_night),
+                stringResource(Res.string.title_pref_amoled),
+                stringResource(Res.string.title_pref_reduce_motion),
+                stringResource(Res.string.title_pref_live_notif),
+                stringResource(Res.string.title_pref_notif_chip),
+                stringResource(Res.string.title_pref_double_column_display),
+                stringResource(Res.string.title_pref_confirm_remove),
+                stringResource(Res.string.title_pref_home_after_select),
+                stringResource(Res.string.nav_style_title),
+            ),
+            tourKey = TourTargets.SETTINGS_LOOK,
+        ) { onOpen(SettingsPage.Ui) })
+        add(dev.cluvex.zedsecure.ui.bento.BentoHubEntry(
+            key = "vpn",
+            title = stringResource(Res.string.title_vpn_settings),
+            summary = if (live) vpnLive else stringResource(Res.string.summary_vpn_settings),
+            art = SettingsArts.Vpn,
+            keywords = listOf(
+                stringResource(Res.string.kill_switch),
+                stringResource(Res.string.title_pref_vpn_mtu),
+                stringResource(Res.string.title_pref_ipv6_enabled),
+                stringResource(Res.string.title_pref_vpn_bypass_lan),
+                stringResource(Res.string.title_pref_vpn_dns),
+                stringResource(Res.string.title_pref_vpn_interface_address),
+                stringResource(Res.string.tun_engine_title),
+                stringResource(Res.string.battery_opt_title),
+                stringResource(Res.string.title_pref_local_dns_enabled),
+                stringResource(Res.string.title_pref_fake_dns_enabled),
+                stringResource(Res.string.bento_net_change_title),
+                "MTU", "IPv6", "TUN",
+            ),
+            tourKey = TourTargets.SETTINGS_CORE,
+        ) { onOpen(SettingsPage.Vpn) })
+        add(dev.cluvex.zedsecure.ui.bento.BentoHubEntry(
+            key = "dns",
+            title = stringResource(Res.string.title_dns_protocols),
+            summary = if (live) dnsLive else stringResource(Res.string.summary_dns_protocols),
+            art = SettingsArts.Dns,
+            keywords = listOf(stringResource(Res.string.dns_override), "DNS", "DoH", "DoT"),
+            tourKey = TourTargets.SETTINGS_TUNNELS,
+        ) { onOpen(SettingsPage.DnsProtocols) })
+        add(dev.cluvex.zedsecure.ui.bento.BentoHubEntry(
+            key = "routing",
+            title = stringResource(Res.string.routing_title),
+            summary = if (live) stringResource(Res.string.bento_live_rules, ruleCount) else stringResource(Res.string.routing_subtitle),
+            art = SettingsArts.Routing,
+            keywords = listOf("geoip", "geosite"),
+            tourKey = TourTargets.SETTINGS_ROUTING,
+        ) { onOpen(SettingsPage.Routing) })
+        add(dev.cluvex.zedsecure.ui.bento.BentoHubEntry(
+            key = "tor",
+            title = stringResource(Res.string.title_tor_settings),
+            summary = if (live) torLive else stringResource(Res.string.summary_tor_settings),
+            art = SettingsArts.Tor,
+            keywords = listOf("Snowflake", "obfs4", "meek", "webtunnel"),
+        ) { onOpen(SettingsPage.Tor) })
+        add(dev.cluvex.zedsecure.ui.bento.BentoHubEntry(
+            key = "speed-test",
+            title = stringResource(Res.string.title_speedtest),
+            summary = stringResource(Res.string.summary_speedtest),
+            art = SettingsArts.SpeedTest,
+        ) { onOpen(SettingsPage.SpeedTest) })
+        add(dev.cluvex.zedsecure.ui.bento.BentoHubEntry(
+            key = "monitor",
+            title = stringResource(Res.string.monitor_title),
+            summary = stringResource(Res.string.monitor_subtitle),
+            art = SettingsArts.Monitor,
+        ) { onOpen(SettingsPage.Monitor) })
+        add(dev.cluvex.zedsecure.ui.bento.BentoHubEntry(
+            key = "per-app",
+            title = stringResource(Res.string.per_app_title),
+            summary = if (settings.perAppProxyEnabled) {
+                stringResource(Res.string.per_app_selected, settings.perAppPackages.size)
+            } else {
+                stringResource(Res.string.per_app_mode_off)
+            },
+            art = SettingsArts.PerApp,
+        ) { onOpen(SettingsPage.PerApp) })
+        add(dev.cluvex.zedsecure.ui.bento.BentoHubEntry(
+            key = "core",
+            title = stringResource(Res.string.title_core_settings),
+            summary = stringResource(Res.string.summary_core_settings),
+            art = SettingsArts.Core,
+            keywords = listOf(
+                stringResource(Res.string.title_pref_sniffing_enabled),
+                stringResource(Res.string.title_pref_route_only_enabled),
+                stringResource(Res.string.title_pref_remote_dns),
+                stringResource(Res.string.title_pref_domestic_dns),
+                stringResource(Res.string.title_pref_dns_hosts),
+                stringResource(Res.string.title_pref_enable_local_proxy),
+                stringResource(Res.string.title_pref_local_proxy_port),
+                stringResource(Res.string.title_pref_proxy_sharing_enabled),
+                stringResource(Res.string.title_pref_lan_auth),
+                stringResource(Res.string.title_pref_use_system_ca),
+                stringResource(Res.string.bento_proxy_auth_title),
+            ),
+        ) { onOpen(SettingsPage.Core) })
+        add(dev.cluvex.zedsecure.ui.bento.BentoHubEntry(
+            key = "mode",
+            title = stringResource(Res.string.title_mode_settings),
+            summary = if (live) modeName else stringResource(Res.string.summary_mode_settings),
+            art = SettingsArts.Mode,
+        ) { onOpen(SettingsPage.Mode) })
+        add(dev.cluvex.zedsecure.ui.bento.BentoHubEntry(
+            key = "sing-box",
+            title = stringResource(Res.string.title_singbox_settings),
+            summary = stringResource(Res.string.summary_singbox_settings),
+            art = SettingsArts.SingBox,
+        ) { onOpen(SettingsPage.SingBox) })
+        add(dev.cluvex.zedsecure.ui.bento.BentoHubEntry(
+            key = "ssh",
+            title = stringResource(Res.string.title_ssh_settings),
+            summary = stringResource(Res.string.summary_ssh_settings),
+            art = SettingsArts.Ssh,
+        ) { onOpen(SettingsPage.Ssh) })
+        add(dev.cluvex.zedsecure.ui.bento.BentoHubEntry(
+            key = "map",
+            title = stringResource(Res.string.map_title),
+            summary = stringResource(Res.string.map_settings_sub),
+            art = SettingsArts.Map,
+            tourKey = TourTargets.SETTINGS_TOOLS,
+        ) { onOpen(SettingsPage.Map) })
+        onOpenVault?.let { open ->
+            add(dev.cluvex.zedsecure.ui.bento.BentoHubEntry(
+                key = "vault",
+                title = stringResource(Res.string.vault_title),
+                summary = stringResource(Res.string.vault_intro_title),
+                art = SettingsArts.Vault,
+            ) { open() })
+        }
+        add(dev.cluvex.zedsecure.ui.bento.BentoHubEntry(
+            key = "mux",
+            title = stringResource(Res.string.title_mux_settings),
+            summary = stringResource(Res.string.summary_mux_settings),
+            art = SettingsArts.Mux,
+            keywords = listOf(
+                stringResource(Res.string.title_pref_mux_enabled),
+                stringResource(Res.string.title_pref_mux_concurrency),
+                stringResource(Res.string.title_pref_mux_xudp_concurrency),
+            ),
+        ) { onOpen(SettingsPage.Mux) })
+        add(dev.cluvex.zedsecure.ui.bento.BentoHubEntry(
+            key = "fragment",
+            title = stringResource(Res.string.title_fragment_settings),
+            summary = stringResource(Res.string.summary_fragment_settings),
+            art = SettingsArts.Fragment,
+            keywords = listOf(
+                stringResource(Res.string.title_pref_fragment_enabled),
+                stringResource(Res.string.title_pref_fragment_packets),
+                stringResource(Res.string.title_pref_fragment_length),
+                stringResource(Res.string.title_pref_fragment_interval),
+            ),
+        ) { onOpen(SettingsPage.Fragment) })
+        add(dev.cluvex.zedsecure.ui.bento.BentoHubEntry(
+            key = "observatory",
+            title = stringResource(Res.string.title_observatory_settings),
+            summary = stringResource(Res.string.summary_observatory_settings),
+            art = SettingsArts.Observatory,
+        ) { onOpen(SettingsPage.Observatory) })
+        add(dev.cluvex.zedsecure.ui.bento.BentoHubEntry(
+            key = "advanced",
+            title = stringResource(Res.string.title_advanced),
+            summary = stringResource(Res.string.summary_advanced),
+            art = SettingsArts.Advanced,
+            keywords = listOf(
+                stringResource(Res.string.title_pref_is_booted),
+                stringResource(Res.string.title_pref_delay_test_url),
+                stringResource(Res.string.title_pref_real_ping_concurrency),
+                stringResource(Res.string.title_pref_ip_api_url),
+                stringResource(Res.string.title_pref_auto_test_after_update),
+                stringResource(Res.string.title_pref_auto_remove_invalid),
+                stringResource(Res.string.title_pref_auto_sort_after_test),
+                stringResource(Res.string.bento_detect_location_title),
+            ),
+        ) { onOpen(SettingsPage.Advanced) })
+        add(dev.cluvex.zedsecure.ui.bento.BentoHubEntry(
+            key = "assets",
+            title = stringResource(Res.string.assets_title),
+            summary = stringResource(Res.string.assets_subtitle),
+            art = SettingsArts.Assets,
+            keywords = listOf(stringResource(Res.string.title_pref_geo_files_source)),
+        ) { onOpen(SettingsPage.Assets) })
+        add(dev.cluvex.zedsecure.ui.bento.BentoHubEntry(
+            key = "support",
+            title = stringResource(Res.string.support_title),
+            summary = stringResource(Res.string.support_subtitle),
+            art = SettingsArts.Support,
+            tourKey = TourTargets.SETTINGS_SUPPORT,
+        ) { onOpen(SettingsPage.Support) })
+        if (onReplayTour != null) {
+            add(dev.cluvex.zedsecure.ui.bento.BentoHubEntry(
+                key = "tour",
+                title = stringResource(Res.string.tour_replay_title),
+                summary = stringResource(Res.string.tour_replay_subtitle),
+                art = SettingsArts.Tour,
+            ) { onReplayTour() })
+        }
+        add(dev.cluvex.zedsecure.ui.bento.BentoHubEntry(
+            key = "update",
+            title = stringResource(Res.string.update_check_title),
+            summary = when {
+                checking -> stringResource(Res.string.update_checking)
+                fromPlay -> stringResource(Res.string.update_check_summary)
+                else -> stringResource(Res.string.update_check_summary_github)
+            },
+            art = SettingsArts.Update,
+        ) { if (!checking) { checking = true; checkTrigger++ } })
+        add(dev.cluvex.zedsecure.ui.bento.BentoHubEntry(
+            key = "rate",
+            title = stringResource(if (fromPlay) Res.string.rate_title else Res.string.rate_title_github),
+            summary = stringResource(if (fromPlay) Res.string.rate_summary else Res.string.rate_summary_github),
+            art = SettingsArts.Rate,
+        ) { platform.openStorePage() })
+        add(dev.cluvex.zedsecure.ui.bento.BentoHubEntry(
+            key = "privacy",
+            title = stringResource(Res.string.privacy_title),
+            summary = stringResource(Res.string.privacy_settings_sub),
+            art = SettingsArts.Privacy,
+        ) { onOpen(SettingsPage.Privacy) })
+        add(dev.cluvex.zedsecure.ui.bento.BentoHubEntry(
+            key = "about",
+            title = stringResource(Res.string.settings_about),
+            summary = AppInfo.versionName,
+            art = SettingsArts.About,
+            tourKey = TourTargets.SETTINGS_ABOUT,
+        ) { onAbout() })
+    }
+    dev.cluvex.zedsecure.ui.bento.BentoHub(
+        entries = entries,
+        layoutCode = settings.bento.tiles,
+        onLayoutChange = { code -> onUpdate { it.copy(bento = it.bento.copy(tiles = code)) } },
+        contentPadding = contentPadding,
+        modifier = modifier,
+    )
+    ManualUpdateCheckHost(
+        settings = settings,
+        trigger = checkTrigger,
+        onFinished = { checking = false },
+    )
 }
 
 @Composable
@@ -839,6 +1134,7 @@ private fun UiPage(
     modifier: Modifier,
     onUpdate: ((AppSettings) -> AppSettings) -> Unit,
     onLanguage: (AppLanguage) -> Unit,
+    onOpen: (SettingsPage) -> Unit,
 ) {
     SettingsPageScaffold(
         title = stringResource(Res.string.title_ui_settings),
@@ -860,6 +1156,10 @@ private fun UiPage(
                     body = stringResource(Res.string.home_design_old_note),
                 )
             }
+        }
+
+        if (s.appDesign == AppDesign.Bento) {
+            dev.cluvex.zedsecure.ui.bento.BentoLookSection(s, onUpdate)
         }
 
         SettingsGroup(title = stringResource(Res.string.settings_group_colors)) {
@@ -953,6 +1253,8 @@ private fun UiPage(
                 selected = s.uiFontScale,
                 onSelected = { v -> onUpdate { it.copy(uiFontScale = v) } },
             )
+            FontPicker(s.uiFont) { font -> onUpdate { it.copy(uiFont = font) } }
+            ScaleRow(s.uiScale) { scale -> onUpdate { it.copy(uiScale = scale) } }
             SettingsSwitchRow(
                 title = stringResource(Res.string.title_pref_reduce_motion),
                 summary = stringResource(Res.string.summary_pref_reduce_motion),
@@ -995,18 +1297,11 @@ private fun UiPage(
         }
 
         SettingsGroup {
-            SettingsListRow(
+            SettingsActionRow(
                 title = stringResource(Res.string.nav_style_title),
-                options = listOf(
-                    NavBarStyle.FloatingPill to stringResource(Res.string.nav_style_floating),
-                    NavBarStyle.CompactDock to stringResource(Res.string.nav_style_compact),
-                    NavBarStyle.ExpressivePill to stringResource(Res.string.nav_style_expressive),
-                    NavBarStyle.FullBar to stringResource(Res.string.nav_style_full),
-                    NavBarStyle.Underline to stringResource(Res.string.nav_style_underline),
-                    NavBarStyle.Minimal to stringResource(Res.string.nav_style_minimal),
-                ),
-                selected = s.navBarStyle,
-                onSelected = { v -> onUpdate { it.copy(navBarStyle = v) } },
+                summary = navTabsSummary(s),
+                art = SettingsArts.Mode,
+                onClick = { onOpen(SettingsPage.NavBar) },
             )
             if (oldHome) {
                 SettingsSegment {
@@ -1213,6 +1508,21 @@ private fun UiPage(
                 enabled = s.liveNotification,
                 onSelected = { v -> onUpdate { it.copy(notifChip = v) } },
             )
+            SettingsListRow(
+                title = stringResource(Res.string.notif_style_title),
+                options = listOf(
+                    NotifStyle.Bento to stringResource(Res.string.notif_style_bento),
+                    NotifStyle.System to stringResource(Res.string.notif_style_system),
+                ),
+                selected = s.notifStyle,
+                onSelected = { v -> onUpdate { it.copy(notifStyle = v) } },
+            )
+            if (s.notifStyle == NotifStyle.Bento) {
+                SettingsInfoRow(
+                    title = stringResource(Res.string.notif_style_title),
+                    body = stringResource(Res.string.notif_style_note),
+                )
+            }
             SettingsSwitchRow(
                 title = stringResource(Res.string.title_pref_confirm_remove),
                 summary = stringResource(Res.string.summary_pref_confirm_remove),
@@ -1348,6 +1658,20 @@ private fun VpnPage(
                 checked = s.killSwitch,
                 onCheckedChange = { v -> onUpdate { it.copy(killSwitch = v) } },
             )
+            if (!batteryPlatform.isComputer) {
+                SettingsSwitchRow(
+                    title = stringResource(Res.string.bento_net_change_title),
+                    summary = stringResource(Res.string.bento_net_change_sum),
+                    checked = s.reconnectOnNetworkChange,
+                    onCheckedChange = { v -> onUpdate { it.copy(reconnectOnNetworkChange = v) } },
+                )
+                SettingsSwitchRow(
+                    title = stringResource(Res.string.bento_proxy_auth_title),
+                    summary = stringResource(Res.string.bento_proxy_auth_sum),
+                    checked = s.localProxyAuth,
+                    onCheckedChange = { v -> onUpdate { it.copy(localProxyAuth = v) } },
+                )
+            }
             SettingsSwitchRow(
                 title = stringResource(Res.string.title_pref_ipv6_enabled),
                 summary = stringResource(Res.string.summary_pref_ipv6_enabled),
@@ -1528,6 +1852,12 @@ private fun CorePage(
                 ),
                 selected = s.outboundDomainResolve,
                 onSelected = { v -> onUpdate { it.copy(outboundDomainResolve = v) } },
+            )
+            SettingsSwitchRow(
+                title = stringResource(Res.string.title_pref_use_system_ca),
+                summary = stringResource(Res.string.summary_pref_use_system_ca),
+                checked = s.useSystemCa,
+                onCheckedChange = { v -> onUpdate { it.copy(useSystemCa = v) } },
             )
         }
 
@@ -1945,6 +2275,7 @@ private fun ObservatoryPage(
     contentPadding: PaddingValues,
     modifier: Modifier,
     onUpdate: ((AppSettings) -> AppSettings) -> Unit,
+    autoCountries: List<String>,
 ) {
     val seconds = stringResource(Res.string.auto_seconds, "%s")
     val minutes = stringResource(Res.string.auto_minutes, "%s")
@@ -1986,6 +2317,30 @@ private fun ObservatoryPage(
                 selected = s.autoSelectSweepMinutes,
                 onSelected = { v -> onUpdate { it.copy(autoSelectSweepMinutes = v) } },
             )
+            var pickCountries by remember { mutableStateOf(false) }
+            val excluded = s.autoSelectExcludedCountries
+            SettingsActionRow(
+                title = stringResource(Res.string.auto_pref_excluded),
+                summary = if (excluded.isEmpty()) {
+                    stringResource(Res.string.auto_pref_excluded_none)
+                } else {
+                    stringResource(
+                        Res.string.auto_pref_excluded_sum,
+                        excluded.joinToString(", ") { dev.cluvex.zedsecure.ui.servers.countryName(it) },
+                    )
+                },
+            ) { pickCountries = true }
+            if (pickCountries) {
+                ExcludedCountriesDialog(
+                    available = autoCountries,
+                    selected = excluded,
+                    onDone = { picked ->
+                        onUpdate { it.copy(autoSelectExcludedCountries = picked) }
+                        pickCountries = false
+                    },
+                    onDismiss = { pickCountries = false },
+                )
+            }
         }
     }
 }
@@ -2069,6 +2424,12 @@ private fun AdvancedPage(
                 title = stringResource(Res.string.title_pref_auto_sort_after_test),
                 checked = s.autoSortAfterTest,
                 onCheckedChange = { v -> onUpdate { it.copy(autoSortAfterTest = v) } },
+            )
+            SettingsSwitchRow(
+                title = stringResource(Res.string.bento_detect_location_title),
+                summary = stringResource(Res.string.bento_detect_location_sum),
+                checked = s.detectServerLocation,
+                onCheckedChange = { v -> onUpdate { it.copy(detectServerLocation = v) } },
             )
         }
     }

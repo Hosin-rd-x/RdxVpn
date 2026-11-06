@@ -9,6 +9,7 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.add
 import kotlinx.serialization.json.addJsonObject
+import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
@@ -44,6 +45,10 @@ object XrayJsonBuilder {
     )
 
     private val ALLOWED_VLESS_FLOWS = setOf("xtls-rprx-vision", "xtls-rprx-vision-udp443")
+
+    const val WARP_MASQUE_SNI = "consumer-masque.cloudflareclient.com"
+
+    private val MASQUE_TYPED_KEYS = setOf("host", "path", "user", "pass", "headers", "warp")
 
     private val BUILTIN_OUTBOUND_TAGS = setOf("proxy", "direct", "block")
 
@@ -130,7 +135,8 @@ object XrayJsonBuilder {
         val net = server.transport.network.lowercase()
         if (net in REMOVED_NETWORKS) throw UnsupportedTransportException(net)
 
-        val withDns = if (server.dnsServers.isEmpty()) options else options.copy(serverDns = server.dnsServers)
+        val configDns = server.dnsServers.mapNotNull(::dnsServerAddress)
+        val withDns = if (configDns.isEmpty()) options else options.copy(serverDns = configDns)
         return assemble(socksPort, withDns, forSpeedtest) { add(proxyOutbound(server, withDns)) }
     }
 
@@ -151,7 +157,7 @@ object XrayJsonBuilder {
         dialerProxy: String?,
         tuning: SingBoxTuning = SingBoxTuning(),
     ): JsonObject {
-        val parsed = leanJson.parseToJsonElement(Jsonc.strip(SingBoxTuning.apply(fragment, tuning))) as? JsonObject
+        val parsed = leanJson.parseToJsonElement(Jsonc.strip(SingBoxTuning.apply(SingBoxTuning.dropRejectedTls(fragment), tuning))) as? JsonObject
             ?: throw IllegalArgumentException("sing-box fragment is not a JSON object")
         return buildJsonObject {
             put("tag", tag)
@@ -184,7 +190,7 @@ object XrayJsonBuilder {
         data class Xray(val server: ServerConfig) : ChainHop {
             override val label: String get() = server.protocol.label
             override val needsUdp: Boolean
-                get() = server.protocol.isWireguardFamily || server.protocol == Protocol.HYSTERIA
+                get() = server.protocol.isUdpBased
             override val carriesUdp: Boolean get() = server.protocol.carriesUdp
         }
 
@@ -431,6 +437,10 @@ object XrayJsonBuilder {
             emittedTagFor(ruleTag) in groupOutbounds -> emittedTagFor(ruleTag)
             else -> "proxy"
         }
+        val serverOutbounds: List<JsonElement> = buildJsonArray { proxyOutbounds() } +
+            namedOutbounds.map { (tag, server) -> serverOutbound(server, options, tag) } +
+            groupOutbounds.values.flatten()
+        val endpointHosts = wireguardEndpointHosts(serverOutbounds)
         val config = buildJsonObject {
             putJsonObject("log") {
                 put("loglevel", options.logLevel)
@@ -462,7 +472,7 @@ object XrayJsonBuilder {
             putJsonArray("outbounds") {
                 proxyOutbounds()
 
-                namedOutbounds.forEach { (tag, server) -> add(proxyOutbound(server, options, tag = tag)) }
+                namedOutbounds.forEach { (tag, server) -> add(serverOutbound(server, options, tag)) }
                 groupOutbounds.values.forEach { group -> group.forEach { add(it) } }
                 add(directOutbound())
                 add(blockOutbound())
@@ -479,7 +489,7 @@ object XrayJsonBuilder {
 
             val rules = if (forSpeedtest) emptyList() else effectiveRules(options.rulesets, geo, options.networkType, options.geoCodes)
 
-            val dnsSplit = if (forSpeedtest) DnsSplit() else dnsSplit(rules, options)
+            val dnsSplit = if (forSpeedtest) DnsSplit() else dnsSplit(rules, options, endpointHosts)
             if (!forSpeedtest) put("dns", dns(options, dnsSplit))
             putJsonObject("routing") {
                 put("domainStrategy", options.domainStrategy)
@@ -630,6 +640,8 @@ object XrayJsonBuilder {
         val muxXudpQuic: String = "reject",
 
         val dialerSocksPort: Int? = null,
+
+        val useSystemCa: Boolean = false,
     )
 
     data class LanShare(
@@ -707,7 +719,7 @@ object XrayJsonBuilder {
         val hostHeader = s.transport.host?.split(",")?.firstOrNull()?.trim()?.takeIf { it.isNotEmpty() }
         val sni = s.tls.sni?.trim()?.takeIf { it.isNotEmpty() }
         val nameIsExplicit = when {
-            s.protocol == Protocol.HYSTERIA -> sni != null
+            s.protocol == Protocol.HYSTERIA || s.protocol == Protocol.MASQUE -> sni != null || s.isWarp
             s.protocol.isWireguardFamily -> true
             else -> when (s.tls.security.lowercase()) {
                 "tls" -> sni != null || hostHeader != null
@@ -719,6 +731,18 @@ object XrayJsonBuilder {
     }
 
     private val HOST_HEADER_TRANSPORTS = setOf("ws", "websocket", "httpupgrade", "xhttp", "splithttp")
+
+    fun dnsServerAddress(entry: String): String? {
+        val v = entry.trim()
+        if (v.isEmpty() || v.contains('$')) return null
+        if (v.contains("://")) return v
+        val host = when {
+            v.startsWith("[") -> v.substringAfter('[').substringBefore(']')
+            v.count { it == ':' } == 1 -> v.substringBefore(':')
+            else -> v
+        }
+        return host.takeIf { isIpLiteral(it) }
+    }
 
     fun isIpLiteral(value: String): Boolean {
         val v = value.trim().removePrefix("[").removeSuffix("]")
@@ -797,12 +821,25 @@ object XrayJsonBuilder {
         val enabled: Boolean = false,
     )
 
-    private fun dnsSplit(rules: List<EffectiveRule>, options: BuildOptions): DnsSplit {
+    private fun wireguardEndpointHosts(outbounds: List<JsonElement>): List<String> = outbounds
+        .mapNotNull { it as? JsonObject }
+        .filter { (it["protocol"] as? JsonPrimitive)?.content == "wireguard" }
+        .flatMap { outbound ->
+            val peers = ((outbound["settings"] as? JsonObject)?.get("peers") as? JsonArray).orEmpty()
+            peers.mapNotNull { peer -> ((peer as? JsonObject)?.get("endpoint") as? JsonPrimitive)?.content }
+        }
+        .mapNotNull { endpoint ->
+            val host = if (endpoint.startsWith("[")) "" else endpoint.substringBeforeLast(':', endpoint).trim()
+            host.takeIf { it.isNotEmpty() && !isIpLiteral(it) }?.let { "full:$it" }
+        }
+        .distinct()
+
+    private fun dnsSplit(rules: List<EffectiveRule>, options: BuildOptions, endpointHosts: List<String> = emptyList()): DnsSplit {
         val domestic = mutableListOf<Pair<String, List<String>>>()
         val proxied = mutableListOf<String>()
         val blocked = mutableListOf<String>()
 
-        domestic += "${TAG_DOMESTIC_DNS}-base" to lanDomains(options)
+        domestic += "${TAG_DOMESTIC_DNS}-base" to (lanDomains(options) + endpointHosts).distinct()
 
         rules.forEachIndexed { index, r ->
             if (r.domains.isEmpty()) return@forEachIndexed
@@ -1270,6 +1307,14 @@ private fun statsPolicy() = buildJsonObject {
         }
     }
 
+    private fun serverOutbound(s: ServerConfig, options: BuildOptions, tag: String): JsonObject =
+        if (s.runOnSingBox && SingBoxConvert.canRun(s)) {
+            val carrier = SingBoxConvert.tagOf(s)
+            singBoxOutbound(SingBoxConvert.fragment(s, carrier), carrier, tag, entryDialer(options), options.singBox)
+        } else {
+            proxyOutbound(s, options, tag = tag)
+        }
+
     private fun proxyOutbound(
         s: ServerConfig,
         options: BuildOptions = BuildOptions(),
@@ -1331,20 +1376,23 @@ private fun statsPolicy() = buildJsonObject {
                     }
                 }
 
-                Protocol.SOCKS, Protocol.HTTP -> putJsonArray("servers") {
-                    addJsonObject {
-                        put("address", address)
-                        put("port", s.port)
-                        if (s.username.isNotBlank() || s.userId.isNotBlank()) {
-                            putJsonArray("users") {
-                                addJsonObject {
-                                    put("user", s.username)
-                                    put("pass", s.userId)
-                                    put("level", 8)
+                Protocol.SOCKS, Protocol.HTTP -> {
+                    putJsonArray("servers") {
+                        addJsonObject {
+                            put("address", address)
+                            put("port", s.port)
+                            if (s.username.isNotBlank() || s.userId.isNotBlank()) {
+                                putJsonArray("users") {
+                                    addJsonObject {
+                                        put("user", s.username)
+                                        put("pass", s.userId)
+                                        put("level", 8)
+                                    }
                                 }
                             }
                         }
                     }
+                    if (s.protocol == Protocol.HTTP) masqueHeaders(s.transport.headers)?.let { put("headers", it) }
                 }
                 Protocol.WIREGUARD, Protocol.AMNEZIAWG -> {
                     put("secretKey", s.secretKey)
@@ -1352,12 +1400,12 @@ private fun statsPolicy() = buildJsonObject {
                         val addresses = s.localAddresses.ifEmpty { listOf("172.16.0.2/32") }
                         addresses.forEach { add(it) }
                     }
-                    s.wireguardMtu?.let { put("mtu", it) }
+                    put("mtu", s.wireguardMtu ?: DEFAULT_WIREGUARD_MTU)
 
                     s.reserved
-                        ?.split(",")
-                        ?.mapNotNull { it.trim().toIntOrNull() }
-                        ?.takeIf { it.size == 3 && it.any { b -> b != 0 } }
+                        ?.takeIf { it.isNotBlank() }
+                        ?.let { SingBoxConvert.reservedOf(it) }
+                        ?.takeIf { it.any { b -> b != 0 } }
                         ?.let { bytes -> putJsonArray("reserved") { bytes.forEach { add(it) } } }
                     putJsonArray("peers") {
                         addJsonObject {
@@ -1375,6 +1423,9 @@ private fun statsPolicy() = buildJsonObject {
                         }
                     }
 
+                    val wgDns = s.dnsServers.filter { isIpLiteral(it) }.map { it.trim().removePrefix("[").removeSuffix("]") }
+                    if (wgDns.isNotEmpty()) putJsonArray("remoteDNS") { wgDns.forEach { add(it) } }
+
                     val awgEntries = s.awg.entries
                     if (awgEntries.isNotEmpty()) {
                         putJsonObject("awg") {
@@ -1388,24 +1439,35 @@ private fun statsPolicy() = buildJsonObject {
                     put("port", s.port)
                     put("version", 2)
                 }
+
+                Protocol.MASQUE -> {
+                    put("address", address)
+                    put("port", s.port)
+                    val dns = s.dnsServers.filter { isIpLiteral(it) }.map { it.trim().removePrefix("[").removeSuffix("]") }
+                    if (dns.isNotEmpty()) putJsonArray("remoteDNS") { dns.forEach { add(it) } }
+                }
             }
         }
 
         if (s.protocol.supportsTransport || s.protocol == Protocol.SOCKS || s.protocol == Protocol.HTTP) {
             put("streamSettings", streamSettings(s, options, dialerProxy))
 
-            if (tag == "proxy") {
+            val xdrive = s.transport.network.equals("xdrive", ignoreCase = true)
+            if (tag == "proxy" || xdrive) {
                 putJsonObject("mux") {
-                    put("enabled", options.muxEnabled && s.protocol.supportsMux)
-                    put("concurrency", options.muxConcurrency)
-                    put("xudpConcurrency", options.muxXudpConcurrency)
-                    put("xudpProxyUDP443", options.muxXudpQuic)
+                    put("enabled", xdrive || options.muxEnabled && s.protocol.supportsMux)
+                    put("concurrency", if (xdrive) options.muxConcurrency.coerceAtLeast(1) else options.muxConcurrency)
+                    put("xudpConcurrency", if (xdrive) options.muxXudpConcurrency.coerceAtLeast(1) else options.muxXudpConcurrency)
+                    put("xudpProxyUDP443", if (xdrive && options.muxXudpQuic == "skip") "reject" else options.muxXudpQuic)
                 }
             }
         } else if (s.protocol == Protocol.HYSTERIA) {
-            put("streamSettings", hysteriaStreamSettings(s, options, dialerProxy))
-        } else if (s.protocol.isWireguardFamily && (dialerProxy != null || pinsServerHost(s, options))) {
-            putJsonObject("streamSettings") { putSockopt(s, options, dialerProxy) }
+            put("streamSettings", applyFinalMask(hysteriaStreamSettings(s, options, dialerProxy), s.transport.finalMask))
+        } else if (s.protocol == Protocol.MASQUE) {
+            put("streamSettings", applyFinalMask(masqueStreamSettings(s, options, dialerProxy), s.transport.finalMask))
+        } else if (s.protocol.isWireguardFamily) {
+            val stream = applyFinalMask(buildJsonObject { putSockopt(s, options, dialerProxy) }, s.transport.finalMask)
+            if (stream.isNotEmpty()) put("streamSettings", stream)
         }
     }
 
@@ -1416,16 +1478,8 @@ private fun statsPolicy() = buildJsonObject {
     ) = buildJsonObject {
         put("network", "hysteria")
         put("security", "tls")
-        putJsonObject("tlsSettings") {
-            val sni = s.tls.sni?.takeIf { it.isNotBlank() }
-            if (sni != null) put("serverName", sni)
-
-            putJsonArray("alpn") { add("h3") }
-
-            val pinned = s.pinnedCertSha256?.takeIf { it.isNotBlank() }
-            if (pinned != null) put("pinnedPeerCertSha256", pinned)
-            else if (s.tls.allowInsecure && sni != null) put("verifyPeerCertByName", sni)
-        }
+        val alpn = s.tls.alpn?.split(",")?.map(String::trim)?.filter(String::isNotEmpty)?.takeIf { it.isNotEmpty() }
+        put("tlsSettings", tlsSettingsOf(s, s.tls.sni?.takeIf { it.isNotBlank() }, options, alpnOverride = alpn ?: listOf("h3"), fingerprint = false))
         putJsonObject("hysteriaSettings") {
             put("version", 2)
             val auth = s.secretKey.ifBlank { s.userId }
@@ -1437,28 +1491,111 @@ private fun statsPolicy() = buildJsonObject {
         val down = s.bandwidthDown?.takeIf { it.isNotBlank() }
         if (obfs != null || hop != null || up != null || down != null) {
             putJsonObject("finalmask") {
-                if (obfs != null) putJsonArray("udp") {
-                    addJsonObject {
+                if (obfs != null || hop != null) putJsonArray("udp") {
+                    if (obfs != null) addJsonObject {
                         put("type", "salamander")
                         putJsonObject("settings") { put("password", obfs) }
                     }
+                    if (hop != null) addJsonObject {
+                        put("type", "udphop")
+                        putJsonObject("settings") {
+                            put("mode", "intervalLocal,intervalRemote")
+                            put("interval", hopIntervalOf(s.hopInterval))
+                            put("remotePorts", hop.replace(':', '-').replace(" ", ""))
+                        }
+                    }
                 }
-                if (hop != null || up != null || down != null) putJsonObject("quicParams") {
-                    if (up != null || down != null) {
-                        put("congestion", "brutal")
+                if (up != null || down != null) putJsonObject("quicParams") {
+                    put("congestion", "brutal")
 
-                        up?.let { put("brutalUp", if (it.all(Char::isDigit)) "${it}mbps" else it) }
-                        down?.let { put("brutalDown", if (it.all(Char::isDigit)) "${it}mbps" else it) }
-                    }
-                    if (hop != null) putJsonObject("udpHop") {
-                        put("ports", hop)
-                        put("interval", "30")
-                    }
+                    up?.let { put("brutalUp", if (it.all(Char::isDigit)) "${it}mbps" else it) }
+                    down?.let { put("brutalDown", if (it.all(Char::isDigit)) "${it}mbps" else it) }
                 }
             }
         }
 
         putSockopt(s, options, dialerProxy)
+    }
+
+    fun hopIntervalOf(raw: String?): String {
+        val text = raw?.trim()?.removeSuffix("s")?.takeIf { it.isNotEmpty() } ?: return "30"
+        text.toIntOrNull()?.let { return if (it < 5) "30" else it.toString() }
+        val parts = text.split('-').map { it.trim().toIntOrNull() }
+        if (parts.size == 2 && parts[0] != null && parts[1] != null) {
+            val from = maxOf(5, parts[0]!!)
+            return "$from-${maxOf(from, parts[1]!!)}"
+        }
+        return "30"
+    }
+
+    private fun masqueStreamSettings(
+        s: ServerConfig,
+        options: BuildOptions,
+        dialerProxy: String?,
+    ) = buildJsonObject {
+        put("network", "masque")
+        put("security", "tls")
+        val alpn = s.tls.alpn?.split(",")?.map(String::trim)?.filter(String::isNotEmpty)
+            ?.firstOrNull { it == "h3" || it == "h2" } ?: "h3"
+        val sni = s.tls.sni?.takeIf { it.isNotBlank() }
+            ?: if (s.isWarp) WARP_MASQUE_SNI else s.transport.host?.takeIf { it.isNotBlank() }
+        put("tlsSettings", tlsSettingsOf(s, sni, options, alpnOverride = listOf(alpn), fingerprint = alpn == "h2"))
+        putJsonObject("masqueSettings") {
+            (runCatching { Json.parseToJsonElement(s.transport.xhttpExtra.orEmpty()) }.getOrNull() as? JsonObject)
+                ?.forEach { (k, v) -> if (k !in MASQUE_TYPED_KEYS) put(k, v) }
+            s.transport.host?.takeIf { it.isNotBlank() }?.let { put("host", it) }
+            s.transport.path?.takeIf { it.isNotBlank() }?.let { put("path", it) }
+            masqueHeaders(s.transport.headers)?.let { put("headers", it) }
+            if (s.isWarp) {
+                putJsonObject("warp") {
+                    put("privateKey", s.secretKey.trim())
+                    if (s.peerPublicKey.isNotBlank()) put("publicKey", s.peerPublicKey.trim())
+                    putJsonArray("address") { s.localAddresses.forEach { add(it.trim()) } }
+                }
+            } else {
+                if (s.username.isNotBlank()) put("user", s.username)
+                if (s.userId.isNotBlank()) put("pass", s.userId)
+            }
+        }
+        putSockopt(s, options, dialerProxy)
+    }
+
+    fun masqueHeaders(raw: String?): JsonObject? {
+        val text = raw?.trim()?.takeIf { it.isNotEmpty() } ?: return null
+        (runCatching { Json.parseToJsonElement(text) }.getOrNull() as? JsonObject)?.let { obj ->
+            return JsonObject(obj.filterValues { it is JsonPrimitive })
+        }
+        val pairs = text.split('\n', ';').mapNotNull { line ->
+            val name = line.substringBefore(':', "").trim()
+            val value = line.substringAfter(':', "").trim()
+            if (name.isEmpty() || name.equals("host", ignoreCase = true)) null else name to value
+        }
+        if (pairs.isEmpty()) return null
+        return buildJsonObject { pairs.forEach { (k, v) -> put(k, v) } }
+    }
+
+    private fun tlsSettingsOf(
+        s: ServerConfig,
+        serverName: String?,
+        options: BuildOptions,
+        alpnOverride: List<String>? = null,
+        fingerprint: Boolean = true,
+    ) = buildJsonObject {
+        if (serverName != null) put("serverName", serverName)
+        if (fingerprint) {
+            s.tls.fingerprint?.lowercase()?.takeIf { fp -> fp == "unsafe" || fp in PRESET_FINGERPRINTS || fp.startsWith("hello") }
+                ?.let { put("fingerprint", it) }
+        }
+        val pinned = s.pinnedCertSha256?.takeIf { it.isNotBlank() }
+        if (pinned != null) put("pinnedPeerCertSha256", pinned)
+        val vcn = s.tls.verifyPeerCertByName?.takeIf { it.isNotBlank() }
+        if (vcn != null) put("verifyPeerCertByName", vcn)
+        else if (pinned == null && s.tls.allowInsecure && serverName != null) put("verifyPeerCertByName", serverName)
+        s.tls.cipherSuites?.takeIf { it.isNotBlank() }?.let { put("cipherSuites", it) }
+        val alpn = alpnOverride ?: s.tls.alpn?.split(",")?.map(String::trim)?.filter(String::isNotEmpty)
+        if (!alpn.isNullOrEmpty()) putJsonArray("alpn") { alpn.forEach { add(it) } }
+        s.tls.echConfigList?.takeIf { it.isNotBlank() }?.let { put("echConfigList", it) }
+        if (options.useSystemCa) put("useSystemCA", true)
     }
 
     private fun streamSettings(
@@ -1468,17 +1605,44 @@ private fun statsPolicy() = buildJsonObject {
     ): JsonObject = applyFinalMask(streamSettingsBase(s, options, dialerProxy), s.transport.finalMask)
 
     private fun applyFinalMask(stream: JsonObject, raw: String?): JsonObject {
-        val text = raw?.takeIf { it.isNotBlank() } ?: return stream
-        val parsed = runCatching { Json.parseToJsonElement(text) as? JsonObject }.getOrNull()
-            ?: return stream
-        val existing = stream["finalmask"] as? JsonObject
-        val merged = if (existing == null) parsed else buildJsonObject {
-            existing.forEach { (k, v) -> put(k, v) }
-            parsed.forEach { (k, v) -> put(k, v) }
-        }
+        val user = finalMaskOf(raw) ?: return stream
+        val merged = mergeFinalMask(stream["finalmask"] as? JsonObject, user)
         return buildJsonObject {
             stream.forEach { (k, v) -> if (k != "finalmask") put(k, v) }
             put("finalmask", merged)
+        }
+    }
+
+    fun finalMaskOf(raw: String?): JsonObject? {
+        val text = raw?.trim()?.takeIf { it.isNotEmpty() } ?: return null
+        return runCatching { Json.parseToJsonElement(Jsonc.strip(text)) as? JsonObject }.getOrNull()
+    }
+
+    private val DIAL_MASKS = setOf("udphop", "xicmp")
+
+    private fun maskType(mask: JsonElement): String? =
+        ((mask as? JsonObject)?.get("type") as? JsonPrimitive)?.content?.lowercase()
+
+    fun mergeFinalMask(base: JsonObject?, user: JsonObject): JsonObject {
+        fun masks(value: JsonElement?): List<JsonElement> = (value as? JsonArray)?.toList().orEmpty()
+        fun dialLast(list: List<JsonElement>): List<JsonElement> =
+            list.filterNot { maskType(it) in DIAL_MASKS } + list.filter { maskType(it) in DIAL_MASKS }
+        val userUdp = masks(user["udp"])
+        val userTypes = userUdp.mapNotNull { maskType(it) }.toSet()
+        val baseUdp = masks(base?.get("udp")).filterNot { mask ->
+            val type = maskType(mask)
+            type in userTypes && type == "salamander" || type in DIAL_MASKS && userTypes.any { it in DIAL_MASKS }
+        }
+        val tcp = masks(base?.get("tcp")) + masks(user["tcp"])
+        val udp = dialLast(baseUdp + userUdp)
+        val baseQuic = base?.get("quicParams") as? JsonObject
+        val userQuic = user["quicParams"] as? JsonObject
+        return buildJsonObject {
+            base?.forEach { (k, v) -> if (k !in setOf("tcp", "udp", "quicParams")) put(k, v) }
+            user.forEach { (k, v) -> if (k !in setOf("tcp", "udp", "quicParams")) put(k, v) }
+            if (tcp.isNotEmpty()) put("tcp", JsonArray(tcp))
+            if (udp.isNotEmpty()) put("udp", JsonArray(udp))
+            if (baseQuic != null || userQuic != null) put("quicParams", JsonObject(baseQuic.orEmpty() + userQuic.orEmpty()))
         }
     }
 
@@ -1545,6 +1709,11 @@ private fun statsPolicy() = buildJsonObject {
                 put("multiMode", t.mode == "multi")
                 (t.authority ?: hostHeader)?.let { put("authority", it) }
             }
+            "xdrive" -> put(
+                "xdriveSettings",
+                runCatching { Json.parseToJsonElement(t.xdriveSettings.orEmpty()) }.getOrNull() as? JsonObject
+                    ?: buildJsonObject {},
+            )
         }
 
         if (net == "kcp" || net == "mkcp") {
@@ -1603,6 +1772,7 @@ private fun statsPolicy() = buildJsonObject {
                     }
 
                     s.tls.echConfigList?.takeIf { it.isNotBlank() }?.let { put("echConfigList", it) }
+                    if (options.useSystemCa) put("useSystemCA", true)
                 } else {
                     s.tls.publicKey?.takeIf { it.isNotBlank() }?.let { put("publicKey", it) }
                     s.tls.shortId?.takeIf { it.isNotBlank() }?.let { put("shortId", it) }
@@ -1616,6 +1786,26 @@ private fun statsPolicy() = buildJsonObject {
 
         putSockopt(s, options, dialerProxy)
     }
+
+    fun withSocksPort(config: String, from: Int, to: Int): String {
+        if (from == to) return config
+        val root = runCatching { leanJson.parseToJsonElement(Jsonc.strip(config)) as? JsonObject }.getOrNull() ?: return config
+        val inbounds = root["inbounds"] as? JsonArray ?: return config
+        val moved = JsonArray(
+            inbounds.map { element ->
+                val inbound = element as? JsonObject ?: return@map element
+                if ((inbound["port"] as? JsonPrimitive)?.content?.toIntOrNull() == from) {
+                    JsonObject(inbound + ("port" to JsonPrimitive(to)))
+                } else {
+                    inbound
+                }
+            },
+        )
+        return JsonObject(root + ("inbounds" to moved)).toString()
+    }
+
+    fun withLocalPorts(config: String, from: Int, to: Int): String =
+        if (from == to) config else withSocksPort(withSocksPort(config, from + 1, to + 1), from, to)
 
     fun withCarrierProxy(configJson: String, carrierPort: Int): String {
         val root = leanJson.parseToJsonElement(Jsonc.strip(configJson)) as JsonObject

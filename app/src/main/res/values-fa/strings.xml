@@ -611,8 +611,8 @@
     <string name="notif_chip_off">خاموش</string>
     <string name="notif_title_disconnected">تونل متوقف شد</string>
     <string name="notif_kill_switch_body">تونل قطع شد. کلید محافظ جلوی ترافیک را گرفته و Rdx VPN به محض برگشتن شبکه دوباره وصل می‌شود.</string>
-    <string name="widget_description">اتصال یا قطع، همراه با وضعیت زنده و مصرف این جلسه.</string>
     <string name="widget_no_server">سروری انتخاب نشده</string>
+    <string name="widget_description">اتصال یا قطع، همراه با وضعیت و سرعت زنده.</string>
     <string name="chain_member_missing">اعضای گم‌شدهٔ زنجیره: %1$s</string>
     <string name="chain_udp_hop_unsupported">%1$s نمی‌تواند بعد از %2$s در زنجیره باشد — به UDP نیاز دارد</string>
     <string name="chain_serverless_not_first">کانفیگ سرورلس فقط می‌تواند حلقهٔ اول زنجیره باشد</string>
@@ -680,11 +680,11 @@
     <string name="engine_ikev2_needs_app">پروفایل IKEv2 را VPN همیشه‌روشن نمی‌تواند راه بیندازد. برای اتصال، Rdx VPN را باز کنید.</string>
     <string name="auto_notif_remark">خودکار · %1$s</string>
     <string name="auto_no_members">هیچ سروری در این گروه برای حالت خودکار قابل استفاده نیست</string>
+    <string name="auto_all_excluded">همهٔ سرورهای این گروه در کشورهایی هستند که از حالت خودکار کنار گذاشته‌اید. خودتان سروری انتخاب کنید یا فهرست کشورهای کنارگذاشته را تغییر دهید.</string>
     <string name="auto_group_all_short">همهٔ سرورها</string>
     <string name="auto_group_manual_short">دستی</string>
     <string name="sstp_not_ready">کانفیگ SSTP ذخیره شد؛ موتور اتصالش توی نسخه بعد میاد.</string>
     <string name="sstp_timeout">SSTP به‌موقع جواب نداد؛ سرور دیگه‌ای رو امتحان کن.</string>
-
     <string name="aether_requires_android_10">Aether به اندروید ۱۰ یا جدیدتر نیاز دارد.</string>
     <string name="aether_progress_masque">در حال امتحان MASQUE…</string>
     <string name="aether_progress_warp">در حال امتحان WARP…</string>
@@ -702,4 +702,7 @@
     <string name="aether_err_port_busy">یک تونل دیگر همین الان در حال استفاده از اتصال آزمایشی است. اول قطعش کن، بعد دوباره بزن.</string>
     <string name="aether_err_scan">اسکن با این تنظیم‌ها نقطهٔ سالمی پیدا نکرد. یه حالت اسکن دیگه رو امتحان کن.</string>
     <string name="aether_chain_unsupported">Aether را نمی‌توان داخل زنجیرهٔ پروکسی استفاده کرد.</string>
-</resources>
+    <string name="widget_download">دانلود</string>
+    <string name="widget_upload">آپلود</string>
+    <string name="widget_toggle_label">کلید Rdx VPN</string>
+    <string name="widget_toggle_description">با یک لمس وصل یا قطع کنید.</string></resources>

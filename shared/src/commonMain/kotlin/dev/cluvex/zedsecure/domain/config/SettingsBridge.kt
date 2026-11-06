@@ -58,9 +58,14 @@ fun AppSettings.toBuildOptions(
     fakeDns = localDnsEnabled && fakeDnsEnabled,
     outboundDomainResolve = outboundDomainResolve.value,
     resolvedServerHosts = resolvedServerHosts,
+    useSystemCa = useSystemCa,
 )
 
 val AppSettings.effectiveLanSocksPort: Int get() = LocalPorts.lanSocksPort(socksPort)
+
+val AppSettings.effectiveLocalProxyPort: Int
+    get() = LocalPorts.localProxyPort(localProxyPort).takeIf { it != effectiveLanSocksPort && it + 1 != effectiveLanSocksPort }
+        ?: LocalPorts.XRAY_SOCKS
 
 private fun AppSettings.lanShare(): XrayJsonBuilder.LanShare? =
     if (!proxySharing) null
@@ -83,6 +88,7 @@ fun AppSettings.autoSelectTuning(): AutoSelectTuning = AutoSelectTuning(
     sweepIntervalMin = autoSelectSweepMinutes,
     switchMarginPercent = autoSelectSwitchMargin,
     retry = autoSelectRetry,
+    excludedCountries = autoSelectExcludedCountries.toSet(),
 )
 
 fun AppSettings.singBoxTuning(): SingBoxTuning = SingBoxTuning(

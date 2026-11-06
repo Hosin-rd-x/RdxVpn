@@ -22,3 +22,13 @@ data class FoxyRelay(
 object FoxyImportBridge {
     var fetch: (suspend () -> List<FoxyRelay>)? = null
 }
+
+/**
+ * The Firefox server-list fetch failed in a way the user should see, not a
+ * silent generic toast. [statusCode] is the HTTP status from Mozilla's
+ * Remote-Settings endpoint when one was returned (406/403 there means the
+ * Fastly bot wall is rejecting this network, the same wall that used to
+ * block the FxA token refresh before 3.8.13; null means the request never
+ * got an answer, e.g. no network).
+ */
+class FoxyImportFailure(message: String, val statusCode: Int? = null) : Exception(message)

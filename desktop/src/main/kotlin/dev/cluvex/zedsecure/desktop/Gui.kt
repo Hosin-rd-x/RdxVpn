@@ -406,6 +406,8 @@ fun main(args: Array<String>) {
                     animateColors = !settings.reduceMotion,
                     languageTag = langTag,
                     fontScale = settings.uiFontScale.scale,
+                    font = settings.uiFont,
+                    uiScale = settings.uiScale,
                 ) {
                     val focused = LocalWindowInfo.current.isWindowFocused
                     val motion = if (windowVisible && !windowState.isMinimized && focused) {
@@ -449,7 +451,9 @@ internal fun wireDesktopServices(
     DesktopVpn.settingsProvider = { desktopSettings.settings.value }
 
     DesktopVpn.ruleOutboundsProvider = { configRepository.resolveRuleOutbounds(it) }
-    DesktopVpn.ruleGroupsProvider = { configRepository.resolveRuleGroups(it) }
+    DesktopVpn.ruleGroupsProvider = {
+        configRepository.resolveRuleGroups(it, desktopSettings.settings.value.autoSelectExcludedCountries.toSet())
+    }
     DesktopVpn.chainConfigProvider = { profile, options ->
         runCatching { configRepository.buildChainConfig(profile, options) }.getOrNull()
     }
@@ -463,6 +467,9 @@ internal fun wireDesktopServices(
     VpnManager.deviceVpnProbe = { dev.cluvex.zedsecure.desktop.platform.DesktopVpnDetector.anyVpn() }
     dev.cluvex.zedsecure.core.CoreProbe.measureOutboundDelay = { cfg, url ->
         DesktopProbe.measureOutboundDelay(cfg, url)
+    }
+    dev.cluvex.zedsecure.data.net.PingService.probeOptions = {
+        dev.cluvex.zedsecure.domain.config.XrayJsonBuilder.BuildOptions(useSystemCa = desktopSettings.settings.value.useSystemCa)
     }
 
     dev.cluvex.zedsecure.data.assets.GeoAutoFetch.start(background, dev.cluvex.zedsecure.desktop.core.DesktopGeoAssets) {
