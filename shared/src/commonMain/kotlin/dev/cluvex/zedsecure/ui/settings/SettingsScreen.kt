@@ -50,8 +50,8 @@ import dev.cluvex.zedsecure.domain.model.ListDensity
 import dev.cluvex.zedsecure.domain.model.FragmentPackets
 import dev.cluvex.zedsecure.domain.model.HevLogLevel
 import dev.cluvex.zedsecure.domain.model.LogLevel
-import dev.cluvex.zedsecure.domain.model.NavBarStyle
 import dev.cluvex.zedsecure.domain.model.NotifChip
+import dev.cluvex.zedsecure.domain.model.NotifStyle
 import dev.cluvex.zedsecure.domain.model.OutboundDomainResolve
 import dev.cluvex.zedsecure.domain.model.RunMode
 import dev.cluvex.zedsecure.domain.model.ThemeMode
@@ -77,7 +77,7 @@ import dev.cluvex.zedsecure.platform.secureRandomToken
 
 enum class SettingsPage {
     Root, Ui, Vpn, Core, Routing, PerApp, Mux, Fragment, Observatory, Advanced, Mode, Assets, SingBox,
-    DnsProtocols, Tor, TorBridges, Ssh, Support, SpeedTest, Map, Privacy, Monitor,
+    DnsProtocols, Tor, TorBridges, Ssh, Support, SpeedTest, Map, Privacy, Monitor, NavBar,
 }
 
 @Composable
@@ -101,6 +101,8 @@ fun SettingsScreen(
     onDeepLinkBack: (() -> Unit)? = null,
 
     onReplayTour: (() -> Unit)? = null,
+
+    onOpenVault: (() -> Unit)? = null,
 
     mtuHint: dev.cluvex.zedsecure.data.net.MtuServerHint? = null,
 ) {
@@ -126,6 +128,7 @@ fun SettingsScreen(
                 onDeepLinkBack()
             }
             page == SettingsPage.TorBridges -> page = SettingsPage.Tor
+            page == SettingsPage.NavBar -> page = SettingsPage.Ui
             else -> {
                 deepLinked = false
                 page = SettingsPage.Root
@@ -181,6 +184,7 @@ fun SettingsScreen(
                     onAbout = { showAbout = true },
                     onReplayTour = onReplayTour,
                     onUpdate = onUpdate,
+                    onOpenVault = onOpenVault,
                 )
             } else {
                 RootPage(
@@ -193,7 +197,8 @@ fun SettingsScreen(
                     onUpdate = onUpdate,
                 )
             }
-            SettingsPage.Ui -> UiPage(settings, contentPadding, modifier, onUpdate, onLanguage)
+            SettingsPage.Ui -> UiPage(settings, contentPadding, modifier, onUpdate, onLanguage) { page = it }
+            SettingsPage.NavBar -> NavBarSettingsPage(settings, contentPadding, modifier, onUpdate)
             SettingsPage.Vpn -> VpnPage(settings, contentPadding, modifier, onUpdate, mtuHint)
             SettingsPage.Core -> CorePage(settings, contentPadding, modifier, onUpdate)
             SettingsPage.Mux -> MuxPage(settings, contentPadding, modifier, onUpdate)
@@ -475,6 +480,7 @@ private fun BentoRoot(
     onAbout: () -> Unit,
     onReplayTour: (() -> Unit)?,
     onUpdate: ((AppSettings) -> AppSettings) -> Unit,
+    onOpenVault: (() -> Unit)? = null,
 ) {
     val platform = LocalPlatform.current
     var checkTrigger by androidx.compose.runtime.remember { androidx.compose.runtime.mutableIntStateOf(0) }
@@ -661,6 +667,14 @@ private fun BentoRoot(
             art = SettingsArts.Map,
             tourKey = TourTargets.SETTINGS_TOOLS,
         ) { onOpen(SettingsPage.Map) })
+        onOpenVault?.let { open ->
+            add(dev.cluvex.zedsecure.ui.bento.BentoHubEntry(
+                key = "vault",
+                title = stringResource(Res.string.vault_title),
+                summary = stringResource(Res.string.vault_intro_title),
+                art = SettingsArts.Vault,
+            ) { open() })
+        }
         add(dev.cluvex.zedsecure.ui.bento.BentoHubEntry(
             key = "mux",
             title = stringResource(Res.string.title_mux_settings),
@@ -1120,6 +1134,7 @@ private fun UiPage(
     modifier: Modifier,
     onUpdate: ((AppSettings) -> AppSettings) -> Unit,
     onLanguage: (AppLanguage) -> Unit,
+    onOpen: (SettingsPage) -> Unit,
 ) {
     SettingsPageScaffold(
         title = stringResource(Res.string.title_ui_settings),
@@ -1238,6 +1253,8 @@ private fun UiPage(
                 selected = s.uiFontScale,
                 onSelected = { v -> onUpdate { it.copy(uiFontScale = v) } },
             )
+            FontPicker(s.uiFont) { font -> onUpdate { it.copy(uiFont = font) } }
+            ScaleRow(s.uiScale) { scale -> onUpdate { it.copy(uiScale = scale) } }
             SettingsSwitchRow(
                 title = stringResource(Res.string.title_pref_reduce_motion),
                 summary = stringResource(Res.string.summary_pref_reduce_motion),
@@ -1280,18 +1297,11 @@ private fun UiPage(
         }
 
         SettingsGroup {
-            if (s.appDesign != AppDesign.Bento) SettingsListRow(
+            SettingsActionRow(
                 title = stringResource(Res.string.nav_style_title),
-                options = listOf(
-                    NavBarStyle.FloatingPill to stringResource(Res.string.nav_style_floating),
-                    NavBarStyle.CompactDock to stringResource(Res.string.nav_style_compact),
-                    NavBarStyle.ExpressivePill to stringResource(Res.string.nav_style_expressive),
-                    NavBarStyle.FullBar to stringResource(Res.string.nav_style_full),
-                    NavBarStyle.Underline to stringResource(Res.string.nav_style_underline),
-                    NavBarStyle.Minimal to stringResource(Res.string.nav_style_minimal),
-                ),
-                selected = s.navBarStyle,
-                onSelected = { v -> onUpdate { it.copy(navBarStyle = v) } },
+                summary = navTabsSummary(s),
+                art = SettingsArts.Mode,
+                onClick = { onOpen(SettingsPage.NavBar) },
             )
             if (oldHome) {
                 SettingsSegment {
@@ -1498,6 +1508,22 @@ private fun UiPage(
                 enabled = s.liveNotification,
                 onSelected = { v -> onUpdate { it.copy(notifChip = v) } },
             )
+            SettingsListRow(
+                title = stringResource(Res.string.notif_style_title),
+                options = listOf(
+                    NotifStyle.Bento to stringResource(Res.string.notif_style_bento),
+                    NotifStyle.System to stringResource(Res.string.notif_style_system),
+                ),
+                selected = s.notifStyle,
+                enabled = !s.liveNotification,
+                onSelected = { v -> onUpdate { it.copy(notifStyle = v) } },
+            )
+            if (s.liveNotification) {
+                SettingsInfoRow(
+                    title = stringResource(Res.string.notif_style_title),
+                    body = stringResource(Res.string.notif_style_note),
+                )
+            }
             SettingsSwitchRow(
                 title = stringResource(Res.string.title_pref_confirm_remove),
                 summary = stringResource(Res.string.summary_pref_confirm_remove),

@@ -54,6 +54,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.toShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -358,12 +359,26 @@ fun ServersScreen(
         foxyImporting = true
         scope.launch {
             runCatching { fetch() }
-                .onFailure {
+                .onFailure { e ->
                     foxyImporting = false
-                    toastRes(Res.string.foxy_import_failed)
+                    // A typed failure carries Mozilla's real answer (e.g.
+                    // HTTP 406 = the Fastly wall on this network); anything
+                    // else keeps the generic message.
+                    val typed = e as? dev.cluvex.zedsecure.core.FoxyImportFailure
+                    if (typed?.statusCode != null) {
+                        toastRes(Res.string.foxy_import_failed_code, typed.statusCode)
+                    } else {
+                        toastRes(Res.string.foxy_import_failed)
+                    }
                 }
                 .onSuccess { relays ->
                     foxyImporting = false
+                    // An empty list is not "already up to date": Mozilla
+                    // answered but sent no usable relays.
+                    if (relays.isEmpty()) {
+                        toastRes(Res.string.foxy_import_empty)
+                        return@onSuccess
+                    }
                     val added = repository.addFoxy(relays)
                     if (added > 0) toastRes(Res.string.servers_imported, added)
                     else toastRes(Res.string.foxy_import_none)
@@ -472,8 +487,9 @@ fun ServersScreen(
     var showSstp by rememberSaveable { mutableStateOf(false) }
     var showSsh by rememberSaveable { mutableStateOf(false) }
     var showSniSpoof by rememberSaveable { mutableStateOf(false) }
-    var showProxyChain by rememberSaveable { mutableStateOf(false) }
-    var showCrossChain by rememberSaveable { mutableStateOf(false) }
+    // Rdx: chains can no longer be created from the add sheet (the entries
+    // were removed), but existing chain profiles keep working: their edit
+    // sheets below and the chain engine stay in place.
     var showAether by rememberSaveable { mutableStateOf(false) }
     var showAetherManual by rememberSaveable { mutableStateOf(false) }
     var showWarp by rememberSaveable { mutableStateOf(false) }
@@ -822,16 +838,8 @@ fun ServersScreen(
                             overflowItems()
                         }
                     }
-                    dev.cluvex.zedsecure.ui.bento.MotifButton(
-                        shape = androidx.compose.material3.MaterialShapes.Clover4Leaf,
-                        container = dev.cluvex.zedsecure.ui.bento.Bento.colors.lime,
-                        content = dev.cluvex.zedsecure.ui.bento.Bento.colors.onLime,
-                        icon = Res.drawable.ic_add,
-                        label = stringResource(Res.string.servers_add),
-                        onClick = { showAddSheet = true },
-                        onLongClick = { importFromClipboard("") },
-                        modifier = Modifier.tourTarget(TourTargets.SERVERS_ADD),
-                    )
+                    // Rdx: the add button lives at the bottom now, like the
+                    // other themes (see the bottom-end MotifButton below).
                 }
                 if (servers.isNotEmpty()) {
                     dev.cluvex.zedsecure.ui.bento.BentoSearchField(
@@ -1394,6 +1402,21 @@ fun ServersScreen(
                                 )
                             }
                         }
+                        if (!bento && openSubscription != null) {
+                            item(key = "provider-${openSubscription.id}", span = { GridItemSpan(maxLineSpan) }) {
+                                ProviderCard(
+                                    sub = openSubscription,
+                                    serverCount = shown.size,
+                                    updatedAgo = dev.cluvex.zedsecure.ui.bento.bentoUpdatedAgo(openSubscription.lastUpdated),
+                                    updating = updatingSubId == openSubscription.id,
+                                    onUpdate = { updateSubscription(openSubscription) },
+                                    onManage = { showSubs = true },
+                                    onOpenUrl = { platform.openUri(it) },
+                                    personalization = personalization,
+                                    modifier = Modifier.padding(bottom = 8.dp),
+                                )
+                            }
+                        }
                         if (autoMembers.size >= 2) {
                             item(key = "auto-select", span = { GridItemSpan(maxLineSpan) }) {
                                 AutoSelectCard(
@@ -1514,7 +1537,7 @@ fun ServersScreen(
                     if (fanOpen) 45f else 0f, label = "fabRotation",
                 )
                 Surface(
-                    shape = MaterialTheme.shapes.large,
+                    shape = androidx.compose.material3.MaterialShapes.Clover4Leaf.toShape(),
                     color = MaterialTheme.colorScheme.primaryContainer,
                     contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
                     shadowElevation = 6.dp,
@@ -1539,10 +1562,30 @@ fun ServersScreen(
             }
         }
 
+        // Bento: the add button sits at the bottom end, like the other
+        // themes, in the same Clover4Leaf motif shape and 56.dp size as
+        // the ping button opposite it.
+        if (bento) {
+            dev.cluvex.zedsecure.ui.bento.MotifButton(
+                shape = androidx.compose.material3.MaterialShapes.Clover4Leaf,
+                container = dev.cluvex.zedsecure.ui.bento.Bento.colors.lime,
+                content = dev.cluvex.zedsecure.ui.bento.Bento.colors.onLime,
+                icon = Res.drawable.ic_add,
+                label = stringResource(Res.string.servers_add),
+                onClick = { showAddSheet = true },
+                onLongClick = { importFromClipboard("") },
+                size = 56.dp,
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(end = 20.dp, bottom = contentPadding.calculateBottomPadding() + 14.dp)
+                    .tourTarget(TourTargets.SERVERS_ADD),
+            )
+        }
+
         // Ping button lives on the opposite edge (right in RTL) so it is within thumb
         // reach and the bottom row reads as balanced against the add cluster.
         Surface(
-            shape = MaterialTheme.shapes.large,
+            shape = androidx.compose.material3.MaterialShapes.Clover4Leaf.toShape(),
             color = MaterialTheme.colorScheme.secondaryContainer,
             contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
             shadowElevation = 6.dp,
@@ -1698,14 +1741,6 @@ fun ServersScreen(
             onSniSpoof = {
                 showAddSheet = false
                 showSniSpoof = true
-            },
-            onProxyChain = {
-                showAddSheet = false
-                showProxyChain = true
-            },
-            onCrossChain = {
-                showAddSheet = false
-                showCrossChain = true
             },
             // Null hides the entry; non-null shows it. The gate lives
             // here, not in AddServerSheet, so the sheet stays dumb.
@@ -1889,32 +1924,6 @@ fun ServersScreen(
             onSave = { name, settings ->
                 showSniSpoof = false
                 repository.addSniSpoof(settings, name)
-                onServerActivated()
-            },
-        )
-    }
-
-    if (showProxyChain) {
-        ProxyChainSheet(
-            candidates = chainCandidates,
-            onDismiss = { showProxyChain = false },
-            onSave = { name, memberIds ->
-                showProxyChain = false
-                repository.addProxyChain(memberIds, name)
-                onServerActivated()
-            },
-        )
-    }
-
-    if (showCrossChain) {
-        CrossChainSheet(
-            exits = crossExits,
-            carriers = crossCarriers,
-            pairError = crossPairError,
-            onDismiss = { showCrossChain = false },
-            onSave = { name, innerId, outerId ->
-                showCrossChain = false
-                repository.addCrossChain(innerId = innerId, outerId = outerId, name = name)
                 onServerActivated()
             },
         )
@@ -2466,6 +2475,129 @@ private fun GroupTab(
 }
 
 @Composable
+/**
+ * The big subscription card for the non-Bento themes: the same contents as
+ * BentoProviderCard (name, server count, updated-ago, usage bar, expiry,
+ * update button, manage/links) in the theme's own card style.
+ */
+@Composable
+private fun ProviderCard(
+    sub: dev.cluvex.zedsecure.domain.config.Subscription,
+    serverCount: Int,
+    updatedAgo: String?,
+    updating: Boolean,
+    onUpdate: () -> Unit,
+    onManage: () -> Unit,
+    onOpenUrl: (String) -> Unit,
+    personalization: Personalization,
+    modifier: Modifier = Modifier,
+) {
+    val now = dev.cluvex.zedsecure.platform.currentTimeMillis()
+    val used = sub.used
+    val total = sub.total
+    val fraction = if (used != null && total != null && total > 0) (used.toDouble() / total).toFloat().coerceIn(0f, 1f) else null
+    val expireAt = sub.expireAt
+    val expired = expireAt != null && expireAt <= now
+    val daysLeft = expireAt?.let { ((it - now) / 86_400_000L).toInt() }
+    val exhausted = fraction != null && fraction >= 1f
+    val scheme = MaterialTheme.colorScheme
+    Surface(
+        shape = RoundedCornerShape(personalization.cornerStyle.serverCardDp.dp),
+        color = scheme.primaryContainer,
+        contentColor = scheme.onPrimaryContainer,
+        modifier = modifier.fillMaxWidth().combinedClickable(onClick = onManage),
+    ) {
+        Column(
+            Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(
+                        sub.title?.takeIf { it.isNotBlank() } ?: sub.name,
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Text(
+                        stringResource(Res.string.bento_sub_meta, serverCount) + (updatedAgo?.let { " · $it" } ?: ""),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = scheme.onPrimaryContainer.copy(alpha = 0.8f),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                if (updating) {
+                    Box(Modifier.size(48.dp), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.5.dp)
+                    }
+                } else {
+                    IconButton(onClick = onUpdate) {
+                        Icon(
+                            painterResource(Res.drawable.ic_sync),
+                            contentDescription = stringResource(Res.string.subs_update),
+                        )
+                    }
+                }
+            }
+            if (fraction != null) {
+                LinearProgressIndicator(
+                    progress = { fraction },
+                    modifier = Modifier.fillMaxWidth(),
+                    color = if (exhausted) scheme.error else scheme.primary,
+                    trackColor = scheme.onPrimaryContainer.copy(alpha = 0.2f),
+                )
+            }
+            val usageText = when {
+                used != null && total != null -> stringResource(Res.string.subs_usage, formatBytes(used), formatBytes(total))
+                used != null -> stringResource(Res.string.subs_usage_unlimited, formatBytes(used))
+                else -> null
+            }
+            val expiryText = when {
+                expired -> stringResource(Res.string.subs_expired)
+                exhausted -> stringResource(Res.string.subs_quota_exhausted)
+                daysLeft == null -> null
+                daysLeft <= 0 -> stringResource(Res.string.subs_expires_today)
+                daysLeft == 1 -> stringResource(Res.string.subs_one_day_left)
+                else -> stringResource(Res.string.subs_days_left, daysLeft)
+            }
+            if (usageText != null || expiryText != null) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text(
+                        usageText.orEmpty(),
+                        style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false),
+                    )
+                    if (expiryText != null) {
+                        Text(
+                            expiryText,
+                            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
+                            color = if (expired || exhausted || (daysLeft != null && daysLeft <= 3)) scheme.error else scheme.onPrimaryContainer,
+                            maxLines = 1,
+                        )
+                    }
+                }
+            }
+            val links = listOfNotNull(
+                sub.supportUrl?.let { stringResource(Res.string.subs_support) to it },
+                sub.webPageUrl?.let { stringResource(Res.string.subs_website) to it },
+            )
+            androidx.compose.foundation.layout.FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                links.forEach { (label, url) ->
+                    AssistChip(onClick = { onOpenUrl(url) }, label = { Text(label) })
+                }
+                AssistChip(onClick = onManage, label = { Text(stringResource(Res.string.subs_title)) })
+            }
+        }
+    }
+}
+
 private fun ServerCard(
     profile: VpnProfile,
     active: Boolean,
@@ -2708,8 +2840,6 @@ private fun AddServerSheet(
     onSsh: () -> Unit,
     onWarp: () -> Unit,
     onSniSpoof: () -> Unit,
-    onProxyChain: () -> Unit,
-    onCrossChain: () -> Unit,
     // Null hides the Aether entry (unsupported device / unwired platform).
     onAether: (() -> Unit)? = null,
     onSubscription: () -> Unit,
@@ -2801,18 +2931,16 @@ private fun AddServerSheet(
                 if (onAether != null) {
                     Option(Res.drawable.ic_bolt, Res.string.aether_add_title, onAether, free = true)
                 }
-
-                OptionGroup(Res.string.add_group_chains)
-                Option(Res.drawable.ic_add_link, Res.string.proxychain_add_title, onProxyChain)
-                Option(Res.drawable.ic_add_link, Res.string.crosschain_add_title, onCrossChain)
+                // Rdx: Psiphon and WARP are free Rdx connection methods, not
+                // generic tunnels, so they live in this group now.
+                Option(Res.drawable.ic_bolt, Res.string.psiphon_add_title, onPsiphon, free = true)
+                Option(Res.drawable.ic_public, Res.string.warp_add_title, onWarp, free = true)
 
                 OptionGroup(Res.string.add_group_tunnels)
-                Option(Res.drawable.ic_bolt, Res.string.psiphon_add_title, onPsiphon, free = true)
                 Option(Res.drawable.ic_speed, Res.string.ssh_add_title, onSsh)
-                Option(Res.drawable.ic_public, Res.string.warp_add_title, onWarp, free = true)
                 if (LocalPlatform.current.supportsSniSpoof) Option(Res.drawable.ic_bolt, Res.string.snispoof_add_title, onSniSpoof)
-
-                OptionGroup(Res.string.add_group_dns)
+                // Rdx: the DNS tunnels moved into this group; the separate
+                // DNS-tunnels group was removed.
                 Option(Res.drawable.ic_public, Res.string.dns_tunnel_add_title, onDnsTunnel)
                 Option(Res.drawable.ic_public, Res.string.master_dns_add_title, onMasterDns)
 

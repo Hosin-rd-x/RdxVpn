@@ -406,6 +406,8 @@ fun main(args: Array<String>) {
                     animateColors = !settings.reduceMotion,
                     languageTag = langTag,
                     fontScale = settings.uiFontScale.scale,
+                    font = settings.uiFont,
+                    uiScale = settings.uiScale,
                 ) {
                     val focused = LocalWindowInfo.current.isWindowFocused
                     val motion = if (windowVisible && !windowState.isMinimized && focused) {

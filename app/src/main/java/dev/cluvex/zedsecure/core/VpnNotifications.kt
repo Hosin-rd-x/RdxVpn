@@ -6,6 +6,7 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.os.Build
+import androidx.compose.ui.graphics.toArgb
 import androidx.core.app.NotificationCompat
 import dev.cluvex.zedsecure.domain.model.NotifChip
 import androidx.core.graphics.drawable.IconCompat
@@ -15,6 +16,90 @@ import dev.cluvex.zedsecure.ui.format.formatRate
 
 class VpnNotifications(private val ctx: Context) {
     enum class Stage { Preparing, Interface, Engine, Tunnel, Connected }
+
+    data class Colors(
+        val accent: Int,
+        val deep: Int,
+        val good: Int,
+        val error: Int,
+        val onAccent: Int,
+        val onDeep: Int,
+        val tileA: Int,
+        val onTileA: Int,
+        val tileB: Int,
+        val onTileB: Int,
+    )
+
+    // Single @Volatile holder: the key+value pair is swapped atomically, so
+    // concurrent calls from the VPN service threads can never see a key
+    // from one computation paired with the colors of another. Worst case
+    // two threads compute the same colors and the last write wins.
+    @Volatile
+    private var colorsCache: Pair<Any, Colors>? = null
+
+    private fun colors(): Colors {
+        val settings = runCatching { (ctx.applicationContext as dev.cluvex.zedsecure.ZedSecureApp).container.settingsRepository.settings.value }
+            .getOrNull() ?: return FALLBACK
+        val night = (ctx.resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK) ==
+            android.content.res.Configuration.UI_MODE_NIGHT_YES
+        val key = listOf(settings.appDesign, settings.bento.palette, settings.accentColor, settings.colorStyle, settings.colorContrast, settings.dynamicColor, night)
+        colorsCache?.takeIf { it.first == key }?.let { return it.second }
+        val computed = runCatching { themeColors(settings, night) }.getOrDefault(FALLBACK)
+        colorsCache = key to computed
+        return computed
+    }
+
+    private fun themeColors(settings: dev.cluvex.zedsecure.domain.model.AppSettings, night: Boolean): Colors {
+        val dynamic = settings.dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
+        val seed = if (settings.dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            androidx.compose.ui.graphics.Color(ctx.getColor(android.R.color.system_accent1_500))
+        } else {
+            dev.cluvex.zedsecure.ui.theme.accentSeed(settings.accentColor)
+        }
+        if (settings.appDesign == dev.cluvex.zedsecure.domain.model.AppDesign.Bento) {
+            val c = dev.cluvex.zedsecure.ui.bento.BentoPalettes.of(settings.bento.palette, night, seed, settings.amoledBlack)
+            return Colors(
+                accent = c.lime.toArgb(),
+                deep = c.stage.toArgb(),
+                good = c.good.toArgb(),
+                error = c.bad.toArgb(),
+                onAccent = c.onLime.toArgb(),
+                onDeep = c.onStage.toArgb(),
+                tileA = c.blue.container.toArgb(),
+                onTileA = c.blue.content.toArgb(),
+                tileB = c.violet.container.toArgb(),
+                onTileB = c.violet.content.toArgb(),
+            )
+        }
+        val scheme = dev.cluvex.zedsecure.ui.theme.zedColorScheme(night, settings.accentColor, settings.colorStyle, settings.colorContrast)
+        val primary = if (dynamic) seed else scheme.primary
+        return Colors(
+            accent = primary.toArgb(),
+            deep = scheme.primaryContainer.toArgb(),
+            good = scheme.tertiary.toArgb(),
+            error = scheme.error.toArgb(),
+            onAccent = scheme.onPrimary.toArgb(),
+            onDeep = scheme.onPrimaryContainer.toArgb(),
+            tileA = scheme.secondaryContainer.toArgb(),
+            onTileA = scheme.onSecondaryContainer.toArgb(),
+            tileB = scheme.tertiaryContainer.toArgb(),
+            onTileB = scheme.onTertiaryContainer.toArgb(),
+        )
+    }
+
+    private fun String.latin(): String = buildString(length) {
+        for (ch in this@latin) {
+            append(
+                when (ch) {
+                    in '\u06F0'..'\u06F9' -> '0' + (ch - '\u06F0')
+                    in '\u0660'..'\u0669' -> '0' + (ch - '\u0660')
+                    '\u066B' -> '.'
+                    '\u066C' -> ','
+                    else -> ch
+                },
+            )
+        }
+    }
 
     sealed interface Phase {
         data class Connecting(val stage: Stage) : Phase
@@ -51,6 +136,7 @@ class VpnNotifications(private val ctx: Context) {
         showSpeed: Boolean = true,
         livePromotion: Boolean = true,
         chip: NotifChip = NotifChip.Speed,
+        bentoCard: Boolean = false,
     ): android.app.Notification {
         val title = BidiText.auto(server.ifBlank { ctx.getString(R.string.app_name) })
         val b = NotificationCompat.Builder(ctx, CHANNEL_ID)
@@ -64,14 +150,18 @@ class VpnNotifications(private val ctx: Context) {
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .setContentIntent(openApp())
 
-            .setRequestPromotedOngoing(livePromotion)
+            .setRequestPromotedOngoing(livePromotion && !bentoCard)
 
         return when (phase) {
             is Phase.Connecting -> b.applyConnecting(phase.stage, protocolLabel).build()
-            Phase.Connected -> b.applyConnected(
-                protocolLabel, downBps, upBps, totalDown, totalUp, connectedAt, showSpeed, chip,
-                title,
-            ).build()
+            Phase.Connected -> if (bentoCard) {
+                b.applyBentoCard(protocolLabel, downBps, upBps, totalDown, totalUp, connectedAt, title.toString(), colors()).build()
+            } else {
+                b.applyConnected(
+                    protocolLabel, downBps, upBps, totalDown, totalUp, connectedAt, showSpeed, chip,
+                    title,
+                ).build()
+            }
             is Phase.Failed -> b.applyFailed(phase).build()
         }
     }
@@ -143,6 +233,56 @@ class VpnNotifications(private val ctx: Context) {
             .setShowWhen(connectedAt > 0)
             .setWhen(connectedAt.takeIf { it > 0 } ?: System.currentTimeMillis())
             .setUsesChronometer(connectedAt > 0)
+            .addAction(R.drawable.ic_close, ctx.getString(R.string.action_disconnect), stopTunnel())
+    }
+
+    private fun NotificationCompat.Builder.applyBentoCard(
+        protocolLabel: String,
+        downBps: Long,
+        upBps: Long,
+        totalDown: Long,
+        totalUp: Long,
+        connectedAt: Long,
+        title: String,
+        colors: Colors,
+    ): NotificationCompat.Builder {
+        val (dl, dlU) = formatRate(downBps).let { (n, u) -> n.latin() to u }
+        val (ul, ulU) = formatRate(upBps).let { (n, u) -> n.latin() to u }
+        val since = if (connectedAt > 0) (System.currentTimeMillis() - connectedAt).coerceAtLeast(0) else 0L
+        val base = android.os.SystemClock.elapsedRealtime() - since
+        val engine = protocolLabel.ifBlank { ctx.getString(R.string.app_name) }
+        fun card(layout: Int, big: Boolean) = android.widget.RemoteViews(ctx.packageName, layout).apply {
+            setInt(R.id.notif_card, "setColorFilter", colors.deep)
+            setTextViewText(R.id.notif_title, title)
+            setTextColor(R.id.notif_title, colors.onDeep)
+            setChronometer(R.id.notif_timer, base, null, connectedAt > 0)
+            setTextColor(R.id.notif_timer, colors.onDeep)
+            setTextViewText(R.id.notif_engine, BidiText.ltr(engine))
+            if (big) {
+                setInt(R.id.notif_engine_bg, "setColorFilter", colors.accent)
+                setTextColor(R.id.notif_engine, colors.onAccent)
+                setTextViewText(R.id.notif_status, ctx.getString(R.string.state_connected) + " ·")
+                setTextColor(R.id.notif_status, colors.onDeep)
+                setInt(R.id.notif_down_bg, "setColorFilter", colors.tileA)
+                setInt(R.id.notif_up_bg, "setColorFilter", colors.tileB)
+                setTextViewText(R.id.notif_down_label, "↓ " + ctx.getString(R.string.home_download))
+                setTextViewText(R.id.notif_up_label, "↑ " + ctx.getString(R.string.home_upload))
+                setTextViewText(R.id.notif_down, BidiText.ltr("$dl $dlU"))
+                setTextViewText(R.id.notif_up, BidiText.ltr("$ul $ulU"))
+                setTextViewText(R.id.notif_down_total, BidiText.ltr(formatBytes(totalDown).latin()))
+                setTextViewText(R.id.notif_up_total, BidiText.ltr(formatBytes(totalUp).latin()))
+                listOf(R.id.notif_down_label, R.id.notif_down, R.id.notif_down_total).forEach { setTextColor(it, colors.onTileA) }
+                listOf(R.id.notif_up_label, R.id.notif_up, R.id.notif_up_total).forEach { setTextColor(it, colors.onTileB) }
+            } else {
+                setTextColor(R.id.notif_engine, colors.onDeep)
+                setTextViewText(R.id.notif_down, BidiText.ltr("↓ $dl $dlU"))
+                setTextColor(R.id.notif_down, colors.accent)
+            }
+        }
+        return setStyle(NotificationCompat.DecoratedCustomViewStyle())
+            .setCustomContentView(card(R.layout.notif_bento_small, false))
+            .setCustomBigContentView(card(R.layout.notif_bento_big, true))
+            .setShowWhen(false)
             .addAction(R.drawable.ic_close, ctx.getString(R.string.action_disconnect), stopTunnel())
     }
 
@@ -250,6 +390,19 @@ class VpnNotifications(private val ctx: Context) {
             0xFF5646D6.toInt(),
             0xFF7C6BFF.toInt(),
             0xFF35C48C.toInt(),
+        )
+
+        private val FALLBACK = Colors(
+            accent = 0xFFC7F24E.toInt(),
+            deep = 0xFF311B6B.toInt(),
+            good = 0xFF7BE495.toInt(),
+            error = 0xFFB3261E.toInt(),
+            onAccent = 0xFF1A2200.toInt(),
+            onDeep = 0xFFEFE8FF.toInt(),
+            tileA = 0xFF15294A.toInt(),
+            onTileA = 0xFFCFE1FF.toInt(),
+            tileB = 0xFF2A2352.toInt(),
+            onTileB = 0xFFDDD5FF.toInt(),
         )
     }
 }

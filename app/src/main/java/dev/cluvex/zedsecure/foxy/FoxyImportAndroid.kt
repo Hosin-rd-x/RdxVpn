@@ -3,11 +3,14 @@ package dev.cluvex.zedsecure.foxy
 import android.content.Context
 import dev.cluvex.zedsecure.core.FoxyImportBridge
 import dev.cluvex.zedsecure.core.FoxyRelay
+import dev.cluvex.zedsecure.foxy.data.AppLogger
 import dev.cluvex.zedsecure.foxy.data.FxaAuthRepository
 import dev.cluvex.zedsecure.foxy.data.ServerListClient
 import dev.cluvex.zedsecure.foxy.data.TokenStore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+
+private const val TAG = "FoxyImportAndroid"
 
 /**
  * Wires the embedded Firefox-VPN engine into [FoxyImportBridge]: a silent FxA
@@ -27,9 +30,19 @@ object FoxyImportAndroid {
             runCatching { FoxyRuntime.init(context) }
             val store = TokenStore(context)
             runCatching { FxaAuthRepository.igniteSilentSession(store, context) }
-            runCatching { FxaAuthRepository(store).restoreSession() }
+            // The server list itself is a public Mozilla endpoint and needs
+            // no session, so a dead session must not block the import — but
+            // it must not stay silent either: log it, so a later connect
+            // failure can be traced back here instead of looking like an
+            // import bug. NOTE: this repository gets the appContext on
+            // purpose; without it the 406 retry loop skips the headless
+            // WebView solver and only the HTTP solver runs.
+            val session = runCatching { FxaAuthRepository(store, appContext = context).restoreSession() }
+                .onFailure { AppLogger.w(TAG, "Firefox import: session restore threw", it) }
+                .getOrNull()
+            AppLogger.i(TAG, "Firefox import: session status=$session")
             val countries = ServerListClient().fetchCountries()
-            countries.flatMap { country ->
+            val relays = countries.flatMap { country ->
                 country.cities.flatMap { city ->
                     city.servers.mapNotNull { server ->
                         if (server.quarantined) return@mapNotNull null
@@ -46,5 +59,7 @@ object FoxyImportAndroid {
                     }
                 }
             }
+            AppLogger.i(TAG, "Firefox import: fetched ${relays.size} relays (session=$session)")
+            relays
         }
 }

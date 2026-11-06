@@ -419,6 +419,8 @@ class MainActivity : ComponentActivity() {
                 animateColors = !settings.reduceMotion,
                 languageTag = langTag,
                 fontScale = settings.uiFontScale.scale,
+                font = settings.uiFont,
+                uiScale = settings.uiScale,
             ) {
                 CompositionLocalProvider(LocalPlatform provides androidPlatform) {
                     MainScaffold(

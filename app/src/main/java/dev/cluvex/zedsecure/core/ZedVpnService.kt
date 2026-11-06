@@ -58,6 +58,7 @@ class ZedVpnService : VpnService() {
     private var livePromotion: Boolean = true
     private var notifChip: dev.cluvex.zedsecure.domain.model.NotifChip =
         dev.cluvex.zedsecure.domain.model.NotifChip.Speed
+    private var bentoCard: Boolean = false
     private var psiphon: PsiphonController? = null
     private var dnsTunnel: DnsTunnelController? = null
     private var masterDns: MasterDnsController? = null
@@ -320,6 +321,7 @@ class ZedVpnService : VpnService() {
         showSpeed = settings.speedInNotification
         livePromotion = settings.liveNotification
         notifChip = settings.notifChip
+        bentoCard = !settings.liveNotification && settings.notifStyle == dev.cluvex.zedsecure.domain.model.NotifStyle.Bento
         val iface = settings.vpnInterfaceAddress
         hevIpv4 = iface.ipv4Client
         hevIpv6 = if (settings.enableIpv6) iface.ipv6Client else null
@@ -2134,6 +2136,7 @@ class ZedVpnService : VpnService() {
         showSpeed = showSpeed,
         livePromotion = livePromotion,
         chip = notifChip,
+        bentoCard = bentoCard,
     )
 
     private var lastUidRx = -1L
@@ -2405,7 +2408,7 @@ class ZedVpnService : VpnService() {
         notifSettingsJob = scope.launch {
             repository.settings
                 .map { s ->
-                    listOf(s.speedInNotification, s.liveNotification, s.notifChip, s.appDesign, s.bento.palette, s.accentColor, s.dynamicColor)
+                    listOf(s.speedInNotification, s.liveNotification, s.notifChip, s.notifStyle, s.appDesign, s.bento.palette, s.accentColor, s.dynamicColor)
                 }
                 .distinctUntilChanged()
                 .drop(1)
@@ -2414,6 +2417,7 @@ class ZedVpnService : VpnService() {
                     showSpeed = s.speedInNotification
                     livePromotion = s.liveNotification
                     notifChip = s.notifChip
+                    bentoCard = !s.liveNotification && s.notifStyle == dev.cluvex.zedsecure.domain.model.NotifStyle.Bento
                     if (connected) notify(connectedNotification(lastDownBps, lastUpBps, lastTotalDown, lastTotalUp))
                 }
         }
