@@ -64,9 +64,10 @@ fun ZedSecureTheme(
         system ?: rememberZedColorScheme(darkTheme, accentColor, colorStyle, colorContrast)
     }
     // AMOLED is a full ColorScheme.copy(); cache it so a theme switch does not
-    // re-copy the scheme on every animation frame.
-    val scheme = remember(baseScheme, amoledBlack, darkTheme) {
-        if (amoledBlack) baseScheme.amoled(darkTheme) else baseScheme
+    // re-copy the scheme on every animation frame. Bento already applies AMOLED
+    // inside BentoPalettes.of, so it must not be applied a second time here.
+    val scheme = remember(baseScheme, amoledBlack, darkTheme, design) {
+        if (amoledBlack && design != AppDesign.Bento) baseScheme.amoled(darkTheme) else baseScheme
     }
     val bentoStyle = remember(bentoColors, bento, languageTag) { BentoStyle(bentoColors, bento, latin = languageTag != "fa") }
     val colorScheme = if (animateColors) {
@@ -74,11 +75,12 @@ fun ZedSecureTheme(
     } else {
         scheme
     }
-    // Typography and MotionScheme are constant for a given language/design/font.
-    // Rebuilding them on every recomposition (i.e. every animation frame of a
-    // theme switch) hands MaterialExpressiveTheme new instances and forces the
-    // whole tree's text to remeasure each frame.
-    val typography = remember(languageTag, design, font) { typographyFor(languageTag, design, font) }
+    // MotionScheme is a constant singleton; cache it so a theme switch does not
+    // hand MaterialExpressiveTheme a new instance on every animation frame.
+    // Typography cannot be cached with remember: typographyFor is @Composable
+    // (Font() is @Composable in Compose Multiplatform) and remember's lambda
+    // is not a @Composable context, so it is called directly as before.
+    val typography = typographyFor(languageTag, design, font)
     val motionScheme = remember { MotionScheme.expressive() }
 
     val density = LocalDensity.current

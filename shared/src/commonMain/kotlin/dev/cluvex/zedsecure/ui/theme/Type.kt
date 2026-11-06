@@ -4,6 +4,7 @@ import dev.cluvex.zedsecure.domain.model.AppDesign
 import dev.cluvex.zedsecure.domain.model.UiFont
 
 import androidx.compose.material3.Typography
+import androidx.compose.runtime.Composable
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -24,6 +25,7 @@ import dev.cluvex.zedsecure.shared.resources.interdisplay_bold
 import dev.cluvex.zedsecure.shared.resources.interdisplay_semibold
 import org.jetbrains.compose.resources.Font
 
+@Composable
 fun interFamily() = FontFamily(
     Font(Res.font.inter_regular, FontWeight.Normal),
     Font(Res.font.inter_medium, FontWeight.Medium),
@@ -31,11 +33,13 @@ fun interFamily() = FontFamily(
     Font(Res.font.inter_bold, FontWeight.Bold),
 )
 
+@Composable
 fun interDisplayFamily() = FontFamily(
     Font(Res.font.interdisplay_semibold, FontWeight.SemiBold),
     Font(Res.font.interdisplay_bold, FontWeight.Bold),
 )
 
+@Composable
 fun googleSansFamily() = FontFamily(
     Font(Res.font.googlesans_regular, FontWeight.Normal),
     Font(Res.font.googlesans_medium, FontWeight.Medium),
@@ -43,6 +47,7 @@ fun googleSansFamily() = FontFamily(
     Font(Res.font.googlesans_bold, FontWeight.Bold),
 )
 
+@Composable
 fun estedadFamily() = FontFamily(
     Font(Res.font.estedad_regular, FontWeight.Normal),
     Font(Res.font.estedad_medium, FontWeight.Medium),
@@ -131,6 +136,7 @@ private fun expressiveTypography(
     labelSmallEmphasized = labelSmall.emphasized(),
 )
 
+@Composable
 private fun latinTypography(d: FontFamily = interDisplayFamily(), b: FontFamily = interFamily()): Typography {
     return expressiveTypography(
         displayLarge = style(d, FontWeight.Bold, 57.sp, 64.sp, (-0.5).sp),
@@ -151,6 +157,7 @@ private fun latinTypography(d: FontFamily = interDisplayFamily(), b: FontFamily 
     )
 }
 
+@Composable
 private fun persianTypography(f: FontFamily = estedadFamily()): Typography {
     return expressiveTypography(
         displayLarge = style(f, FontWeight.Bold, 54.sp, 68.sp),
@@ -171,6 +178,7 @@ private fun persianTypography(f: FontFamily = estedadFamily()): Typography {
     )
 }
 
+@Composable
 fun vazirmatnFamily() = FontFamily(
     Font(Res.font.vazirmatn_regular, FontWeight.Normal),
     Font(Res.font.vazirmatn_medium, FontWeight.Medium),
@@ -178,6 +186,7 @@ fun vazirmatnFamily() = FontFamily(
     Font(Res.font.vazirmatn_bold, FontWeight.Bold),
 )
 
+@Composable
 fun nunitoFamily() = FontFamily(
     Font(Res.font.nunito_regular, FontWeight.Normal),
     Font(Res.font.nunito_medium, FontWeight.Medium),
@@ -185,6 +194,7 @@ fun nunitoFamily() = FontFamily(
     Font(Res.font.nunito_bold, FontWeight.Bold),
 )
 
+@Composable
 fun fontFamilyOf(font: UiFont): FontFamily? = when (font) {
     UiFont.Auto -> null
     UiFont.GoogleSans -> googleSansFamily()
@@ -195,6 +205,7 @@ fun fontFamilyOf(font: UiFont): FontFamily? = when (font) {
     UiFont.System -> FontFamily.Default
 }
 
+@Composable
 fun typographyFor(language: String, design: AppDesign = AppDesign.Old, font: UiFont = UiFont.Auto): Typography {
     fontFamilyOf(font)?.let { family ->
         return if (language == "fa") persianTypography(family) else latinTypography(family, family)
