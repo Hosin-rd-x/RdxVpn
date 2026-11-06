@@ -2480,7 +2480,6 @@ private fun GroupTab(
  * BentoProviderCard (name, server count, updated-ago, usage bar, expiry,
  * update button, manage/links) in the theme's own card style.
  */
-@Composable
 private fun ProviderCard(
     sub: dev.cluvex.zedsecure.domain.config.Subscription,
     serverCount: Int,

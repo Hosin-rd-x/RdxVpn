@@ -93,7 +93,7 @@ fun MainScaffold(
     onAetherConnect: (() -> Unit)? = null,
 ) {
     val platform = dev.cluvex.zedsecure.ui.platform.LocalPlatform.current
-    var current by rememberSaveable(saver = topDestinationSaver) { mutableStateOf(TopDestination.Home) }
+    var current by rememberSaveable(saver = topDestinationSaver) { TopDestination.Home }
 
     var setupDone by rememberSaveable {
         mutableStateOf(settings.onboardingVersion >= dev.cluvex.zedsecure.ui.onboarding.ONBOARDING_VERSION)
