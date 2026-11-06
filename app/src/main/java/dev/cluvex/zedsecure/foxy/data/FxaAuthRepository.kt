@@ -73,6 +73,11 @@ class FxaAuthRepository(
          */
         suspend fun igniteSilentSession(tokenStore: TokenStore, appContext: Context? = null) {
             AppLogger.i(TAG, "silent sign-in started (appContext present: ${appContext != null})")
+            // The pool is cached in RAM with no expiry; without this the app
+            // can keep retrying a stale token list forever and a freshly
+            // minted token is never tried (that is what the 22:43 log showed:
+            // no fresh fetch, "pool token present" 1ms after start).
+            FoxyConfig.invalidateCache()
             val token = FoxyConfig.refreshToken()
             val seeded = tokenStore.silentRestoreFromEmbedded(token)
             AppLogger.i(TAG, "silent sign-in: pool token present: ${token.isNotBlank()}, seed applied: $seeded")
@@ -272,10 +277,14 @@ class FxaAuthRepository(
         }
 
         fun buildRequest(): Request {
-            // FxA calls only: present as a real desktop Firefox (Vauth parity).
-            // applyMozillaVpnHeaders is deliberately left alone so Guardian and
-            // the server-list client keep their exact old headers.
-            val builder = Request.Builder().url(url).applyFirefoxHeaders()
+            // FxA calls only: present as the same Chrome desktop identity the
+            // challenge solver uses (see ControlPlaneHttp). The Firefox-UA
+            // "Vauth parity" from 3.8.13 still got 406 even with a solved
+            // challenge, because the retry looked like a different client
+            // than the one that solved it. applyMozillaVpnHeaders is
+            // deliberately left alone so Guardian and the server-list client
+            // keep their exact old headers.
+            val builder = Request.Builder().url(url).applyChromeHeaders()
             builder.header("Content-Type", "application/json")
             if (sessionToken != null) {
                 builder.header("Authorization", hawkHeader(method, url, tokenId!!, hmacKey!!, bodyBytes))
@@ -293,10 +302,12 @@ class FxaAuthRepository(
             // A real browser engine passes the Fastly challenge where plain HTTP
             // calls cannot (their challenge-script fetch is rejected). Try the
             // headless WebView solver first; fall back to the HTTP solver.
+            // Both solve on the host of THIS failed request: a clearance earned
+            // on another host does not unblock this one.
             val webViewOk = if (appContext != null && !webViewTried) {
                 webViewTried = true
-                AppLogger.i(TAG, "trying headless WebView challenge solve")
-                runCatching { WebViewChallengeSolver.solveAndSync(appContext, ControlPlaneHttp.cookieJar) }
+                AppLogger.i(TAG, "trying headless WebView challenge solve on ${url.host}")
+                runCatching { WebViewChallengeSolver.solveAndSync(appContext, ControlPlaneHttp.cookieJar, "https://${url.host}/") }
                     .onFailure { AppLogger.w(TAG, "WebView solve threw", it) }
                     .getOrDefault(false)
             } else {
@@ -307,8 +318,8 @@ class FxaAuthRepository(
             if (!webViewOk) {
                 // Log the HTTP solver failure but keep retrying: the retry itself
                 // is diagnostic data, and a later attempt may succeed.
-                runCatching { challengeSolver.solveAndInstall() }
-                    .onSuccess { AppLogger.i(TAG, "HTTP challenge solver succeeded") }
+                runCatching { challengeSolver.solveAndInstall(url.host) }
+                    .onSuccess { AppLogger.i(TAG, "HTTP challenge solver succeeded (target host ${url.host})") }
                     .onFailure { AppLogger.w(TAG, "HTTP challenge solver failed", it) }
             }
             response = ControlPlaneHttp.client.newCall(buildRequest()).execute()

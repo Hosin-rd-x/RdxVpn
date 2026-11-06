@@ -49,9 +49,20 @@ object WebViewChallengeSolver {
         "https://vpn.mozilla.org",
     )
 
+    /**
+     * Solves the challenge on [pageUrl] (default [CHALLENGE_PAGE]). Pass the
+     * root of the host whose request just got 406: the clearance is bound to
+     * the host that was solved, so solving accounts while the failing request
+     * goes to oauth left oauth unsolved. The cookies are synced into the
+     * shared jar for every FxA host afterwards (see [SimpleCookieJar]).
+     */
     @SuppressLint("SetJavaScriptEnabled")
-    suspend fun solveAndSync(context: Context, cookieJar: SimpleCookieJar): Boolean {
-        AppLogger.i(TAG, "WebView solve started (page=$CHALLENGE_PAGE)")
+    suspend fun solveAndSync(
+        context: Context,
+        cookieJar: SimpleCookieJar,
+        pageUrl: String = CHALLENGE_PAGE,
+    ): Boolean {
+        AppLogger.i(TAG, "WebView solve started (page=$pageUrl)")
         return withTimeoutOrNull(SOLVE_TIMEOUT_MS) {
             withContext(Dispatchers.Main) {
                 var view: WebView? = null
@@ -105,8 +116,8 @@ object WebViewChallengeSolver {
                         }
                     }
                     view = wv
-                    AppLogger.i(TAG, "WebView created, loading $CHALLENGE_PAGE")
-                    wv.loadUrl(CHALLENGE_PAGE)
+                    AppLogger.i(TAG, "WebView created, loading $pageUrl")
+                    wv.loadUrl(pageUrl)
                     // Phase 1: wait until the challenge markers are gone from the document.
                     var markersGone = false
                     var waited = 0L

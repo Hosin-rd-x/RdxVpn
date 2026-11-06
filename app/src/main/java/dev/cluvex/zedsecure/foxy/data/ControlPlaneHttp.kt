@@ -24,15 +24,20 @@ fun Request.Builder.applyMozillaVpnHeaders(): Request.Builder {
     return this
 }
 
-// FxA calls ONLY (used by FxaAuthRepository). Presents the request as a real
-// desktop Firefox, like Vauth does. applyMozillaVpnHeaders above is left
-// untouched so Guardian and the server-list client keep their exact old
-// headers; nothing outside the Foxy module uses either helper.
-const val FIREFOX_DESKTOP_USER_AGENT =
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:135.0) Gecko/20100101 Firefox/135.0"
+// FxA calls ONLY (used by FxaAuthRepository). Presents the request with the
+// same Chrome desktop identity the Fastly challenge solver uses: Mozilla's
+// gate treats a retry under a different identity than the one that solved
+// the challenge as a fresh, unsolved client and answers 406 again. This is
+// the combination the reference flow proves works (solve AND request on the
+// same host, same UA). The Firefox-UA "Vauth parity" from 3.8.13 still got
+// 406 even with a solved challenge, so it is gone. applyMozillaVpnHeaders
+// above is left untouched so Guardian and the server-list client keep their
+// exact old headers; nothing outside the Foxy module uses either helper.
+const val CHROME_DESKTOP_USER_AGENT =
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36"
 
-fun Request.Builder.applyFirefoxHeaders(): Request.Builder {
-    header("User-Agent", FIREFOX_DESKTOP_USER_AGENT)
+fun Request.Builder.applyChromeHeaders(): Request.Builder {
+    header("User-Agent", CHROME_DESKTOP_USER_AGENT)
     header("Accept", "*/*")
     return this
 }

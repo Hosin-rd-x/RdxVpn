@@ -20,9 +20,6 @@ private const val SOLVE_TIMEOUT_SECONDS = 60L
 
 private const val MAX_POST_BACK_ROUNDS = 3
 
-private const val SOLVER_USER_AGENT =
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36"
-
 private const val POW_ALPHABET = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 
 private const val HTML_ACCEPT =
@@ -35,12 +32,27 @@ class FastlyChallengeSolver(private val cookieJar: SimpleCookieJar) {
 
     private class NoChallengePage : Exception()
 
-    suspend fun solveAndInstall() = withContext(Dispatchers.IO) {
+    /**
+     * Solves the Fastly challenge and installs the clearance cookies into the
+     * shared jar. When [targetHost] is given (the host of the request that
+     * just got 406), that host is solved FIRST: the clearance is bound to the
+     * host that was solved, so solving api and stopping there left oauth
+     * unsolved and the oauth retry kept 406ing. The other FxA hosts are
+     * still tried as a fallback. With no target host the old order is kept
+     * (used by the Guardian client).
+     */
+    suspend fun solveAndInstall(targetHost: String? = null) = withContext(Dispatchers.IO) {
         // Pick up any cookies a real browser already earned (see WebViewChallengeSolver).
         val synced = runCatching { cookieJar.syncFromWebView() }.getOrDefault(0)
-        AppLogger.i(TAG, "HTTP solver started (synced $synced WebView cookies first)")
+        AppLogger.i(TAG, "HTTP solver started (target host ${targetHost ?: "auto"}, synced $synced WebView cookies first)")
+        val orderedHosts = buildList {
+            if (targetHost != null) add("https://$targetHost")
+            add("https://api.accounts.firefox.com")
+            add("https://accounts.firefox.com")
+            add("https://oauth.accounts.firefox.com")
+        }.distinct()
         var lastError: Exception? = null
-        for (base in listOf("https://api.accounts.firefox.com", "https://accounts.firefox.com", "https://oauth.accounts.firefox.com")) {
+        for (base in orderedHosts) {
             AppLogger.i(TAG, "HTTP solver trying host $base")
             try {
                 solveOnHost(base)
@@ -86,7 +98,7 @@ class FastlyChallengeSolver(private val cookieJar: SimpleCookieJar) {
         accept: String = HTML_ACCEPT,
     ): String {
         val request = Request.Builder().url(url)
-            .header("User-Agent", SOLVER_USER_AGENT)
+            .header("User-Agent", CHROME_DESKTOP_USER_AGENT)
             .header("Accept", accept)
             .build()
         client.newCall(request).execute().use { response ->
@@ -120,7 +132,7 @@ class FastlyChallengeSolver(private val cookieJar: SimpleCookieJar) {
             .url(patUrl)
             .header("Accept", "text/plain")
             .header("Content-Type", "application/json")
-            .header("User-Agent", SOLVER_USER_AGENT)
+            .header("User-Agent", CHROME_DESKTOP_USER_AGENT)
             .header("Origin", baseOrigin(prefixUrl))
             .post(ByteArray(0).toRequestBody(null))
             .build()
@@ -230,7 +242,7 @@ class FastlyChallengeSolver(private val cookieJar: SimpleCookieJar) {
                 .url("$prefixUrl/fst-post-back")
                 .header("Content-Type", "application/json")
                 .header("Accept", "application/json")
-                .header("User-Agent", SOLVER_USER_AGENT)
+                .header("User-Agent", CHROME_DESKTOP_USER_AGENT)
                 .header("Origin", baseOrigin(prefixUrl))
                 .post(postBody)
                 .build()

@@ -73,12 +73,24 @@ class TokenStore(context: Context) {
 
     /**
      * Seeds the store from the embedded/remote refresh token when no session exists yet
-     * (silent sign-in). Returns true when a fresh embedded session was stored.
+     * (silent sign-in). Returns true when a fresh embedded session was stored, or when
+     * the stored session uses the same refresh token but has no usable access token
+     * yet — in that case the caller must still run the refresh grant, so "true" here
+     * really means "a mint attempt must follow". Returns false only when a usable
+     * session already exists (nothing to seed, nothing to mint).
+     *
+     * The comparison must read through [loadSessionAllowingEmptyAccess]: with
+     * [loadAuth] a seeded-but-unminted session (empty access token) was invisible,
+     * so this always re-seeded and the "seed applied" log was meaningless. But the
+     * plain swap alone would be worse — after one failed mint the next sign-in
+     * would see the seeded session, return false, and skip the refresh entirely.
      */
     fun silentRestoreFromEmbedded(token: String): Boolean {
         if (token.isBlank()) return false
-        val existing = runCatching { loadAuth() }.getOrNull()
-        if (existing != null && token == existing.refreshToken) return false
+        val existing = runCatching { loadSessionAllowingEmptyAccess() }.getOrNull()
+        if (existing != null && token == existing.refreshToken) {
+            return !hasValidAccessToken()
+        }
         saveAuth(
             RuntimeAuth(
                 accessToken = "",

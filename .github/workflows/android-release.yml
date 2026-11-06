@@ -8,11 +8,19 @@ on:
         type: choice
         default: play
         options: [play, upload]
+      publish_release:
+        description: "Create the GitHub release (false = artifact only, for testing before publish)"
+        type: choice
+        default: 'true'
+        options: ['true', 'false']
   workflow_call:
     inputs:
       signing_key:
         type: string
         default: play
+      publish_release:
+        type: string
+        default: 'true'
 
 permissions:
   contents: write
@@ -114,6 +122,7 @@ jobs:
           ls -l dist
 
       - name: Publish every ABI as its own release asset
+        if: ${{ inputs.publish_release != 'false' }}
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
