@@ -2597,6 +2597,7 @@ private fun ProviderCard(
     }
 }
 
+@Composable
 private fun ServerCard(
     profile: VpnProfile,
     active: Boolean,

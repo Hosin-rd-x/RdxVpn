@@ -28,7 +28,6 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -66,14 +65,13 @@ import dev.cluvex.zedsecure.ui.settings.availableNavTabs
 import dev.cluvex.zedsecure.ui.update.NudgeHost
 import dev.cluvex.zedsecure.ui.vault.VaultImportHost
 
-// Save the current tab by enum name, not ordinal: TopDestination grew
-// from 3 to 10 entries in beta2, so an ordinal saved by an older build
-// would restore the wrong tab (or crash) after an update. Unknown names
-// fall back to Home.
-private val topDestinationSaver = Saver<TopDestination, String>(
-    save = { it.name },
-    restore = { name -> TopDestination.entries.firstOrNull { it.name == name } ?: TopDestination.Home },
-)
+// NOTE (beta2): a name-based Saver for TopDestination was tried here
+// (Opus's optional hardening: save the tab by enum name, not ordinal)
+// but `rememberSaveable(saver = ...)` does not resolve in this Compose
+// version — the call's type came out as Nothing and `by` delegation
+// failed to compile (builds 42202009691 + 42203791843). Reverted to the
+// proven upstream/beta1 pattern below; the ordinal-restore risk was
+// never confirmed (enums restore by name in this setup).
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
@@ -93,7 +91,7 @@ fun MainScaffold(
     onAetherConnect: (() -> Unit)? = null,
 ) {
     val platform = dev.cluvex.zedsecure.ui.platform.LocalPlatform.current
-    var current by rememberSaveable(saver = topDestinationSaver) { TopDestination.Home }
+    var current by rememberSaveable { mutableStateOf(TopDestination.Home) }
 
     var setupDone by rememberSaveable {
         mutableStateOf(settings.onboardingVersion >= dev.cluvex.zedsecure.ui.onboarding.ONBOARDING_VERSION)
