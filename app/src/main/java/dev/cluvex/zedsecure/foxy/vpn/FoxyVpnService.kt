@@ -664,12 +664,41 @@ class FoxyVpnService : VpnService() {
                             }
                         }
 
+                        // 3.8.19: vpn.mozilla.org answers the proxy-pass fetch
+                        // with HTTP 451 unavailable_in_region from the phone's
+                        // exit IP (log 7und7tn2, both BE and US). Try the
+                        // server proxy first (its IP passes the region gate),
+                        // then fall back to direct. Cancellation is never
+                        // swallowed: it propagates out of both helpers.
+                        suspend fun fetchPass(): ProxyPass {
+                            return try {
+                                guardian.fetchProxyPassViaProxy(auth.accessToken)
+                            } catch (cancelled: CancellationException) {
+                                throw cancelled
+                            } catch (e: Exception) {
+                                AppLogger.w(TAG, "proxy pass via server proxy failed, trying direct", e)
+                                guardian.fetchProxyPass(GUARDIAN_ENDPOINT_DEFAULT, auth.accessToken)
+                            }
+                        }
+
+                        suspend fun activateAndFetchPass(): ProxyPass {
+                            return try {
+                                guardian.activateGuardianViaProxy(auth.accessToken)
+                                guardian.fetchProxyPassViaProxy(auth.accessToken)
+                            } catch (cancelled: CancellationException) {
+                                throw cancelled
+                            } catch (e: Exception) {
+                                AppLogger.w(TAG, "Guardian activation via server proxy failed, trying direct", e)
+                                guardian.activateGuardian(GUARDIAN_ENDPOINT_DEFAULT, auth.accessToken)
+                                guardian.fetchProxyPass(GUARDIAN_ENDPOINT_DEFAULT, auth.accessToken)
+                            }
+                        }
+
                         return try {
-                            guardian.fetchProxyPass(GUARDIAN_ENDPOINT_DEFAULT, auth.accessToken)
+                            fetchPass()
                         } catch (invalid: TokenInvalidError) {
                             AppLogger.w(TAG, "proxy pass rejected, activating Guardian entitlement and retrying", invalid)
-                            guardian.activateGuardian(GUARDIAN_ENDPOINT_DEFAULT, auth.accessToken)
-                            guardian.fetchProxyPass(GUARDIAN_ENDPOINT_DEFAULT, auth.accessToken)
+                            activateAndFetchPass()
                         }
                     } catch (quota: QuotaExceededError) {
                         AppLogger.w(TAG, "account quota exhausted, failing over to next account in pool", quota)

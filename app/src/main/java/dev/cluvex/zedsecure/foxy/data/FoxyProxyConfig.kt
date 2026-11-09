@@ -18,6 +18,11 @@ package dev.cluvex.zedsecure.foxy.data
  */
 object FoxyProxyConfig {
     const val REFRESH_URL = "https://foxy-refresh.hosinrdx.ir/refresh"
+    // 3.8.19: the Guardian token/activate endpoints are region-gated (HTTP 451)
+    // from the phone's exit IP, the same wall that forced the /refresh proxy.
+    // The proxy forwards these two calls from the server IP, which passes.
+    const val GUARDIAN_TOKEN_URL = "https://foxy-refresh.hosinrdx.ir/guardian-token"
+    const val GUARDIAN_ACTIVATE_URL = "https://foxy-refresh.hosinrdx.ir/guardian-activate"
     const val SECRET_HEADER = "X-Foxy-Proxy-Secret"
     const val SECRET = "YSqm_8t4BU70qjUwa7cD9oHoTktWzAAmcMigdfybccc"
 }

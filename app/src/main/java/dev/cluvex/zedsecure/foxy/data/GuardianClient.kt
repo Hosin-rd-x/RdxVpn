@@ -4,6 +4,8 @@ import android.util.Base64
 import dev.cluvex.zedsecure.foxy.data.model.Entitlement
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import okhttp3.Headers
+import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Response
@@ -79,6 +81,65 @@ class GuardianClient(
             }
             parseEntitlement(JSONObject(text))
         }
+    }
+
+    // 3.8.19: vpn.mozilla.org answers the Guardian calls with HTTP 451
+    // unavailable_in_region from the phone's exit IP (log 7und7tn2, both BE
+    // and US). The server proxy forwards the same calls from the server IP,
+    // which passes the region gate. These two methods are the proxy path;
+    // the direct methods above stay as the fallback. The proxy secret is
+    // the same one as /refresh (FoxyProxyConfig); a 401 that says
+    // "bad secret" is the proxy rejecting OUR secret, not the access token.
+    private suspend fun postViaProxy(url: String, accessToken: String): Triple<Int, String, Headers> =
+        withContext(Dispatchers.IO) {
+            val bodyJson = JSONObject().apply { put("access_token", accessToken) }
+            val request = Request.Builder().url(url).applyChromeHeaders()
+                .header("Content-Type", "application/json")
+                .header(FoxyProxyConfig.SECRET_HEADER, FoxyProxyConfig.SECRET)
+                .method("POST", bodyJson.toString().toByteArray(Charsets.UTF_8)
+                    .toRequestBody("application/json".toMediaType()))
+                .build()
+            ControlPlaneHttp.client.newCall(request).execute().use { resp ->
+                Triple(resp.code, resp.body?.string().orEmpty(), resp.headers)
+            }
+        }
+
+    private fun isProxySecretError(text: String): Boolean =
+        runCatching { JSONObject(text).optString("error", "") == "bad secret" }.getOrDefault(false)
+
+    suspend fun fetchProxyPassViaProxy(accessToken: String): ProxyPass {
+        val (code, text, headers) = postViaProxy(FoxyProxyConfig.GUARDIAN_TOKEN_URL, accessToken)
+        if (code == 401 || code == 403) {
+            if (isProxySecretError(text)) throw GuardianHttpError("server proxy rejected its own secret")
+            throw TokenInvalidError("access token was rejected by Guardian")
+        }
+        if (code == 429) throw QuotaExceededError("account proxy quota exceeded")
+        if (code != 200) {
+            throw GuardianHttpError("failed to fetch proxy pass via server proxy: HTTP $code: ${text.take(2048)}", code)
+        }
+        val body = JSONObject(text)
+        val token = body.optString("token", "")
+        if (token.isEmpty()) throw GuardianHttpError("proxy pass response did not contain a token")
+        return ProxyPass(
+            token = token,
+            expiresAtEpochSeconds = body.optLong("expires_at", 0L).takeIf { it > 0 }
+                ?: jwtExpiryEpochSeconds(token),
+            quotaMax = headers["X-Quota-Limit"]?.toLongOrNull(),
+            quotaRemaining = headers["X-Quota-Remaining"]?.toLongOrNull(),
+            quotaReset = headers["X-Quota-Reset"]?.toLongOrNull(),
+        )
+    }
+
+    suspend fun activateGuardianViaProxy(accessToken: String): Entitlement {
+        val (code, text, _) = postViaProxy(FoxyProxyConfig.GUARDIAN_ACTIVATE_URL, accessToken)
+        if (code == 401 || code == 403) {
+            if (isProxySecretError(text)) throw GuardianHttpError("server proxy rejected its own secret")
+            throw TokenInvalidError("access token was rejected by Guardian")
+        }
+        if (code != 200) {
+            throw GuardianHttpError("failed to activate guardian entitlement via server proxy: HTTP $code: ${text.take(2048)}", code)
+        }
+        return parseEntitlement(JSONObject(text))
     }
 
     private fun parseEntitlement(body: JSONObject): Entitlement = Entitlement(
