@@ -15,6 +15,10 @@ jobs:
         with:
           java-version: '17'
           distribution: 'temurin'
+      - name: Fetch VPN engines
+        run: ./tools/get-cores.sh android
+      - name: Check the engines
+        run: ls -l app/libs/zedcore.aar
       - name: Build Debug APK
         run: ./gradlew assembleDebug
       - name: Upload APK
