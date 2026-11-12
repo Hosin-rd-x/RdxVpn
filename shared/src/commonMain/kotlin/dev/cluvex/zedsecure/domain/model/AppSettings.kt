@@ -499,7 +499,7 @@ data class AppSettings(
     val torFakeSniEnabled: Boolean = false,
     val torFakeSniHosts: String = "",
 
-    val detectServerLocation: Boolean = false,
+    val detectServerLocation: Boolean = true,
 
     val localProxyAuth: Boolean = true,
 

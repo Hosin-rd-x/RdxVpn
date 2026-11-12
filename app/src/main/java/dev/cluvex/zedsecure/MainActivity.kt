@@ -267,6 +267,7 @@ class MainActivity : ComponentActivity() {
                 concurrency = settings.realPingConcurrency,
                 delayUrl = settings.delayTestUrl,
                 chainConfig = repo::chainProbeConfig,
+                detectCountry = settings.detectServerLocation,
             ) { id, ms, cc ->
                 repo.setPing(id, ms, cc, persist = false)
             }
