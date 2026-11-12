@@ -36,6 +36,14 @@ object PingService {
 
     private const val PRECHECK_TIMEOUT_MS = 2_500
 
+    /**
+     * SSTP servers are volunteer machines, often behind slow links, and
+     * the probe does a full TCP + TLS + greeting round-trip before the
+     * server answers. 2.5s calls too many live servers dead, so give the
+     * SSTP probe its own patient budget.
+     */
+    private const val SSTP_PROBE_TIMEOUT_MS = 10_000
+
     private const val PROBE_TIMEOUT_MS = 8_000L
 
     private const val QUICK_FAILURE_MS = 3_000L
@@ -173,7 +181,7 @@ object PingService {
         // TCP + TLS + the SSTP greeting, timed up to the server's own reply.
         if (profile.isSstp) {
             return runCatching {
-                sstpProbeMillis(profile.address, profile.port, PRECHECK_TIMEOUT_MS)
+                sstpProbeMillis(profile.address, profile.port, SSTP_PROBE_TIMEOUT_MS)
             }.getOrElse { -1L }
         }
         if (profile.isFoxy) return foxyRealDelay(profile, url)

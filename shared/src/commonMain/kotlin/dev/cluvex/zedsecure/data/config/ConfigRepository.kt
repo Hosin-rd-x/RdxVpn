@@ -94,14 +94,6 @@ class ConfigRepository(private val store: KeyValueStore) {
     private val _markers = MutableStateFlow(loadMarkers())
     val markers: StateFlow<RemoteMarkers> = _markers.asStateFlow()
 
-    /**
-     * Server endpoints this user's own network could not reach on the first
-     * test. They are skipped when the subscription re-imports so neither the
-     * UI nor the ping pass ever spends time on them again.
-     */
-    private var deadKeys: List<String> = store.getString(KEY_DEAD)
-        ?.split('\n')?.filter { it.isNotBlank() } ?: emptyList()
-
     init {
         // Installs that predate the Foxy group still carry their Firefox
         // relays in the manual list - move them once, then never again.
@@ -1328,43 +1320,7 @@ class ConfigRepository(private val store: KeyValueStore) {
         profile(id)?.let { update(it.copy(bytesDown = 0, bytesUp = 0)) }
     }
 
-    /** Stable identity of an endpoint; survives re-imports of the same subscription. */
-    private fun deadKey(profile: VpnProfile): String? {
-        val raw = profile.rawPayload()
-        if (!raw.isNullOrBlank()) return "r:" + raw.hashCode()
-        if (profile.address.isNotBlank() && profile.address != "-" && profile.port > 0) {
-            return "e:${profile.protocol}|${profile.address.lowercase()}:${profile.port}|${profile.name}"
-        }
-        return null
-    }
-
-    private fun markDead(id: String) {
-        val p = profile(id) ?: return
-        if (p.isLocked || p.isFoxy || p.isManagedTunnel || p.isProxyChain) return
-        val key = deadKey(p) ?: return
-        if (key in deadKeys) return
-        deadKeys = (deadKeys + key).takeLast(MAX_DEAD_KEYS)
-        store.putString(KEY_DEAD, deadKeys.joinToString("\n"))
-    }
-
-    /** Blacklist pass over a freshly imported subscription. Returns how many were dropped. */
-    private fun dropDeadFromSubscription(subscriptionId: String): Int {
-        if (deadKeys.isEmpty()) return 0
-        val current = _profiles.value.filter { it.subscriptionId == subscriptionId }
-        if (current.isEmpty()) return 0
-        fun dead(p: VpnProfile): Boolean =
-            !p.isLocked && deadKey(p)?.let { it in deadKeys } == true
-        val dropped = current.count { dead(it) }
-        if (dropped == 0 || dropped == current.size) return 0
-        _profiles.value = _profiles.value.filterNot {
-            it.subscriptionId == subscriptionId && dead(it)
-        }
-        persistProfiles()
-        return dropped
-    }
-
     fun setPing(id: String, pingMs: Int?, countryCode: String? = null, persist: Boolean = true) {
-        if (pingMs != null && pingMs < 0) markDead(id)
         _profiles.update { list ->
             list.map {
                 if (it.id == id) it.copy(lastPingMs = pingMs, countryCode = countryCode ?: it.countryCode)
@@ -1708,11 +1664,20 @@ class ConfigRepository(private val store: KeyValueStore) {
                 }
             }
 
-            if (added == 0) throw first.exceptionOrNull()
-                ?: IllegalArgumentException("no supported configs found")
-
-            if (dropDeadFromSubscription(id) > 0) {
-                added = _profiles.value.count { it.subscriptionId == id }
+            if (added == 0) {
+                // A refresh that fetches nothing must never eat the
+                // servers the user already had: a 404 page, an empty
+                // file, or a host that went away leaves the old list
+                // untouched, and the error still surfaces to the user.
+                if (previous.isNotEmpty()) {
+                    _profiles.value = previous + _profiles.value
+                    persistProfiles()
+                    if (previousActive != null && previous.any { it.id == previousActive }) {
+                        setActive(previousActive)
+                    }
+                }
+                throw first.exceptionOrNull()
+                    ?: IllegalArgumentException("no supported configs found")
             }
 
             previous.firstOrNull { it.id == previousActive && SingBoxOnlyServers.isPlaceholder(it) }?.let { old ->
@@ -1931,12 +1896,10 @@ class ConfigRepository(private val store: KeyValueStore) {
         private const val KEY_PROFILES = "profiles"
         private const val KEY_SUBS = "subscriptions"
         private const val KEY_ACTIVE = "active_id"
-        private const val KEY_DEAD = "dead_servers"
         private const val KEY_MARKERS = "remote_markers"
 
         /** Remote display markers (see [RemoteMarkers]); edited on Hossein's server, never in a release. */
         private const val MARKERS_URL = "https://shop.hosinrdx.ir/rdx-markers.json"
-        private const val MAX_DEAD_KEYS = 1000
         private const val KEY_AUTO_PICK = "auto_pick:"
 
         val DEFAULT_UA = "v2rayNG/${AppInfo.versionName}"
