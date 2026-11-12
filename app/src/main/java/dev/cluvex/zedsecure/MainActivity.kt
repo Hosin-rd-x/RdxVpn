@@ -245,9 +245,10 @@ class MainActivity : ComponentActivity() {
     }
 
     /**
-     * Entering the app pulls the newest subscription configs (blacklisted
-     * servers are skipped) and gives servers that were never tested their
-     * first ping, so failures are dropped once instead of on every launch.
+     * Entering the app pulls the newest subscription configs and gives
+     * servers that were never tested their first ping. A failed ping
+     * only records the result now; the server stays in the list, and a
+     * refresh always brings every config back.
      */
     private fun refreshSubscriptionsOnOpen() {
         val now = System.currentTimeMillis()
