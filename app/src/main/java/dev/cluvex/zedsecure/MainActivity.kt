@@ -19,6 +19,8 @@ import androidx.compose.runtime.remember
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withTimeoutOrNull
@@ -31,6 +33,7 @@ import dev.cluvex.zedsecure.core.VaultImportBus
 import dev.cluvex.zedsecure.core.VpnManager
 import dev.cluvex.zedsecure.core.platform.LocaleManager
 import dev.cluvex.zedsecure.data.config.ConfigRepository
+import dev.cluvex.zedsecure.data.net.GeoLookup
 import dev.cluvex.zedsecure.data.net.PingService
 import dev.cluvex.zedsecure.data.settings.SettingsRepository
 import dev.cluvex.zedsecure.domain.model.ThemeMode
@@ -260,20 +263,39 @@ class MainActivity : ComponentActivity() {
             val settings = container.settingsRepository.settings.value
             if (!settings.autoTestAfterUpdate) return@launch
             val untested = repo.profiles.value.filter { it.lastPingMs == null && !it.isLocked }
-            if (untested.isEmpty()) return@launch
-            PingService.measureAll(
-                untested,
-                useRealDelay = true,
-                concurrency = settings.realPingConcurrency,
-                delayUrl = settings.delayTestUrl,
-                chainConfig = repo::chainProbeConfig,
-                detectCountry = settings.detectServerLocation,
-            ) { id, ms, cc ->
-                repo.setPing(id, ms, cc, persist = false)
+            if (untested.isNotEmpty()) {
+                PingService.measureAll(
+                    untested,
+                    useRealDelay = true,
+                    concurrency = settings.realPingConcurrency,
+                    delayUrl = settings.delayTestUrl,
+                    chainConfig = repo::chainProbeConfig,
+                    detectCountry = settings.detectServerLocation,
+                ) { id, ms, cc ->
+                    repo.setPing(id, ms, cc, persist = false)
+                }
+                repo.flushProfiles()
+                if (settings.autoRemoveInvalidAfterTest) repo.removeInvalid()
+                if (settings.autoSortAfterTest) repo.sortByTestResults()
             }
-            repo.flushProfiles()
-            if (settings.autoRemoveInvalidAfterTest) repo.removeInvalid()
-            if (settings.autoSortAfterTest) repo.sortByTestResults()
+            // 3.8.22: servers already pinged on an older build never
+            // learned a country, so they would stay flagless until a
+            // manual refresh. Learn it now WITHOUT re-pinging — just the
+            // geo lookup (our server answers first) — so flags show up
+            // on the first open after the update.
+            if (settings.detectServerLocation) {
+                val flagless = repo.profiles.value.filter { it.lastPingMs != null && it.countryCode == null && !it.isLocked }
+                if (flagless.isNotEmpty()) {
+                    flagless.map { profile ->
+                        async {
+                            runCatching { GeoLookup.countryOf(profile.address) }.getOrNull()?.let { code ->
+                                repo.setPing(profile.id, profile.lastPingMs, code, persist = false)
+                            }
+                        }
+                    }.awaitAll()
+                    repo.flushProfiles()
+                }
+            }
         }
     }
 

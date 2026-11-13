@@ -21,6 +21,11 @@ object GeoLookup {
 
     private const val RESOLVE_TIMEOUT_MS = 3_000L
 
+    // 3.8.22: our own server answers the country first — the direct
+    // api.ip.sb call is unreliable from Iran. Same JSON shape
+    // ({"country_code": "SE"}), same 1h server-side cache.
+    private const val GEOIP_PROXY_URL = "https://foxy-refresh.hosinrdx.ir/geoip/"
+
     suspend fun countryOf(host: String): String? {
         if (host.isBlank() || host == "-") return null
         val now = currentTimeMillis()
@@ -32,7 +37,8 @@ object GeoLookup {
         val ip = withTimeoutOrNull(RESOLVE_TIMEOUT_MS) { resolveHostAddress(host) }
             ?: return null.also { rememberFailure(host) }
 
-        val body = runCatching { httpGetViaSocks("https://api.ip.sb/geoip/$ip", socksPort = null, connectTimeoutMs = 6_000, readTimeoutMs = 6_000) }.getOrNull()
+        val body = runCatching { httpGetViaSocks("$GEOIP_PROXY_URL$ip", socksPort = null, connectTimeoutMs = 6_000, readTimeoutMs = 6_000) }.getOrNull()
+            ?: runCatching { httpGetViaSocks("https://api.ip.sb/geoip/$ip", socksPort = null, connectTimeoutMs = 6_000, readTimeoutMs = 6_000) }.getOrNull()
             ?: runCatching { httpGetViaSocks("https://api.ip.sb/geoip/$ip", socksPort = LocalProxy.SOCKS_PORT, connectTimeoutMs = 6_000, readTimeoutMs = 6_000) }.getOrNull()
             ?: return null.also { rememberFailure(host) }
 

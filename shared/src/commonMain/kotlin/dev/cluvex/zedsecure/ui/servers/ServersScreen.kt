@@ -551,7 +551,33 @@ fun ServersScreen(
         updatingSubId = sub.id
         scope.launch {
             repository.updateSubscription(sub.id)
-                .onSuccess { platform.toast(getString(Res.string.servers_imported, it)) }
+                .onSuccess {
+                    platform.toast(getString(Res.string.servers_imported, it))
+                    // 3.8.22: a manual refresh used to only re-import — the
+                    // configs came back with no country and nothing ever
+                    // tested them, so no flag was ever learned. Test the
+                    // refreshed group right away (same as update-all), with
+                    // country detection, so flags appear and survive restart.
+                    if (autoTestAfterUpdate) {
+                        val group = repository.profiles.value.filter { p -> p.subscriptionId == sub.id }
+                        if (group.isNotEmpty()) {
+                            repository.clearPings(group.map { p -> p.id }, persist = false)
+                            PingService.measureAll(
+                                group,
+                                useRealDelay = true,
+                                concurrency = realPingConcurrency,
+                                delayUrl = delayTestUrl,
+                                chainConfig = repository::chainProbeConfig,
+                                detectCountry = detectServerLocation,
+                            ) { id, ms, cc ->
+                                repository.setPing(id, ms, cc, persist = false)
+                            }
+                            repository.flushProfiles()
+                            if (autoRemoveInvalidAfterTest) repository.removeInvalid()
+                            if (autoSortAfterTest) repository.sortByTestResults()
+                        }
+                    }
+                }
                 .onFailure { platform.toast(getString(Res.string.subs_failed)) }
             updatingSubId = null
         }
@@ -944,6 +970,7 @@ fun ServersScreen(
                                             concurrency = realPingConcurrency,
                                             delayUrl = delayTestUrl,
                                             chainConfig = repository::chainProbeConfig,
+                                            detectCountry = detectServerLocation,
                                         ) { id, ms, cc ->
                                             repository.setPing(id, ms, cc, persist = false)
                                         }
@@ -1611,7 +1638,7 @@ fun ServersScreen(
                         concurrency = realPingConcurrency,
                         delayUrl = delayTestUrl,
                         chainConfig = repository::chainProbeConfig,
-
+                        detectCountry = detectServerLocation,
                         clearPings = { repository.clearPings(it, persist = false) },
                         onResult = { id, ms, cc -> repository.setPing(id, ms, cc, persist = false) },
                         flush = { repository.flushProfiles() },

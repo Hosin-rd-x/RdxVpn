@@ -12,6 +12,7 @@ import dev.cluvex.zedsecure.platform.sstpProbeMillis
 import dev.cluvex.zedsecure.platform.tlsHandshakeMillis
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.joinAll
@@ -31,6 +32,13 @@ object PingService {
     private const val REAL_PING_CONCURRENCY = 16
 
     private const val GEO_CONCURRENCY = 8
+
+    /**
+     * Upper bound for waiting on country lookups after the pings finish.
+     * Lookups are cheap now (our server answers first, 1h cache), but a
+     * dead geo service must never stall the test forever.
+     */
+    private const val GEO_WAIT_MS = 60_000L
 
     const val FAILED_PING = -1
 
@@ -170,6 +178,13 @@ object PingService {
                 }
             }
         }.joinAll()
+        // 3.8.22: country answers arrive after the pings (fire-and-forget
+        // geo jobs). Wait for them — bounded — so callers that flush right
+        // after measureAll() persist the flags too, instead of losing them
+        // when the app restarts. Late answers still land in memory, as before.
+        withTimeoutOrNull(GEO_WAIT_MS) {
+            geoScope.coroutineContext[Job]?.children?.toList()?.joinAll()
+        }
     }
 
     private suspend fun measureProfile(
