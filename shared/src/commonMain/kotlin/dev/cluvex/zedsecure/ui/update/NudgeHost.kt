@@ -62,13 +62,13 @@ fun NudgeHost(
     var pendingUpdate by remember { mutableStateOf<UpdateInfo?>(null) }
     var showRate by remember { mutableStateOf(false) }
 
-    LaunchedEffect(settings.lastUpdateCheckMs) {
+    // 3.8.22: check on EVERY app launch, not once per 12h — a fresh release
+    // must surface the very first time the user opens the app after it is
+    // published. Keyed on Unit (not on lastUpdateCheckMs) so writing the
+    // timestamp below cannot restart the effect in a loop. One
+    // unauthenticated GitHub API call per launch is far below the 60/hour limit.
+    LaunchedEffect(Unit) {
         val now = currentTimeMillis()
-        val firstRun = settings.lastUpdateCheckMs == 0L
-        if (!firstRun && now - settings.lastUpdateCheckMs < NudgePolicy.UPDATE_CHECK_INTERVAL_MS) {
-            return@LaunchedEffect
-        }
-
         onUpdateSettings { it.copy(lastUpdateCheckMs = now) }
         val socks = if (VpnManager.status.value.state == ConnectionState.Connected) {
             VpnManager.activeSocksPort

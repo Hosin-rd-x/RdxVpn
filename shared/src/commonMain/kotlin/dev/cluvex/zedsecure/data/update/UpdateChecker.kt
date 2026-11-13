@@ -101,9 +101,19 @@ object UpdateChecker {
     }
 
     fun releaseNotesFrom(markdown: String): String {
+        // Our Persian release bodies put the changes under "### What's new";
+        // older bodies are plain prose, so fall back to the whole body
+        // instead of showing an empty changelog.
         val start = markdown.indexOf(WHATS_NEW)
-        if (start < 0) return ""
-        val section = markdown.substring(start + WHATS_NEW.length).substringBefore("\n<sub>").substringBefore("\n### ")
+        val section = if (start < 0) {
+            markdown.substringBefore("\n<sub>")
+        } else {
+            markdown.substring(start + WHATS_NEW.length).substringBefore("\n<sub>").substringBefore("\n### ")
+        }
+        return cleanNotes(section)
+    }
+
+    private fun cleanNotes(section: String): String {
         return section.lines()
             .map { line ->
                 line.trim()
@@ -113,6 +123,7 @@ object UpdateChecker {
                     .replace(Regex("<[^>]*>"), "")
                     .let { if (it.startsWith("- ") || it.startsWith("* ")) "• " + it.substring(2) else it }
             }
+            .filterNot { it.startsWith("Automated build") }
             .joinToString("\n")
             .replace(Regex("\n{3,}"), "\n\n")
             .trim()
