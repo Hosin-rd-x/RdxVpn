@@ -75,6 +75,18 @@ class SettingsRepository(context: Context) {
             edit.putBoolean("rdx_defaults_v6", true)
             edit.apply()
         }
+        /** One-time flags fix (3.8.23): the 3.8.21 default flip to
+         *  detectServerLocation=true never reached old installs, because
+         *  their stored false (written while the default was false) wins
+         *  over the new default — so no flag was ever learned. Turn it on
+         *  once; the marker stops re-forcing it, so a later manual off by
+         *  the user always sticks. */
+        if (!prefs.contains("rdx_flags_v1")) {
+            prefs.edit()
+                .putBoolean("detect_server_location", true)
+                .putBoolean("rdx_flags_v1", true)
+                .apply()
+        }
     }
 
     private fun read(): AppSettings {
